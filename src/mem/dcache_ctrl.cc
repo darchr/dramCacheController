@@ -148,7 +148,6 @@ DcacheCtrl::printORB()
     std::cout << curTick() << " // ORB :\n";
     for (int i=0; i<orbMaxSize; i++) {
         if (reqBuffer.at(i)->validEntry) {
-            std::cout << "i: " << i << "\n"; 
             std::cout << "[" << i << "]: " <<
             reqBuffer.at(i)->arrivalTick << " // " <<
             reqBuffer.at(i)->dccPkt->getAddr() << " // " <<
@@ -325,8 +324,6 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
             stats.mergedWrBursts++;
             accessAndRespond(pkt, frontendLatency, true);
             std::cout << pkt->getAddr() << " packet serviced by wr merging\n";
-            // if (!nextOrbEvent.scheduled())
-            //     schedule(nextOrbEvent, curTick()+1);
             return true;
         }
     }
@@ -371,8 +368,6 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
         if (foundInORB || foundInCRB) {
             accessAndRespond(pkt, frontendLatency, true);
             std::cout << pkt->getAddr() << " packet serviced by FW\n";
-            // if (!nextOrbEvent.scheduled())
-            //     schedule(nextOrbEvent, curTick()+1);
             return true;
         }
     }
@@ -381,15 +376,19 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     // Ignored for now (because Dsize=Nsize): calculate dram address
     unsigned index = returnIndex(pkt->getAddr(), pkt->getSize());
     if (reqBuffer.at(index)->validEntry) {
-        // if (confReqBuffer.size()>=crbMaxSize) {
-        //     std::cout << " size()>=crbMax\n";
-        //     return false;
-        // }
+        if (confReqBuffer.size()>=crbMaxSize) {
+            std::cout << "CRB Overflow!\n";
+            if (pkt->isRead()) {
+                retryRdReq = true;
+            }
+            else if (pkt->isWrite()) {
+                retryWrReq = true;
+            }
+            return false;
+        }
         confReqBuffer.push_back(std::make_pair(curTick(), pkt));
         reqBuffer.at(index)->conflict = true;
         std::cout << pkt->getAddr() << " packet conflict!\n";
-        // if (!nextOrbEvent.scheduled())
-        //     schedule(nextOrbEvent, curTick()+1);
         return true;
     }
 
@@ -481,10 +480,10 @@ DcacheCtrl::processNextOrbEvent()
         schedule(nextOrbEvent, std::max(nextReqTime, curTick()));
     }
 
-    // if (retryWrReq && totalWriteQueueSize < writeBufferSize) {
-    //     retryWrReq = false;
-    //     port.sendRetryReq();
-    // }
+    if (retryWrReq && totalWriteQueueSize < writeBufferSize) {
+        retryWrReq = false;
+        port.sendRetryReq();
+    }
 }
 
 void
@@ -529,10 +528,10 @@ DcacheCtrl::processRespOrbEvent()
 
     resumeConflictingReq(i);
 
-    //if (retryRdReq) {
-    //    retryRdReq = false;
-    //    port.sendRetryReq();
-    //}
+    if (retryRdReq) {
+        retryRdReq = false;
+        port.sendRetryReq();
+    }
 }
 
 
