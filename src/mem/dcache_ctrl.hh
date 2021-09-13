@@ -216,6 +216,9 @@ class DcacheCtrl : public QoS::MemCtrl
     void processNextOrbEvent();
     EventFunctionWrapper nextOrbEvent;
 
+    void processRespOrbEvent();
+    EventFunctionWrapper respOrbEvent;
+
     /**
      * Actually do the burst based on media specific access function.
      * Update bus statistics when complete.
@@ -312,8 +315,10 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     std::unordered_set<Addr> isInWriteQueue;
 
-    enum reqState { idle, dramRead, dramWrite, waitingForNvmRead,
-                    nvmRead, nvmWrite };
+    enum reqState { idle,
+                    dramRead, dramWrite, waitingForNvmRead,
+                    nvmRead, nvmWrite,
+                    respReady };
 
     class reqBufferEntry {
       public:
@@ -361,12 +366,15 @@ class DcacheCtrl : public QoS::MemCtrl
     typedef std::pair<Tick, PacketPtr> confReqBufferPair;
     std::vector<confReqBufferPair> confReqBuffer;
 
+    std::deque<unsigned> respIndices;
+
     //std::priority_queue<reqBufferPair, std::vector<reqBufferPair>,
     //                    std::greater<reqBufferPair> > reqTable;
 
     //std::priority_queue<confBufferPair, std::vector<confBufferPair>,
     //                    std::greater<confBufferPair> > confReqTable;
 
+    void handleRequestorPkt(PacketPtr pkt);
     void checkHitOrMiss(reqBufferEntry* orbEntry);
     void checkConflictInCRB(unsigned index);
     void resumeConflictingReq(unsigned index);
