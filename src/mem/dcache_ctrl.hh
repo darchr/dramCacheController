@@ -198,8 +198,9 @@ class DcacheCtrl : public QoS::MemCtrl
 
     void printORB();
     void printCRB();
-    inline Addr returnTag(Addr pkt_addr, unsigned size);
-    inline Addr returnIndex(Addr pkt_addr, unsigned size);
+    inline Addr returnIndexORB(Addr pkt_addr, unsigned size);
+    inline Addr returnTagDC(Addr pkt_addr, unsigned size);
+    inline Addr returnIndexDC(Addr pkt_addr, unsigned size);
 
     /**
      * Bunch of things requires to setup "events" in gem5
@@ -326,7 +327,8 @@ class DcacheCtrl : public QoS::MemCtrl
       Tick arrivalTick = MaxTick;
 
       // DRAM cache related metadata
-      Addr tag = 0;
+      Addr tagDC = 0;
+      Addr indexDC = 0;
       // constant to indicate that the cache line is valid
       bool validLine = false;
       // constant to indicate that the cache line is dirty
@@ -348,12 +350,14 @@ class DcacheCtrl : public QoS::MemCtrl
 
       reqBufferEntry(
         bool _validEntry, Tick _arrivalTick,
-        Addr _tag, bool _validLine, bool _dirtyLine, Addr _nvmAddr,
+        Addr _tagDC, Addr _indexDC,
+        bool _validLine, bool _dirtyLine, Addr _nvmAddr,
         PacketPtr _owPkt, dccPacket* _dccPkt, dccPacket* _dirtyCacheLine,
         reqState _state, bool _isHit, bool _conflict)
       :
       validEntry(_validEntry), arrivalTick(_arrivalTick),
-      tag(_tag), validLine(_validLine), dirtyLine(_dirtyLine),
+      tagDC(_tagDC), indexDC(_indexDC),
+      validLine(_validLine), dirtyLine(_dirtyLine),
       nvmAddr(_nvmAddr),
       owPkt( _owPkt), dccPkt(_dccPkt), dirtyCacheLine(_dirtyCacheLine),
       state(_state), isHit(_isHit), conflict(_conflict)
@@ -410,6 +414,7 @@ class DcacheCtrl : public QoS::MemCtrl
     uint32_t writesThisTime;
     uint32_t readsThisTime;
 
+    uint64_t dramCacheSize;
     const uint32_t orbMaxSize;
     unsigned int orbSize;
     const uint32_t crbMaxSize;

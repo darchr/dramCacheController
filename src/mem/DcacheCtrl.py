@@ -24,7 +24,7 @@ class DcacheCtrl(QoSMemCtrl):
     # Interface to non-volatile media
     nvm = Param.NVMDCInterface(NULL, "NVM interface")
 
-
+    dram_cache_size = Param.MemorySize('1024MiB', "DRAM cache size")
     orb_max_size = Param.Unsigned(512, "Outstanding Requests Buffer size")
     crb_max_size = Param.Unsigned(64, "Conflicting Requests Buffer size")
 

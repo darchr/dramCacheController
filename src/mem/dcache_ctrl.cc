@@ -27,6 +27,7 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
     writeLowThreshold(writeBufferSize * p.write_low_thresh_perc / 100.0),
     minWritesPerSwitch(p.min_writes_per_switch),
     writesThisTime(0), readsThisTime(0),
+    dramCacheSize(p.dram_cache_size),
     orbMaxSize(p.orb_max_size), orbSize(0),
     crbMaxSize(p.crb_max_size), crbSize(0),
     memSchedPolicy(p.mem_sched_policy),
@@ -45,7 +46,7 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
     for (int i=0; i<orbMaxSize; i++) {
         reqBufferEntry* temp = new reqBufferEntry(
         false, MaxTick,
-        0, false, false, 0,
+        0, 0, false, false, 0,
         nullptr, nullptr, nullptr,
         idle, false, false);
         reqBuffer.push_back(temp);
@@ -169,31 +170,39 @@ DcacheCtrl::printCRB()
 }
 
 inline Addr
-DcacheCtrl::returnTag(Addr request_addr, unsigned size)
+DcacheCtrl::returnIndexORB(Addr request_addr, unsigned size)
 {
-    int index_bits = ceilLog2(orbMaxSize);
+    return bits(request_addr, ceilLog2(size)+ceilLog2(orbMaxSize)-1,
+                ceilLog2(size));
+}
+
+inline Addr
+DcacheCtrl::returnTagDC(Addr request_addr, unsigned size)
+{
+    int index_bits = ceilLog2(dramCacheSize);
     int block_bits = ceilLog2(size);
     return bits(request_addr, size-1, (index_bits+block_bits));
 }
 
 inline Addr
-DcacheCtrl::returnIndex(Addr request_addr, unsigned size)
+DcacheCtrl::returnIndexDC(Addr request_addr, unsigned size)
 {
-    return bits(request_addr, ceilLog2(size)+ceilLog2(orbMaxSize)-1,
+    return bits(request_addr, ceilLog2(size)+ceilLog2(dramCacheSize)-1,
                 ceilLog2(size));
 }
 
 void
 DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
 {
-    unsigned index = returnIndex(pkt->getAddr(), pkt->getSize());
+    unsigned index = returnIndexORB(pkt->getAddr(), pkt->getSize());
 
     dccPacket* dcc_pkt = dram->decodePacket(pkt, pkt->getAddr(),
                             pkt->getSize(), pkt->isRead(), true);
     dram->setupRank(dcc_pkt->rank, pkt->isRead());
     reqBuffer.at(index) = new reqBufferEntry(
         true, curTick(),
-        returnTag(pkt->getAddr(), pkt->getSize()),
+        returnTagDC(pkt->getAddr(), pkt->getSize()),
+        returnIndexDC(pkt->getAddr(), pkt->getSize()),
         true, pkt->isWrite(), pkt->getAddr(), pkt, dcc_pkt, nullptr,
         idle, false, false);
 
@@ -230,7 +239,8 @@ void
 DcacheCtrl::checkConflictInCRB(unsigned index)
 {
     for (auto e = confReqBuffer.begin(); e != confReqBuffer.end(); ++e) {
-        if (returnIndex(e->second->getAddr(),e->second->getSize()) == index) {
+        if (returnIndexORB(e->second->getAddr(),e->second->getSize())
+            == index) {
             reqBuffer.at(index)->conflict = true;
             break;
         }
@@ -243,7 +253,8 @@ DcacheCtrl::resumeConflictingReq(unsigned index)
     bool conflictFound = false;
     for (auto e = confReqBuffer.begin(); e != confReqBuffer.end(); ++e) {
         auto entry = *e;
-        if (returnIndex(entry.second->getAddr(), entry.second->getSize()) == index) {
+        if (returnIndexORB(entry.second->getAddr(), entry.second->getSize())
+            == index) {
                 conflictFound = true;
                 delete reqBuffer.at(index);              
                 handleRequestorPkt(entry.second);
@@ -263,7 +274,7 @@ DcacheCtrl::resumeConflictingReq(unsigned index)
         delete reqBuffer.at(index);
         reqBuffer.at(index) = new reqBufferEntry(
         false, MaxTick,
-        0, false, false, 0,
+        0, 0, false, false, 0,
         nullptr, nullptr, nullptr,
         idle, false, false);
     }
@@ -379,7 +390,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
 
     // process conflicting requests
     // calculate dram address: ignored for now (because Dsize=Nsize)
-    unsigned index = returnIndex(pkt->getAddr(), pkt->getSize());
+    unsigned index = returnIndexORB(pkt->getAddr(), pkt->getSize());
     if (reqBuffer.at(index)->validEntry) {
         if (confReqBuffer.size()>=crbMaxSize) {
             std::cout <<
@@ -399,7 +410,9 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
         if (pkt->isWrite()) {
             isInWriteQueue.insert(burstAlign(addr, true));
         }
-        std::cout << "*** Packet conflicted, adr: " << pkt->getAddr()  <<
+        std::cout << index <<
+        " *** Packet conflicted, adr: " <<
+        pkt->getAddr()  <<
         " // " << reqBuffer.at(index)->owPkt->getAddr()<< "\n";
         return true;
     }
@@ -456,7 +469,8 @@ DcacheCtrl::processNextOrbEvent()
                     assert(respOrbEvent.scheduled());
                 }
 
-                respIndices.push_back(returnIndex(entry->owPkt->getAddr(),entry->owPkt->getSize()));
+                respIndices.push_back(returnIndexORB(entry->owPkt->getAddr(),
+                                                     entry->owPkt->getSize()));
                 entry->state = respReady;
                 
             }
@@ -475,7 +489,8 @@ DcacheCtrl::processNextOrbEvent()
                 
                 // delete the orb entry and bring in
                 // the first conflicting req(s), if any
-                unsigned index = returnIndex(entry->dccPkt->getAddr(),entry->dccPkt->getSize());
+                unsigned index = returnIndexORB(entry->dccPkt->getAddr(),
+                                                entry->dccPkt->getSize());
                 isInWriteQueue.erase(burstAlign(entry->dccPkt->addr,
                                         entry->dccPkt->isDram()));
                 resumeConflictingReq(index);
