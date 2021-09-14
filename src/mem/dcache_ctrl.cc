@@ -197,8 +197,9 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
         true, pkt->isWrite(), pkt->getAddr(), pkt, dcc_pkt, nullptr,
         idle, false, false);
 
+    // FIX
     // a read for tag and metadata check
-    dram->access(pkt);
+    //dram->access(pkt);
     checkHitOrMiss(reqBuffer.at(index));
 
     if (pkt->isRead()) {
@@ -312,7 +313,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
 
     // run the QoS scheduler and assign a QoS priority value to the packet
     // Ignored for now!
-    //qosSchedule( { &reqBuffer, &confReqBuffer }, burst_size, pkt);
+    // qosSchedule( { &reqBuffer, &confReqBuffer }, burst_size, pkt);
 
     // process merging for writes
     if (pkt->isWrite()) {
@@ -323,7 +324,9 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
         if (merged) {
             stats.mergedWrBursts++;
             accessAndRespond(pkt, frontendLatency, true);
-            std::cout << pkt->getAddr() << " packet serviced by wr merging\n";
+            std::cout <<
+            "*** Packet serviced by wr merging, adr: " <<
+            pkt->getAddr() << "\n";
             return true;
         }
     }
@@ -333,13 +336,13 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     bool foundInCRB = false;
 
     if (pkt->isRead()) {
-        assert(pkt->isRead());
         assert(pkt_size != 0);
         if (isInWriteQueue.find(burst_addr) != isInWriteQueue.end()) {
             for (const auto& e : reqBuffer) {
                 // check if the read is subsumed in the write queue
                 // packet we are looking at
-                if (e->owPkt->isWrite() &&
+                if (e->validEntry &&
+                    e->owPkt->isWrite() &&
                     e->owPkt->getAddr() <= addr &&
                     ((addr + size) <=
                     (e->owPkt->getAddr() + e->owPkt->getSize()))) {
@@ -367,17 +370,22 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
         }
         if (foundInORB || foundInCRB) {
             accessAndRespond(pkt, frontendLatency, true);
-            std::cout << pkt->getAddr() << " packet serviced by FW\n";
+            std::cout <<
+            "*** Packet serviced by FW, adr: " <<
+            pkt->getAddr() << "\n";
             return true;
         }
     }
 
     // process conflicting requests
-    // Ignored for now (because Dsize=Nsize): calculate dram address
+    // calculate dram address: ignored for now (because Dsize=Nsize)
     unsigned index = returnIndex(pkt->getAddr(), pkt->getSize());
     if (reqBuffer.at(index)->validEntry) {
         if (confReqBuffer.size()>=crbMaxSize) {
-            std::cout << "CRB Overflow!\n";
+            std::cout <<
+            "*** Packet caused CRB Overflow, adr: " <<
+            pkt->getAddr() <<
+            " // " << reqBuffer.at(index)->owPkt->getAddr()<< "\n";
             if (pkt->isRead()) {
                 retryRdReq = true;
             }
@@ -388,19 +396,24 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
         }
         confReqBuffer.push_back(std::make_pair(curTick(), pkt));
         reqBuffer.at(index)->conflict = true;
-        std::cout << pkt->getAddr() << " packet conflict!\n";
+        if (pkt->isWrite()) {
+            isInWriteQueue.insert(burstAlign(addr, true));
+        }
+        std::cout << "*** Packet conflicted, adr: " << pkt->getAddr()  <<
+        " // " << reqBuffer.at(index)->owPkt->getAddr()<< "\n";
         return true;
     }
 
     // if none of the above cases happens,
     // then add the pkt to outstanding requests buffer
     handleRequestorPkt(pkt);
+    if (pkt->isWrite()) {
+        isInWriteQueue.insert(burstAlign(addr, true));
+    }
 
     if (!nextOrbEvent.scheduled()) {
         schedule(nextOrbEvent, curTick());
     }
-
-    printORB();
 
     return true;
 }
@@ -415,7 +428,7 @@ DcacheCtrl::processNextOrbEvent()
         if (entry->validEntry &&
             entry->isHit &&
             entry->state != respReady) {
-            
+            std::cout << "foundpkt: " << entry->dccPkt->getAddr() << "\n";
             foundPkt = true;
 
             if (entry->dccPkt->isRead()) {
@@ -463,8 +476,9 @@ DcacheCtrl::processNextOrbEvent()
                 // delete the orb entry and bring in
                 // the first conflicting req(s), if any
                 unsigned index = returnIndex(entry->dccPkt->getAddr(),entry->dccPkt->getSize());
-                isInWriteQueue.erase(burstAlign(entry->dccPkt->addr, entry->dccPkt->isDram()));
                 resumeConflictingReq(index);
+                isInWriteQueue.erase(burstAlign(entry->dccPkt->addr,
+                                        entry->dccPkt->isDram()));
             }
             break;
             

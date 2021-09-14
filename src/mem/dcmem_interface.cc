@@ -423,7 +423,6 @@ DRAMDCInterface::doBurstAccess(dccPacket* dcc_pkt, Tick next_burst_at)
 
     // get the rank
     Rank& rank_ref = *ranks[dcc_pkt->rank];
-
     assert(rank_ref.inRefIdleState());
 
     // are we in or transitioning to a low-power state and have not scheduled
