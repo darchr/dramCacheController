@@ -476,9 +476,9 @@ DcacheCtrl::processNextOrbEvent()
                 // delete the orb entry and bring in
                 // the first conflicting req(s), if any
                 unsigned index = returnIndex(entry->dccPkt->getAddr(),entry->dccPkt->getSize());
-                resumeConflictingReq(index);
                 isInWriteQueue.erase(burstAlign(entry->dccPkt->addr,
                                         entry->dccPkt->isDram()));
+                resumeConflictingReq(index);
             }
             break;
             
