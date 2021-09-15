@@ -30,7 +30,7 @@ class NVMDCInterface;
  * the timestamp of when the packet entered the queue, and also
  * the decoded address.
  */
-
+// Jason: Inherit from MemPacket and remove shared code.
 class dccPacket
 {
   public:
@@ -145,6 +145,7 @@ class dccPacket
 
 // The memory packets are store in a multiple dequeue structure,
 // based on their QoS priority
+// Jason: not needed, can use memPacketQueue
 typedef std::deque<dccPacket*> dccPacketQueue;
 
 
@@ -237,6 +238,9 @@ class DcacheCtrl : public QoS::MemCtrl
      * @param pkt The packet from the outside world
      * @param static_latency Static latency to add before sending the packet
      */
+    // JASON: If unused delete.
+    // I suggest explicitly calling DRAM access and doing whatever response you
+    // need yourself.
     void accessAndRespond(PacketPtr pkt, Tick static_latency, bool in_dram);
 
     /**
@@ -365,9 +369,16 @@ class DcacheCtrl : public QoS::MemCtrl
     };
 
     //typedef std::pair<Tick, reqBufferEntry*> reqBufferPair;
+    // JASON: std::map<Addr,reqBufferEntry> reqBuffer;
+    // reqBuffer.emplace(addr, valid, arrival, ...)
     std::vector<reqBufferEntry*> reqBuffer;
 
     typedef std::pair<Tick, PacketPtr> confReqBufferPair;
+    // JASON: I suggest using a multimap. Key is the conflicting cache address
+    // and then you can have any number of conflicts there which you can try
+    // to process in FIFO order. Keeping the pair with the tick still makes
+    // sense
+    // std::multimap<Addr, std::pair<Tick, PacketPtr>> confReqBuffer;
     std::vector<confReqBufferPair> confReqBuffer;
 
     std::deque<unsigned> respIndices;
@@ -398,6 +409,8 @@ class DcacheCtrl : public QoS::MemCtrl
     /**
      * Create pointer to interface of the actual nvm media when connected
      */
+    // JASON: I would change this name to "backing memory" or something like
+    // that. Maybe mainMemory
     NVMDCInterface* const nvm;
 
     /**

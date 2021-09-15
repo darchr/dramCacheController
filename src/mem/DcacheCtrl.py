@@ -24,9 +24,15 @@ class DcacheCtrl(QoSMemCtrl):
     # Interface to non-volatile media
     nvm = Param.NVMDCInterface(NULL, "NVM interface")
 
+    # JASON: let's get this size from the interface
     dram_cache_size = Param.MemorySize('1024MiB', "DRAM cache size")
     orb_max_size = Param.Unsigned(512, "Outstanding Requests Buffer size")
     crb_max_size = Param.Unsigned(64, "Conflicting Requests Buffer size")
+
+    # JASON: We need to think about this a bit
+    # The dram interface is a abstract memory, but we don't need the backing
+    # store. So, null should be true, in_addr_map should be false,
+    # kvm_map false, and conf_table_reported false
 
     # read and write buffer depths are set in the interface
     # the controller will read these values when instantiated

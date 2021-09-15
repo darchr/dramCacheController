@@ -199,6 +199,12 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
     dccPacket* dcc_pkt = dram->decodePacket(pkt, pkt->getAddr(),
                             pkt->getSize(), pkt->isRead(), true);
     dram->setupRank(dcc_pkt->rank, pkt->isRead());
+    // JASON: This setupRank is telling the dram interface that a read/write is
+    // coming. Since you are doing many read/writes for each packet you may
+    // need to call this multiple times depending on hit/miss (when you know)
+    // I don't know if *when* you call this matters (e.g., can you call it 3
+    // times right here or do you need to wait until after the first read
+    // finishes to set it up for the fill)
     reqBuffer.at(index) = new reqBufferEntry(
         true, curTick(),
         returnTagDC(pkt->getAddr(), pkt->getSize()),
@@ -256,7 +262,7 @@ DcacheCtrl::resumeConflictingReq(unsigned index)
         if (returnIndexORB(entry.second->getAddr(), entry.second->getSize())
             == index) {
                 conflictFound = true;
-                delete reqBuffer.at(index);              
+                delete reqBuffer.at(index);
                 handleRequestorPkt(entry.second);
                 confReqBuffer.erase(e);
                 checkConflictInCRB(index);
@@ -327,6 +333,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     // qosSchedule( { &reqBuffer, &confReqBuffer }, burst_size, pkt);
 
     // process merging for writes
+    // JASON: I suggest skipping this here for now. We may revisit this.
     if (pkt->isWrite()) {
         assert(pkt_size != 0);
         // process merging
@@ -341,6 +348,16 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
             return true;
         }
     }
+
+    // JASON... what I would do
+    // If the (cache) address is in the reqBuffer, then check if we can forward
+    //     or merge
+    // if forward, then access and respond. CANNOT NOT FORWARD/MERGE
+    // if not conflict, add to reqBuffer
+    // If conflicting, check confReqBuffer for forward, if can, forward
+    // else, add to conflicting
+    // If conflicting, this means that it cannot possibly be to the same phys
+    // address as anything in the reqBuffer
 
     // process forwarding for reads
     bool foundInORB = false;
@@ -428,6 +445,8 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
         schedule(nextOrbEvent, curTick());
     }
 
+    // Access. and/or respond if write
+
     return true;
 }
 
@@ -458,7 +477,7 @@ DcacheCtrl::processNextOrbEvent()
                 logResponse(MemCtrl::READ, entry->dccPkt->requestorId(),
                         entry->dccPkt->qosValue(), entry->dccPkt->getAddr(), 1,
                         entry->dccPkt->readyTime - entry->dccPkt->entryTime);
-                
+
                 if (respIndices.empty()) {
                     assert(!respOrbEvent.scheduled());
                     schedule(respOrbEvent, entry->dccPkt->readyTime);
@@ -472,7 +491,7 @@ DcacheCtrl::processNextOrbEvent()
                 respIndices.push_back(returnIndexORB(entry->owPkt->getAddr(),
                                                      entry->owPkt->getSize()));
                 entry->state = respReady;
-                
+
             }
             else if (entry->dccPkt->isWrite()) {
                 busState = WRITE;
@@ -486,7 +505,7 @@ DcacheCtrl::processNextOrbEvent()
                 logResponse(MemCtrl::WRITE, entry->dccPkt->requestorId(),
                         entry->dccPkt->qosValue(), entry->dccPkt->getAddr(), 1,
                         entry->dccPkt->readyTime - entry->dccPkt->entryTime);
-                
+
                 // delete the orb entry and bring in
                 // the first conflicting req(s), if any
                 unsigned index = returnIndexORB(entry->dccPkt->getAddr(),
@@ -496,7 +515,7 @@ DcacheCtrl::processNextOrbEvent()
                 resumeConflictingReq(index);
             }
             break;
-            
+
         }
     }
 
@@ -525,16 +544,16 @@ DcacheCtrl::processRespOrbEvent()
             reqBuffer.at(i)->dccPkt->isRead() &&
             reqBuffer.at(i)->state == respReady &&
             reqBuffer.at(i)->dccPkt->readyTime == curTick());
-    
+
     if (reqBuffer.at(i)->dccPkt->isDram()) {
         // media specific checks and functions when read response is complete
         dram->respondEvent(reqBuffer.at(i)->dccPkt->rank);
     }
     accessAndRespond(reqBuffer.at(i)->owPkt, frontendLatency + backendLatency, true);
-    
+
 
     respIndices.pop_front();
-                
+
     if (!respIndices.empty()) {
         assert(reqBuffer.at(respIndices.front())->dccPkt->readyTime >= curTick());
         assert(!respOrbEvent.scheduled());
