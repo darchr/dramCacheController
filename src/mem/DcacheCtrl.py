@@ -26,6 +26,7 @@ class DcacheCtrl(QoSMemCtrl):
 
     # JASON: let's get this size from the interface
     dram_cache_size = Param.MemorySize('1024MiB', "DRAM cache size")
+    block_size = Param.Unsigned('64', "DRAM cache block size in bytes")
     orb_max_size = Param.Unsigned(512, "Outstanding Requests Buffer size")
     crb_max_size = Param.Unsigned(64, "Conflicting Requests Buffer size")
 

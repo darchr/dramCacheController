@@ -199,7 +199,7 @@ class DcacheCtrl : public QoS::MemCtrl
 
     void printORB();
     void printCRB();
-    inline Addr returnIndexORB(Addr pkt_addr, unsigned size);
+    //inline Addr returnIndexORB(Addr pkt_addr, unsigned size);
     inline Addr returnTagDC(Addr pkt_addr, unsigned size);
     inline Addr returnIndexDC(Addr pkt_addr, unsigned size);
 
@@ -320,6 +320,8 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     std::unordered_set<Addr> isInWriteQueue;
 
+    std::vector<unsigned> tagMetadataStore;
+
     enum reqState { idle,
                     dramRead, dramWrite, waitingForNvmRead,
                     nvmRead, nvmWrite,
@@ -369,9 +371,10 @@ class DcacheCtrl : public QoS::MemCtrl
     };
 
     //typedef std::pair<Tick, reqBufferEntry*> reqBufferPair;
-    // JASON: std::map<Addr,reqBufferEntry> reqBuffer;
+    // JASON:
+    std::map<Addr,reqBufferEntry> reqBuffer;
     // reqBuffer.emplace(addr, valid, arrival, ...)
-    std::vector<reqBufferEntry*> reqBuffer;
+    //std::vector<reqBufferEntry*> reqBuffer;
 
     typedef std::pair<Tick, PacketPtr> confReqBufferPair;
     // JASON: I suggest using a multimap. Key is the conflicting cache address
@@ -381,7 +384,7 @@ class DcacheCtrl : public QoS::MemCtrl
     // std::multimap<Addr, std::pair<Tick, PacketPtr>> confReqBuffer;
     std::vector<confReqBufferPair> confReqBuffer;
 
-    std::deque<unsigned> respIndices;
+    std::deque <Addr> addrRespReady;
 
     //std::priority_queue<reqBufferPair, std::vector<reqBufferPair>,
     //                    std::greater<reqBufferPair> > reqTable;
@@ -390,9 +393,11 @@ class DcacheCtrl : public QoS::MemCtrl
     //                    std::greater<confBufferPair> > confReqTable;
 
     void handleRequestorPkt(PacketPtr pkt);
-    void checkHitOrMiss(reqBufferEntry* orbEntry);
-    void checkConflictInCRB(unsigned index);
-    void resumeConflictingReq(unsigned index);
+    void processInitRead(Addr addr);
+    void checkHitOrMiss(reqBufferEntry orbEntry);
+    bool checkConflictInDramCache(PacketPtr pkt);
+    void checkConflictInCRB(reqBufferEntry orbEntry);
+    void resumeConflictingReq(reqBufferEntry orbEntry);
 
     /**
      * Holds count of commands issued in burst window starting at
@@ -428,6 +433,7 @@ class DcacheCtrl : public QoS::MemCtrl
     uint32_t readsThisTime;
 
     uint64_t dramCacheSize;
+    uint64_t blockSize;
     const uint32_t orbMaxSize;
     unsigned int orbSize;
     const uint32_t crbMaxSize;
