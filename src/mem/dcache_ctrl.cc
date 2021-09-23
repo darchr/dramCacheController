@@ -135,13 +135,15 @@ void
 DcacheCtrl::printORB()
 {
     std::cout << curTick() << " ORB size: " << reqBuffer.size() << "\n";
-    for (int i=0; i < reqBuffer.size(); i++) {
-        if (reqBuffer.at(i).validEntry) {
+    int i = 0;
+    for (auto e = reqBuffer.begin(); e != reqBuffer.end(); ++e) {
+        if (e->second->validEntry) {
             std::cout << "[" << i << "]: " <<
-            reqBuffer.at(i).arrivalTick << " // " <<
-            reqBuffer.at(i).dccPkt->getAddr() << " // " <<
-            reqBuffer.at(i).dccPkt->readyTime << "\n";
+            e->second->arrivalTick << " // " <<
+            e->second->owPkt->getAddr() << " // " <<
+            e->second->dccPkt->readyTime << "\n";
         }
+        i++;
     }
     std::cout << "-------\n";
 }
@@ -157,7 +159,7 @@ DcacheCtrl::printCRB()
     std::cout << "******\n";
 }
 
-inline Addr
+Addr
 DcacheCtrl::returnTagDC(Addr request_addr, unsigned size)
 {
     int index_bits = ceilLog2(dramCacheSize);
@@ -165,7 +167,7 @@ DcacheCtrl::returnTagDC(Addr request_addr, unsigned size)
     return bits(request_addr, size-1, (index_bits+block_bits));
 }
 
-inline Addr
+Addr
 DcacheCtrl::returnIndexDC(Addr request_addr, unsigned size)
 {
     return bits(request_addr, ceilLog2(size)+ceilLog2(dramCacheSize)-1,
@@ -173,22 +175,13 @@ DcacheCtrl::returnIndexDC(Addr request_addr, unsigned size)
 }
 
 void
-DcacheCtrl::checkHitOrMiss(reqBufferEntry orbEntry)
+DcacheCtrl::checkHitOrMiss(reqBufferEntry* orbEntry)
 {
     // access the tagMetadataStore data structure to
     // check if it's hit or miss
 
     // for now assume everything hits in dram cache.
-    std::cout << "( " << orbEntry.isHit << "\n";
-    orbEntry.isHit = true;
-    std::cout << "(( " << orbEntry.isHit << "\n";
-
-    if (orbEntry.owPkt->isRead()) {
-        orbEntry.state = dramRead;
-    }
-    else {
-        orbEntry.state = dramWrite;
-    }
+    orbEntry->isHit = true;
 }
 
 void
@@ -201,7 +194,7 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
                             pkt->getSize(), true, true);
 
     // pass the second argument "true", for
-    // initRead for all the received packets
+    // initial DRAM Read for all the received packets
     dram->setupRank(dcc_pkt->rank, true);
 
     // JASON: This setupRank is telling the dram interface that a read/write is
@@ -211,7 +204,7 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
     // times right here or do you need to wait until after the first read
     // finishes to set it up for the fill)
 
-    reqBufferEntry temp = reqBufferEntry(
+    reqBufferEntry* temp = new reqBufferEntry(
                                 true, curTick(),
                                 returnTagDC(pkt->getAddr(), pkt->getSize()),
                                 returnIndexDC(pkt->getAddr(), pkt->getSize()),
@@ -221,8 +214,6 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
                           );
 
     reqBuffer.emplace(pkt->getAddr(), temp);
-    std::cout << "* emplace " << reqBuffer.size() <<
-    "  " << confReqBuffer.size() << "\n";
 
     if (pkt->isRead()) {
         logRequest(DcacheCtrl::READ, pkt->requestorId(), pkt->qosValue(),
@@ -242,8 +233,8 @@ DcacheCtrl::checkConflictInDramCache(PacketPtr pkt)
 {
     Addr indexDC = returnIndexDC(pkt->getAddr(), pkt->getSize());
     for (auto e = reqBuffer.begin(); e != reqBuffer.end(); ++e) {
-        if ( indexDC == e->second.indexDC) {
-            e->second.conflict = true;
+        if (indexDC == e->second->indexDC) {
+            e->second->conflict = true;
                 return true;
             }
     }
@@ -251,44 +242,87 @@ DcacheCtrl::checkConflictInDramCache(PacketPtr pkt)
 }
 
 void
-DcacheCtrl::checkConflictInCRB(reqBufferEntry orbEntry)
+DcacheCtrl::checkConflictInCRB(reqBufferEntry* orbEntry)
 {
     for (auto e = confReqBuffer.begin(); e != confReqBuffer.end(); ++e) {
-        if (returnIndexDC(e->second->getAddr(),e->second->getSize())
-            == returnIndexDC(orbEntry.owPkt->getAddr(),
-                             orbEntry.owPkt->getSize())) {
-                orbEntry.conflict = true;
+
+        auto entry = *e;
+
+        if (returnIndexDC(entry.second->getAddr(),entry.second->getSize())
+            == orbEntry->indexDC) {
+                orbEntry->conflict = true;
                 break;
         }
     }
 }
 
 void
-DcacheCtrl::resumeConflictingReq(reqBufferEntry orbEntry)
+DcacheCtrl::processInitRead(reqBufferEntry* orbEntry)
+{
+    assert(orbEntry->validEntry);
+    assert(orbEntry->state == dramRead);
+    assert(packetReady(orbEntry->dccPkt));
+
+
+    busState = DcacheCtrl::READ;
+
+    checkHitOrMiss(orbEntry);
+
+    doBurstAccess(orbEntry->dccPkt);
+
+    // sanity check
+    assert(orbEntry->dccPkt->size <= (orbEntry->dccPkt->isDram() ?
+                                dram->bytesPerBurst() :
+                                nvm->bytesPerBurst()) );
+    assert(orbEntry->dccPkt->readyTime >= curTick());
+
+    if (orbEntry->owPkt->isRead() && orbEntry->isHit) {
+        logResponse(DcacheCtrl::READ, orbEntry->dccPkt->requestorId(),
+            orbEntry->dccPkt->qosValue(), orbEntry->owPkt->getAddr(), 1,
+            orbEntry->dccPkt->readyTime - orbEntry->dccPkt->entryTime);
+    }
+
+    if (addrRespReady.empty()) {
+        assert(!respOrbEvent.scheduled());
+        schedule(respOrbEvent, orbEntry->dccPkt->readyTime);
+    }
+    else {
+        assert(reqBuffer.at(addrRespReady.back())->dccPkt->readyTime
+                            <= orbEntry->dccPkt->readyTime);
+        assert(respOrbEvent.scheduled());
+    }
+
+    addrRespReady.push_back(orbEntry->owPkt->getAddr());
+    orbEntry->state = dramRead;
+}
+
+void
+DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 {
     bool conflictFound = false;
+
     for (auto e = confReqBuffer.begin(); e != confReqBuffer.end(); ++e) {
+
         auto entry = *e;
 
         if (returnIndexDC(entry.second->getAddr(), entry.second->getSize())
-            == returnIndexDC(orbEntry.owPkt->getAddr(),
-                             orbEntry.owPkt->getSize())) {
+            == orbEntry->indexDC) {
 
                 conflictFound = true;
 
                 Addr confAddr = entry.second->getAddr();
 
-                reqBuffer.erase(orbEntry.owPkt->getAddr());
-                std::cout << "* erase1 " << reqBuffer.size() <<
-                "  " << confReqBuffer.size() << "\n";
+                reqBuffer.erase(orbEntry->owPkt->getAddr());
 
                 handleRequestorPkt(entry.second);
+
+                reqBuffer.at(confAddr)->arrivalTick = entry.first;
 
                 confReqBuffer.erase(e);
 
                 checkConflictInCRB(reqBuffer.at(confAddr));
 
-                processInitRead(confAddr);
+                processInitRead(reqBuffer.at(confAddr));
 
                 break;
         }
@@ -296,63 +330,17 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry orbEntry)
     }
 
     if (!conflictFound) {
-        reqBuffer.erase(orbEntry.owPkt->getAddr());
-        std::cout << "* erase2 " << reqBuffer.size() <<
-        "  " << confReqBuffer.size() << "\n";
+        reqBuffer.erase(orbEntry->owPkt->getAddr());
     }
 }
-
-void
-DcacheCtrl::processInitRead(Addr addr)
-{
-    reqBufferEntry e = reqBuffer.at(addr);
-
-    assert(e.validEntry);
-    assert(e.state == dramRead);
-    assert(packetReady(e.dccPkt));
-
-
-    busState = DcacheCtrl::READ;
-
-    std::cout << "% " << e.isHit << "\n";
-    checkHitOrMiss(e);
-    std::cout << "%% " << e.isHit << "\n";
-
-    doBurstAccess(e.dccPkt);
-
-    // sanity check
-    assert(e.dccPkt->size <= (e.dccPkt->isDram() ?
-                                dram->bytesPerBurst() :
-                                nvm->bytesPerBurst()) );
-    assert(e.dccPkt->readyTime >= curTick());
-
-    if (e.owPkt->isRead() && e.isHit) {
-        logResponse(DcacheCtrl::READ, e.dccPkt->requestorId(),
-            e.dccPkt->qosValue(), e.dccPkt->getAddr(), 1,
-            e.dccPkt->readyTime - e.dccPkt->entryTime);
-    }
-
-    if (addrRespReady.empty()) {
-        assert(!respOrbEvent.scheduled());
-        schedule(respOrbEvent, e.dccPkt->readyTime);
-    }
-    else {
-        assert(reqBuffer.at(addrRespReady.back()).dccPkt->readyTime
-                            <= e.dccPkt->readyTime);
-        assert(respOrbEvent.scheduled());
-    }
-
-    addrRespReady.push_back(e.owPkt->getAddr());
-    e.state = dramRead;
-}
-
 
 bool
 DcacheCtrl::recvTimingReq(PacketPtr pkt)
 {
     // This is where we enter from the outside world
     std::cout << "recvTimingReq Tick: " << curTick() <<
-    " // " << pkt->getAddr() << " " << pkt->isRead() << "\n";
+    " // " << pkt->getAddr() << " " << pkt->cmdString() << "\n";
+
     DPRINTF(DcacheCtrl, "recvTimingReq: request %s addr %lld size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getSize());
 
@@ -431,11 +419,12 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
             for (const auto& e : reqBuffer) {
                 // check if the read is subsumed in the write queue
                 // packet we are looking at
-                if (e.second.validEntry &&
-                    e.second.owPkt->isWrite() &&
-                    e.second.owPkt->getAddr() <= addr &&
+                if (e.second->validEntry &&
+                    e.second->owPkt->isWrite() &&
+                    e.second->owPkt->getAddr() <= addr &&
                     ((addr + size) <=
-                    (e.second.owPkt->getAddr() + e.second.owPkt->getSize()))) {
+                    (e.second->owPkt->getAddr() +
+                     e.second->owPkt->getSize()))) {
                     foundInORB = true;
                     stats.servicedByWrQ++;
                     stats.bytesReadWrQ += burst_size;
@@ -469,19 +458,18 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
 
     // process conflicting requests
     // calculate dram address: ignored for now (because Dsize=Nsize)
-    //unsigned index = returnIndexORB(pkt->getAddr(), pkt->getSize());
     if (checkConflictInDramCache(pkt)) {
         if (confReqBuffer.size()>=crbMaxSize) {
-            std::cout <<
-            "*** Packet caused CRB Overflow, adr: " <<
-            pkt->getAddr() <<
-            " // " << reqBuffer.at(pkt->getAddr()).owPkt->getAddr() << "\n";
             if (pkt->isRead()) {
                 retryRdReq = true;
             }
             else if (pkt->isWrite()) {
                 retryWrReq = true;
             }
+            std::cout <<
+            "*** Packet caused conflict in DC and CRB Overflow, adr: " <<
+            pkt->getAddr() << " // " <<
+            reqBuffer.at(pkt->getAddr())->owPkt->getAddr() << "\n";
             return false;
         }
         confReqBuffer.push_back(std::make_pair(curTick(), pkt));
@@ -490,23 +478,23 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
             isInWriteQueue.insert(burstAlign(addr, true));
         }
         std::cout <<
-        "*** Packet conflicted, adr: " <<
-        pkt->getAddr()  <<
-        " // " << reqBuffer.at(pkt->getAddr()).owPkt->getAddr() << "\n";
+        "*** Packet caused conflict in DC, adr: " <<
+        pkt->getAddr() << " // " <<
+        reqBuffer.at(pkt->getAddr())->owPkt->getAddr() << "\n";
         return true;
     }
 
+    // process cases where ORB is full
     if (reqBuffer.size()>=orbMaxSize) {
-        std::cout <<
-        "*** Packet caused ORB Overflow, adr: " <<
-        pkt->getAddr() << "\n";
-
         if (pkt->isRead()) {
             retryRdReq = true;
         }
         else if (pkt->isWrite()) {
             retryWrReq = true;
         }
+        std::cout <<
+        "*** Packet caused ORB Overflow, adr: " <<
+        pkt->getAddr() << "\n";
         return false;
     }
 
@@ -518,7 +506,13 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
         isInWriteQueue.insert(burstAlign(addr, true));
     }
 
-    processInitRead(pkt->getAddr());
+    // std::cout << "DEBUG: " <<
+    // reqBuffer.at(pkt->getAddr())->owPkt->getAddr() << " " <<
+    // reqBuffer.at(pkt->getAddr())->dccPkt->getAddr() << " " <<
+    // reqBuffer.at(pkt->getAddr())->validEntry << " " <<
+    // reqBuffer.at(pkt->getAddr())->isHit << "\n";
+
+    processInitRead(reqBuffer.at(pkt->getAddr()));
 
     // Access. and/or respond if write
 
@@ -535,32 +529,36 @@ DcacheCtrl::processNextOrbEvent()
 
     for (auto e = reqBuffer.begin(); e != reqBuffer.end(); ++e) {
 
-        if (e->second.owPkt->isWrite() &&
-            e->second.state == dramWrite &&
-            e->second.isHit &&
-            packetReady(e->second.dccPkt)) {
+        if (!e->second->owPkt->isRead() &&
+            e->second->state == dramWrite &&
+            e->second->isHit &&
+            packetReady(e->second->dccPkt)) {
 
                 busState = DcacheCtrl::WRITE;
+
                 // sanity check
-                assert(e->second.dccPkt->size <= (e->second.dccPkt->isDram() ?
-                                        dram->bytesPerBurst() :
-                                        nvm->bytesPerBurst()) );
+                assert(e->second->dccPkt->size <=
+                                                (e->second->dccPkt->isDram() ?
+                                                dram->bytesPerBurst() :
+                                                nvm->bytesPerBurst()) );
 
-                doBurstAccess(e->second.dccPkt);
+                doBurstAccess(e->second->dccPkt);
 
-                isInWriteQueue.erase(burstAlign(e->second.dccPkt->addr,
-                                                e->second.dccPkt->isDram()));
+                isInWriteQueue.erase(burstAlign(e->second->dccPkt->addr,
+                                                e->second->dccPkt->isDram()));
 
                 // log the response
                 logResponse(DcacheCtrl::WRITE,
-                            e->second.dccPkt->requestorId(),
-                            e->second.dccPkt->qosValue(),
-                            e->second.dccPkt->getAddr(), 1,
-                            e->second.dccPkt->readyTime -
-                            e->second.dccPkt->entryTime);
+                            e->second->dccPkt->requestorId(),
+                            e->second->dccPkt->qosValue(),
+                            e->second->owPkt->getAddr(), 1,
+                            e->second->dccPkt->readyTime -
+                            e->second->dccPkt->entryTime);
 
 
-                // remove the request from the ORB
+                // Remove the request from the ORB and
+                // bring in a conflicting req waiting
+                // in the CRB, if any.
                 resumeConflictingReq(e->second);
 
                 canRetryWrReq = true;
@@ -586,42 +584,51 @@ DcacheCtrl::processRespOrbEvent()
 {
     std::cout << curTick() << " processRespOrbEvent\n";
 
-    reqBufferEntry orbEntry = reqBuffer.at(addrRespReady.front());
-    std::cout << "&& " << addrRespReady.front() <<
-    " // " << orbEntry.validEntry << " " <<
-    orbEntry.isHit << "\n";
-    std::cout << "&&& " << orbEntry.owPkt->getAddr() << "\n";
+    reqBufferEntry* orbEntry = reqBuffer.at(addrRespReady.front());
 
+    // A flag which is used for retrying read requests
+    // in case of finishing an existing read request in
+    // DcacheCtrl here (read req hit on DC)
     bool canRetryRdReq = false;
 
-    assert(orbEntry.validEntry);
-    assert(orbEntry.dccPkt->isRead());
-    assert(orbEntry.state == dramRead);
-    assert(orbEntry.dccPkt->readyTime == curTick());
+    // A series of sanity check
+    assert(orbEntry->validEntry);
+    assert(orbEntry->dccPkt->isRead());
+    assert(orbEntry->state == dramRead);
+    assert(orbEntry->dccPkt->readyTime == curTick());
 
-    if (orbEntry.owPkt->isRead() &&
-        orbEntry.dccPkt->isDram() &&
-        orbEntry.isHit) {
+    if (orbEntry->owPkt->isRead() &&
+        orbEntry->dccPkt->isDram() &&
+        orbEntry->isHit) {
+            // This is a read request in initial read state.
+            // It has also hit on DRAM cache.
+            // So, send back the response.
+
             // media specific checks and functions
             // when read response is complete
-            dram->respondEvent(orbEntry.dccPkt->rank);
-            accessAndRespond(orbEntry.owPkt,
+            dram->respondEvent(orbEntry->dccPkt->rank);
+            accessAndRespond(orbEntry->owPkt,
                              frontendLatency + backendLatency,
                              false);
     }
-    if (orbEntry.owPkt->isWrite() &&
-        orbEntry.dccPkt->isRead() &&
-        orbEntry.dccPkt->isDram() &&
-        orbEntry.isHit) {
-            delete orbEntry.dccPkt;
-            orbEntry.dccPkt = dram->decodePacket(orbEntry.owPkt,
-                                                orbEntry.owPkt->getAddr(),
-                                                orbEntry.owPkt->getSize(),
+
+    if (!orbEntry->owPkt->isRead() &&
+        orbEntry->dccPkt->isRead() &&
+        orbEntry->dccPkt->isDram() &&
+        orbEntry->isHit) {
+            // This is a write request in initial read state.
+            // Delete its dcc packet which is read and create
+            // a new one which is write.
+            delete orbEntry->dccPkt;
+            orbEntry->dccPkt = dram->decodePacket(orbEntry->owPkt,
+                                                orbEntry->owPkt->getAddr(),
+                                                orbEntry->owPkt->getSize(),
                                                 false, true);
 
-            // pass the second argument "false", for write
-            dram->setupRank(orbEntry.dccPkt->rank, false);
-            orbEntry.state = dramWrite;
+            // pass the second argument "false" to
+            // indicate a write access to dram
+            dram->setupRank(orbEntry->dccPkt->rank, false);
+            orbEntry->state = dramWrite;
             if (!nextOrbEvent.scheduled()) {
                 schedule(nextOrbEvent, curTick());
             }
@@ -630,11 +637,11 @@ DcacheCtrl::processRespOrbEvent()
     addrRespReady.pop_front();
 
     if (!addrRespReady.empty()) {
-        assert(reqBuffer.at(addrRespReady.front()).dccPkt->readyTime
+        assert(reqBuffer.at(addrRespReady.front())->dccPkt->readyTime
                 >= curTick());
         assert(!respOrbEvent.scheduled());
         schedule(respOrbEvent,
-        reqBuffer.at(addrRespReady.front()).dccPkt->readyTime);
+        reqBuffer.at(addrRespReady.front())->dccPkt->readyTime);
     } else {
         // if there is nothing left in any queue, signal a drain
         if (drainState() == DrainState::Draining &&
@@ -643,19 +650,22 @@ DcacheCtrl::processRespOrbEvent()
 
             DPRINTF(Drain, "Controller done draining\n");
             signalDrainDone();
-        } else if ( orbEntry.owPkt->isRead() &&
-                    orbEntry.dccPkt->isDram() &&
-                    orbEntry.isHit) {
+        } else if ( orbEntry->owPkt->isRead() &&
+                    orbEntry->dccPkt->isDram() &&
+                    orbEntry->isHit) {
             // check the refresh state and kick the refresh event loop
             // into action again if banks already closed and just waiting
             // for read to complete
-            dram->checkRefreshState(orbEntry.dccPkt->rank);
+            dram->checkRefreshState(orbEntry->dccPkt->rank);
         }
     }
 
-    if (orbEntry.owPkt->isRead() &&
-        orbEntry.dccPkt->isDram() &&
-        orbEntry.isHit) {
+    if (orbEntry->owPkt->isRead() &&
+        orbEntry->dccPkt->isDram() &&
+        orbEntry->isHit) {
+            // Remove the request from the ORB and
+            // bring in a conflicting req waiting
+            // in the CRB, if any.
             resumeConflictingReq(orbEntry);
             canRetryRdReq = true;
     }

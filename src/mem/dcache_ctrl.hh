@@ -199,9 +199,8 @@ class DcacheCtrl : public QoS::MemCtrl
 
     void printORB();
     void printCRB();
-    //inline Addr returnIndexORB(Addr pkt_addr, unsigned size);
-    inline Addr returnTagDC(Addr pkt_addr, unsigned size);
-    inline Addr returnIndexDC(Addr pkt_addr, unsigned size);
+    Addr returnTagDC(Addr pkt_addr, unsigned size);
+    Addr returnIndexDC(Addr pkt_addr, unsigned size);
 
     /**
      * Bunch of things requires to setup "events" in gem5
@@ -372,7 +371,7 @@ class DcacheCtrl : public QoS::MemCtrl
 
     //typedef std::pair<Tick, reqBufferEntry*> reqBufferPair;
     // JASON:
-    std::map<Addr,reqBufferEntry> reqBuffer;
+    std::map<Addr,reqBufferEntry*> reqBuffer;
     // reqBuffer.emplace(addr, valid, arrival, ...)
     //std::vector<reqBufferEntry*> reqBuffer;
 
@@ -393,11 +392,11 @@ class DcacheCtrl : public QoS::MemCtrl
     //                    std::greater<confBufferPair> > confReqTable;
 
     void handleRequestorPkt(PacketPtr pkt);
-    void processInitRead(Addr addr);
-    void checkHitOrMiss(reqBufferEntry orbEntry);
+    void processInitRead(reqBufferEntry* orbEntry);
+    void checkHitOrMiss(reqBufferEntry* orbEntry);
     bool checkConflictInDramCache(PacketPtr pkt);
-    void checkConflictInCRB(reqBufferEntry orbEntry);
-    void resumeConflictingReq(reqBufferEntry orbEntry);
+    void checkConflictInCRB(reqBufferEntry* orbEntry);
+    void resumeConflictingReq(reqBufferEntry* orbEntry);
 
     /**
      * Holds count of commands issued in burst window starting at
