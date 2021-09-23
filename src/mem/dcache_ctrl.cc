@@ -159,6 +159,19 @@ DcacheCtrl::printCRB()
     std::cout << "******\n";
 }
 
+void
+DcacheCtrl::printAddrRespReady()
+{
+    std::cout << curTick() <<
+    " addrRespReady size: " <<
+    addrRespReady.size() << "\n";
+
+    for (int i=0; i < addrRespReady.size(); i++) {
+            std::cout << addrRespReady.at(i) << " ,";
+    }
+    std::cout << "\n..........\n";
+}
+
 Addr
 DcacheCtrl::returnTagDC(Addr request_addr, unsigned size)
 {
@@ -220,7 +233,8 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
                    dcc_pkt->addr, 1);
     }
     else {
-        accessAndRespond(pkt, frontendLatency, false);
+        //accessAndRespond(pkt, frontendLatency, false);
+        nvm->access(pkt);
         logRequest(DcacheCtrl::WRITE, pkt->requestorId(), pkt->qosValue(),
                    dcc_pkt->addr, 1);
     }
@@ -391,7 +405,8 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
             isInWriteQueue.end();
         if (merged) {
             stats.mergedWrBursts++;
-            accessAndRespond(pkt, frontendLatency, false);
+            //accessAndRespond(pkt, frontendLatency, false);
+            nvm->access(pkt);
             std::cout <<
             "*** Packet serviced by wr merging, adr: " <<
             pkt->getAddr() << "\n";
@@ -448,7 +463,8 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
             }
         }
         if (foundInORB || foundInCRB) {
-            accessAndRespond(pkt, frontendLatency, false);
+            //accessAndRespond(pkt, frontendLatency, false);
+            nvm->access(pkt);
             std::cout <<
             "*** Packet serviced by FW, adr: " <<
             pkt->getAddr() << "\n";
@@ -506,15 +522,10 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
         isInWriteQueue.insert(burstAlign(addr, true));
     }
 
-    // std::cout << "DEBUG: " <<
-    // reqBuffer.at(pkt->getAddr())->owPkt->getAddr() << " " <<
-    // reqBuffer.at(pkt->getAddr())->dccPkt->getAddr() << " " <<
-    // reqBuffer.at(pkt->getAddr())->validEntry << " " <<
-    // reqBuffer.at(pkt->getAddr())->isHit << "\n";
-
     processInitRead(reqBuffer.at(pkt->getAddr()));
 
     // Access. and/or respond if write
+    printORB();
 
     return true;
 }
@@ -567,10 +578,6 @@ DcacheCtrl::processNextOrbEvent()
         }
     }
 
-    if (!nextOrbEvent.scheduled()) {
-        schedule(nextOrbEvent, std::max(nextReqTime, curTick()));
-    }
-
     if (retryWrReq && canRetryWrReq) {
         retryWrReq = false;
         port.sendRetryReq();
@@ -582,9 +589,9 @@ DcacheCtrl::processNextOrbEvent()
 void
 DcacheCtrl::processRespOrbEvent()
 {
-    std::cout << curTick() << " processRespOrbEvent\n";
-
     reqBufferEntry* orbEntry = reqBuffer.at(addrRespReady.front());
+
+    std::cout << curTick() << " processRespOrbEvent " << "\n";
 
     // A flag which is used for retrying read requests
     // in case of finishing an existing read request in
@@ -597,19 +604,18 @@ DcacheCtrl::processRespOrbEvent()
     assert(orbEntry->state == dramRead);
     assert(orbEntry->dccPkt->readyTime == curTick());
 
+    dram->respondEvent(orbEntry->dccPkt->rank);
+
     if (orbEntry->owPkt->isRead() &&
         orbEntry->dccPkt->isDram() &&
         orbEntry->isHit) {
-            // This is a read request in initial read state.
-            // It has also hit on DRAM cache.
-            // So, send back the response.
 
-            // media specific checks and functions
-            // when read response is complete
-            dram->respondEvent(orbEntry->dccPkt->rank);
-            accessAndRespond(orbEntry->owPkt,
-                             frontendLatency + backendLatency,
-                             false);
+            // dram->respondEvent(orbEntry->dccPkt->rank);
+
+            //accessAndRespond(orbEntry->owPkt,
+            //                 frontendLatency + backendLatency,
+            //                 false);
+            nvm->access(orbEntry->owPkt);
     }
 
     if (!orbEntry->owPkt->isRead() &&

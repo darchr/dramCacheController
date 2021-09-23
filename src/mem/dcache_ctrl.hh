@@ -199,6 +199,7 @@ class DcacheCtrl : public QoS::MemCtrl
 
     void printORB();
     void printCRB();
+    void printAddrRespReady();
     Addr returnTagDC(Addr pkt_addr, unsigned size);
     Addr returnIndexDC(Addr pkt_addr, unsigned size);
 
