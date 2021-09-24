@@ -264,30 +264,7 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     Tick minWriteToReadDataGap();
 
-    /**
-     * The memory schduler/arbiter - picks which request needs to
-     * go next, based on the specified policy such as FCFS or FR-FCFS
-     * and moves it to the head of the queue.
-     * Prioritizes accesses to the same rank as previous burst unless
-     * controller is switching command type.
-     *
-     * @param queue Queued requests to consider
-     * @param extra_col_delay Any extra delay due to a read/write switch
-     * @return an iterator to the selected packet, else queue.end()
-     */
-    dccPacketQueue::iterator chooseNext(dccPacketQueue& queue,
-        Tick extra_col_delay);
 
-    /**
-     * For FR-FCFS policy reorder the read/write queue depending on row buffer
-     * hits and earliest bursts available in memory
-     *
-     * @param queue Queued requests to consider
-     * @param extra_col_delay Any extra delay due to a read/write switch
-     * @return an iterator to the selected packet, else queue.end()
-     */
-    dccPacketQueue::iterator chooseNextFRFCFS(dccPacketQueue& queue,
-            Tick extra_col_delay);
 
     /**
      * Calculate burst window aligned tick

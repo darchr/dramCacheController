@@ -141,6 +141,7 @@ DcacheCtrl::printORB()
             std::cout << "[" << i << "]: " <<
             e->second->arrivalTick << " // " <<
             e->second->owPkt->getAddr() << " // " <<
+            e->second->owPkt->cmdString() << " // " <<
             e->second->dccPkt->readyTime << "\n";
         }
         i++;
@@ -591,7 +592,10 @@ DcacheCtrl::processRespOrbEvent()
 {
     reqBufferEntry* orbEntry = reqBuffer.at(addrRespReady.front());
 
-    std::cout << curTick() << " processRespOrbEvent " << "\n";
+    std::cout << curTick() <<
+    " processRespOrbEvent " <<
+    orbEntry->owPkt->getAddr() <<
+    " " << orbEntry->owPkt->cmdString() << "\n";
 
     // A flag which is used for retrying read requests
     // in case of finishing an existing read request in
@@ -687,83 +691,6 @@ void
 DcacheCtrl::processRespondEvent()
 {
 
-}
-
-dccPacketQueue::iterator
-DcacheCtrl::chooseNext(dccPacketQueue& queue, Tick extra_col_delay)
-{
-    // This method does the arbitration between requests.
-
-    dccPacketQueue::iterator ret = queue.end();
-
-    if (!queue.empty()) {
-        if (queue.size() == 1) {
-            // available rank corresponds to state refresh idle
-            dccPacket* dcc_pkt = *(queue.begin());
-            if (packetReady(dcc_pkt)) {
-                ret = queue.begin();
-                DPRINTF(DcacheCtrl, "Single request, going to a free rank\n");
-            } else {
-                DPRINTF(DcacheCtrl, "Single request, going to a busy rank\n");
-            }
-        } else if (memSchedPolicy == Enums::fcfs) {
-            // check if there is a packet going to a free rank
-            for (auto i = queue.begin(); i != queue.end(); ++i) {
-                dccPacket* dcc_pkt = *i;
-                if (packetReady(dcc_pkt)) {
-                    ret = i;
-                    break;
-                }
-            }
-        } else if (memSchedPolicy == Enums::frfcfs) {
-            ret = chooseNextFRFCFS(queue, extra_col_delay);
-        } else {
-            panic("No scheduling policy chosen\n");
-        }
-    }
-    return ret;
-}
-
-dccPacketQueue::iterator
-DcacheCtrl::chooseNextFRFCFS(dccPacketQueue& queue, Tick extra_col_delay)
-{
-    auto selected_pkt_it = queue.end();
-    Tick col_allowed_at = MaxTick;
-
-    // time we need to issue a column command to be seamless
-    const Tick min_col_at = std::max(nextBurstAt + extra_col_delay, curTick());
-
-    // find optimal packet for each interface
-    if (dram && nvm) {
-        // create 2nd set of parameters for NVM
-        auto nvm_pkt_it = queue.end();
-        Tick nvm_col_at = MaxTick;
-
-        // Select packet by default to give priority if both
-        // can issue at the same time or seamlessly
-        std::tie(selected_pkt_it, col_allowed_at) =
-                 dram->chooseNextFRFCFS(queue, min_col_at);
-        std::tie(nvm_pkt_it, nvm_col_at) =
-                 nvm->chooseNextFRFCFS(queue, min_col_at);
-
-        // Compare DRAM and NVM and select NVM if it can issue
-        // earlier than the DRAM packet
-        if (col_allowed_at > nvm_col_at) {
-            selected_pkt_it = nvm_pkt_it;
-        }
-    } else if (dram) {
-        std::tie(selected_pkt_it, col_allowed_at) =
-                 dram->chooseNextFRFCFS(queue, min_col_at);
-    } else if (nvm) {
-        std::tie(selected_pkt_it, col_allowed_at) =
-                 nvm->chooseNextFRFCFS(queue, min_col_at);
-    }
-
-    if (selected_pkt_it == queue.end()) {
-        DPRINTF(DcacheCtrl, "%s no available packets found\n", __func__);
-    }
-
-    return selected_pkt_it;
 }
 
 void
