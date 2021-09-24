@@ -591,7 +591,9 @@ DcacheCtrl::processRespOrbEvent()
 {
     reqBufferEntry* orbEntry = reqBuffer.at(addrRespReady.front());
 
-    std::cout << curTick() << " processRespOrbEvent " << "\n";
+    std::cout << curTick() <<
+    " processRespOrbEvent " <<
+    orbEntry->owPkt->getAddr() <<"\n";
 
     // A flag which is used for retrying read requests
     // in case of finishing an existing read request in
