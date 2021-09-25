@@ -139,8 +139,9 @@ DcacheCtrl::printORB()
     for (auto e = reqBuffer.begin(); e != reqBuffer.end(); ++e) {
         if (e->second->validEntry) {
             std::cout << "[" << i << "]: " <<
-            e->second->arrivalTick << " // " <<
             e->second->owPkt->getAddr() << " // " <<
+            e->second->arrivalTick << " // " <<
+            e->second->owPkt->cmdString() << " // " <<
             e->second->dccPkt->readyTime << "\n";
         }
         i++;
@@ -233,8 +234,26 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
                    dcc_pkt->addr, 1);
     }
     else {
-        //accessAndRespond(pkt, frontendLatency, false);
-        nvm->access(pkt);
+
+        //copying the packet
+        PacketPtr copyOwPkt = new Packet(pkt, false, pkt->isRead());
+
+        accessAndRespond(pkt, frontendLatency, false);
+        //nvm->access(pkt);
+        reqBuffer.at(copyOwPkt->getAddr()) =  new reqBufferEntry(
+                                true, curTick(),
+                                returnTagDC(copyOwPkt->getAddr(),
+                                            copyOwPkt->getSize()),
+                                returnIndexDC(copyOwPkt->getAddr(),
+                                              copyOwPkt->getSize()),
+                                true, copyOwPkt->isWrite(),
+                                copyOwPkt->getAddr(),
+                                copyOwPkt, dcc_pkt, nullptr,
+                                dramRead, false, false
+                          );
+
+
+
         logRequest(DcacheCtrl::WRITE, pkt->requestorId(), pkt->qosValue(),
                    dcc_pkt->addr, 1);
     }
@@ -405,8 +424,8 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
             isInWriteQueue.end();
         if (merged) {
             stats.mergedWrBursts++;
-            //accessAndRespond(pkt, frontendLatency, false);
-            nvm->access(pkt);
+            accessAndRespond(pkt, frontendLatency, false);
+            //nvm->access(pkt);
             std::cout <<
             "*** Packet serviced by wr merging, adr: " <<
             pkt->getAddr() << "\n";
@@ -463,8 +482,8 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
             }
         }
         if (foundInORB || foundInCRB) {
-            //accessAndRespond(pkt, frontendLatency, false);
-            nvm->access(pkt);
+            accessAndRespond(pkt, frontendLatency, false);
+            //nvm->access(pkt);
             std::cout <<
             "*** Packet serviced by FW, adr: " <<
             pkt->getAddr() << "\n";
@@ -525,7 +544,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     processInitRead(reqBuffer.at(pkt->getAddr()));
 
     // Access. and/or respond if write
-    printORB();
+    //printORB();
 
     return true;
 }
@@ -593,7 +612,8 @@ DcacheCtrl::processRespOrbEvent()
 
     std::cout << curTick() <<
     " processRespOrbEvent " <<
-    orbEntry->owPkt->getAddr() <<"\n";
+    orbEntry->owPkt->getAddr() <<
+    " " << orbEntry->owPkt->cmdString() << "\n";
 
     // A flag which is used for retrying read requests
     // in case of finishing an existing read request in
@@ -612,12 +632,30 @@ DcacheCtrl::processRespOrbEvent()
         orbEntry->dccPkt->isDram() &&
         orbEntry->isHit) {
 
-            // dram->respondEvent(orbEntry->dccPkt->rank);
+            PacketPtr copyOwPkt = new Packet(orbEntry->owPkt, false,
+                                        orbEntry->owPkt->isRead());
 
-            //accessAndRespond(orbEntry->owPkt,
-            //                 frontendLatency + backendLatency,
-            //                 false);
-            nvm->access(orbEntry->owPkt);
+            accessAndRespond(orbEntry->owPkt,
+                             frontendLatency + backendLatency,
+                             false);
+            // nvm->access(orbEntry->owPkt);
+            reqBuffer.at(copyOwPkt->getAddr()) =  new reqBufferEntry(
+                                orbEntry->validEntry,
+                                orbEntry->arrivalTick,
+                                returnTagDC(copyOwPkt->getAddr(),
+                                            copyOwPkt->getSize()),
+                                returnIndexDC(copyOwPkt->getAddr(),
+                                              copyOwPkt->getSize()),
+                                orbEntry->validLine,
+                                orbEntry->dirtyLine,
+                                copyOwPkt->getAddr(),
+                                copyOwPkt,
+                                orbEntry->dccPkt,
+                                orbEntry->dirtyCacheLine,
+                                orbEntry->state,
+                                orbEntry->isHit,
+                                orbEntry->conflict);
+
     }
 
     if (!orbEntry->owPkt->isRead() &&
@@ -689,83 +727,6 @@ void
 DcacheCtrl::processRespondEvent()
 {
 
-}
-
-dccPacketQueue::iterator
-DcacheCtrl::chooseNext(dccPacketQueue& queue, Tick extra_col_delay)
-{
-    // This method does the arbitration between requests.
-
-    dccPacketQueue::iterator ret = queue.end();
-
-    if (!queue.empty()) {
-        if (queue.size() == 1) {
-            // available rank corresponds to state refresh idle
-            dccPacket* dcc_pkt = *(queue.begin());
-            if (packetReady(dcc_pkt)) {
-                ret = queue.begin();
-                DPRINTF(DcacheCtrl, "Single request, going to a free rank\n");
-            } else {
-                DPRINTF(DcacheCtrl, "Single request, going to a busy rank\n");
-            }
-        } else if (memSchedPolicy == Enums::fcfs) {
-            // check if there is a packet going to a free rank
-            for (auto i = queue.begin(); i != queue.end(); ++i) {
-                dccPacket* dcc_pkt = *i;
-                if (packetReady(dcc_pkt)) {
-                    ret = i;
-                    break;
-                }
-            }
-        } else if (memSchedPolicy == Enums::frfcfs) {
-            ret = chooseNextFRFCFS(queue, extra_col_delay);
-        } else {
-            panic("No scheduling policy chosen\n");
-        }
-    }
-    return ret;
-}
-
-dccPacketQueue::iterator
-DcacheCtrl::chooseNextFRFCFS(dccPacketQueue& queue, Tick extra_col_delay)
-{
-    auto selected_pkt_it = queue.end();
-    Tick col_allowed_at = MaxTick;
-
-    // time we need to issue a column command to be seamless
-    const Tick min_col_at = std::max(nextBurstAt + extra_col_delay, curTick());
-
-    // find optimal packet for each interface
-    if (dram && nvm) {
-        // create 2nd set of parameters for NVM
-        auto nvm_pkt_it = queue.end();
-        Tick nvm_col_at = MaxTick;
-
-        // Select packet by default to give priority if both
-        // can issue at the same time or seamlessly
-        std::tie(selected_pkt_it, col_allowed_at) =
-                 dram->chooseNextFRFCFS(queue, min_col_at);
-        std::tie(nvm_pkt_it, nvm_col_at) =
-                 nvm->chooseNextFRFCFS(queue, min_col_at);
-
-        // Compare DRAM and NVM and select NVM if it can issue
-        // earlier than the DRAM packet
-        if (col_allowed_at > nvm_col_at) {
-            selected_pkt_it = nvm_pkt_it;
-        }
-    } else if (dram) {
-        std::tie(selected_pkt_it, col_allowed_at) =
-                 dram->chooseNextFRFCFS(queue, min_col_at);
-    } else if (nvm) {
-        std::tie(selected_pkt_it, col_allowed_at) =
-                 nvm->chooseNextFRFCFS(queue, min_col_at);
-    }
-
-    if (selected_pkt_it == queue.end()) {
-        DPRINTF(DcacheCtrl, "%s no available packets found\n", __func__);
-    }
-
-    return selected_pkt_it;
 }
 
 void
@@ -1262,9 +1223,10 @@ DcacheCtrl::drain()
 
         // the only queue that is not drained automatically over time
         // is the write queue, thus kick things into action if needed
-        if (!totalWriteQueueSize && !nextReqEvent.scheduled()) {
-            schedule(nextOrbEvent, curTick());
-        }
+
+        // if (!totalWriteQueueSize && !nextReqEvent.scheduled()) {
+        //     schedule(nextOrbEvent, curTick());
+        // }
 
         if (dram)
             dram->drainRanks();
