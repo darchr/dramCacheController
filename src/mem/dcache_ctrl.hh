@@ -215,6 +215,9 @@ class DcacheCtrl : public QoS::MemCtrl
     void processRespondEvent();
     EventFunctionWrapper respondEvent;
 
+    void processInitReadEvent();
+    EventFunctionWrapper initReadEvent;
+
     void processNextOrbEvent();
     EventFunctionWrapper nextOrbEvent;
 
@@ -361,6 +364,7 @@ class DcacheCtrl : public QoS::MemCtrl
     // std::multimap<Addr, std::pair<Tick, PacketPtr>> confReqBuffer;
     std::vector<confReqBufferPair> confReqBuffer;
 
+    std::deque <Addr> addrInitRead;
     std::deque <Addr> addrRespReady;
 
     //std::priority_queue<reqBufferPair, std::vector<reqBufferPair>,
@@ -370,7 +374,7 @@ class DcacheCtrl : public QoS::MemCtrl
     //                    std::greater<confBufferPair> > confReqTable;
 
     void handleRequestorPkt(PacketPtr pkt);
-    void processInitRead(reqBufferEntry* orbEntry);
+    //void processInitRead(reqBufferEntry* orbEntry);
     void checkHitOrMiss(reqBufferEntry* orbEntry);
     bool checkConflictInDramCache(PacketPtr pkt);
     void checkConflictInCRB(reqBufferEntry* orbEntry);

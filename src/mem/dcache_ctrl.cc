@@ -16,6 +16,7 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
     retryRdReq(false), retryWrReq(false),
     nextReqEvent([this]{ processNextReqEvent(); }, name()),
     respondEvent([this]{ processRespondEvent(); }, name()),
+    initReadEvent([this]{ processInitReadEvent(); }, name()),
     nextOrbEvent([this]{ processNextOrbEvent(); }, name()),
     respOrbEvent([this]{ processRespOrbEvent(); }, name()),
     dram(p.dram), nvm(p.nvm),
@@ -290,8 +291,12 @@ DcacheCtrl::checkConflictInCRB(reqBufferEntry* orbEntry)
 }
 
 void
-DcacheCtrl::processInitRead(reqBufferEntry* orbEntry)
+DcacheCtrl::processInitReadEvent()
 {
+    assert(!addrInitRead.empty());
+
+    reqBufferEntry* orbEntry = reqBuffer.at(addrInitRead.front());
+
     assert(orbEntry->validEntry);
     assert(orbEntry->state == dramRead);
     assert(packetReady(orbEntry->dccPkt));
@@ -327,6 +332,13 @@ DcacheCtrl::processInitRead(reqBufferEntry* orbEntry)
 
     addrRespReady.push_back(orbEntry->owPkt->getAddr());
     orbEntry->state = dramRead;
+
+    addrInitRead.pop_front();
+
+    if (!addrInitRead.empty()) {
+        assert(!initReadEvent.scheduled());
+        schedule(initReadEvent, curTick());
+    }
 }
 
 void
@@ -355,7 +367,15 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 
                 checkConflictInCRB(reqBuffer.at(confAddr));
 
-                processInitRead(reqBuffer.at(confAddr));
+                //processInitRead(reqBuffer.at(confAddr));
+                if (addrInitRead.empty()) {
+                    assert(!initReadEvent.scheduled());
+                    schedule(initReadEvent, curTick());
+                } else {
+                    assert(initReadEvent.scheduled());
+                }
+
+                addrInitRead.push_back(confAddr);
 
                 break;
         }
@@ -541,7 +561,17 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
         isInWriteQueue.insert(burstAlign(addr, true));
     }
 
-    processInitRead(reqBuffer.at(pkt->getAddr()));
+    // processInitRead(reqBuffer.at(pkt->getAddr()));
+
+    if (addrInitRead.empty()) {
+        assert(!initReadEvent.scheduled());
+        schedule(initReadEvent, curTick());
+    } else {
+        assert(initReadEvent.scheduled());
+    }
+
+    addrInitRead.push_back(pkt->getAddr());
+
 
     // Access. and/or respond if write
     //printORB();
