@@ -162,6 +162,19 @@ DcacheCtrl::printCRB()
 }
 
 void
+DcacheCtrl::printAddrInitRead()
+{
+    std::cout << curTick() <<
+    " addrInitRead size: " <<
+    addrInitRead.size() << "\n";
+
+    for (int i=0; i < addrInitRead.size(); i++) {
+            std::cout << addrInitRead.at(i) << " ,";
+    }
+    std::cout << "\n&&&&&&&&\n";
+}
+
+void
 DcacheCtrl::printAddrRespReady()
 {
     std::cout << curTick() <<
@@ -293,6 +306,10 @@ DcacheCtrl::checkConflictInCRB(reqBufferEntry* orbEntry)
 void
 DcacheCtrl::processInitReadEvent()
 {
+    std::cout << "2/ " << reqBuffer.size() << " " <<
+    confReqBuffer.size() << " " << addrInitRead.size() <<
+    " " << addrRespReady.size()
+     <<  " // " << retryRdReq << " " << retryWrReq << "\n";
     assert(!addrInitRead.empty());
 
     reqBufferEntry* orbEntry = reqBuffer.at(addrInitRead.front());
@@ -341,7 +358,7 @@ DcacheCtrl::processInitReadEvent()
     }
 }
 
-void
+bool
 DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 {
     bool conflictFound = false;
@@ -385,14 +402,20 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
     if (!conflictFound) {
         reqBuffer.erase(orbEntry->owPkt->getAddr());
     }
+
+    return conflictFound;
 }
 
 bool
 DcacheCtrl::recvTimingReq(PacketPtr pkt)
 {
+    std::cout << "1/ " << reqBuffer.size() << " " <<
+    confReqBuffer.size() << " " << addrInitRead.size() <<
+    " " << addrRespReady.size() <<
+    " // " << retryRdReq << " " << retryWrReq <<  "\n";
     // This is where we enter from the outside world
-    std::cout << "recvTimingReq Tick: " << curTick() <<
-    " // " << pkt->getAddr() << " " << pkt->cmdString() << "\n";
+    // std::cout << "recvTimingReq Tick: " << curTick() <<
+    // " // " << pkt->getAddr() << " " << pkt->cmdString() << "\n";
 
     DPRINTF(DcacheCtrl, "recvTimingReq: request %s addr %lld size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getSize());
@@ -446,9 +469,10 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
             stats.mergedWrBursts++;
             accessAndRespond(pkt, frontendLatency, false);
             //nvm->access(pkt);
-            std::cout <<
-            "*** Packet serviced by wr merging, adr: " <<
-            pkt->getAddr() << "\n";
+            // std::cout <<
+            // "*** Packet serviced by wr merging, adr: " <<
+            // pkt->getAddr() << "\n";
+            std::cout << "a\n";
             return true;
         }
     }
@@ -504,9 +528,10 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
         if (foundInORB || foundInCRB) {
             accessAndRespond(pkt, frontendLatency, false);
             //nvm->access(pkt);
-            std::cout <<
-            "*** Packet serviced by FW, adr: " <<
-            pkt->getAddr() << "\n";
+            // std::cout <<
+            // "*** Packet serviced by FW, adr: " <<
+            // pkt->getAddr() << "\n";
+            std::cout << "b\n";
             return true;
         }
     }
@@ -521,10 +546,11 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
             else if (pkt->isWrite()) {
                 retryWrReq = true;
             }
-            std::cout <<
-            "*** Packet caused conflict in DC and CRB Overflow, adr: " <<
-            pkt->getAddr() << " // " <<
-            reqBuffer.at(pkt->getAddr())->owPkt->getAddr() << "\n";
+            // std::cout <<
+            // "*** Packet caused conflict in DC and CRB Overflow, adr: " <<
+            // pkt->getAddr() << " // " <<
+            // reqBuffer.at(pkt->getAddr())->owPkt->getAddr() << "\n";
+            std::cout << "c\n";
             return false;
         }
         confReqBuffer.push_back(std::make_pair(curTick(), pkt));
@@ -532,10 +558,11 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
         if (pkt->isWrite()) {
             isInWriteQueue.insert(burstAlign(addr, true));
         }
-        std::cout <<
-        "*** Packet caused conflict in DC, adr: " <<
-        pkt->getAddr() << " // " <<
-        reqBuffer.at(pkt->getAddr())->owPkt->getAddr() << "\n";
+        // std::cout <<
+        // "*** Packet caused conflict in DC, adr: " <<
+        // pkt->getAddr() << " // " <<
+        // reqBuffer.at(pkt->getAddr())->owPkt->getAddr() << "\n";
+        std::cout << "d\n";
         return true;
     }
 
@@ -547,9 +574,11 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
         else if (pkt->isWrite()) {
             retryWrReq = true;
         }
-        std::cout <<
-        "*** Packet caused ORB Overflow, adr: " <<
-        pkt->getAddr() << "\n";
+        // std::cout <<
+        // "*** Packet caused ORB Overflow, adr: " <<
+        // pkt->getAddr() << "\n";
+        std::cout << "e " << curTick() << retryRdReq <<
+        " " << retryWrReq << "\n";
         return false;
     }
 
@@ -583,7 +612,11 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
 void
 DcacheCtrl::processNextOrbEvent()
 {
-    std::cout << curTick() << " processNextOrbEvent\n";
+    std::cout << "4/ " << reqBuffer.size() << " " <<
+    confReqBuffer.size() << " " << addrInitRead.size() <<
+    " " << addrRespReady.size() <<
+    " // " << retryRdReq << " " << retryWrReq <<  "\n";
+    // std::cout << curTick() << " processNextOrbEvent\n";
 
     bool canRetryWrReq = false;
 
@@ -619,9 +652,7 @@ DcacheCtrl::processNextOrbEvent()
                 // Remove the request from the ORB and
                 // bring in a conflicting req waiting
                 // in the CRB, if any.
-                resumeConflictingReq(e->second);
-
-                canRetryWrReq = true;
+                canRetryWrReq = !resumeConflictingReq(e->second);
 
                 break;
         }
@@ -638,12 +669,16 @@ DcacheCtrl::processNextOrbEvent()
 void
 DcacheCtrl::processRespOrbEvent()
 {
+    std::cout << "3/ " << reqBuffer.size() << " " <<
+    confReqBuffer.size() << " " << addrInitRead.size()
+    << " " << addrRespReady.size() <<
+    " // " << retryRdReq << " " << retryWrReq << "\n";
     reqBufferEntry* orbEntry = reqBuffer.at(addrRespReady.front());
 
-    std::cout << curTick() <<
-    " processRespOrbEvent " <<
-    orbEntry->owPkt->getAddr() <<
-    " " << orbEntry->owPkt->cmdString() << "\n";
+    // std::cout << curTick() <<
+    // " processRespOrbEvent " <<
+    // orbEntry->owPkt->getAddr() <<
+    // " " << orbEntry->owPkt->cmdString() << "\n";
 
     // A flag which is used for retrying read requests
     // in case of finishing an existing read request in
@@ -742,8 +777,7 @@ DcacheCtrl::processRespOrbEvent()
             // Remove the request from the ORB and
             // bring in a conflicting req waiting
             // in the CRB, if any.
-            resumeConflictingReq(orbEntry);
-            canRetryRdReq = true;
+            canRetryRdReq = !resumeConflictingReq(orbEntry);
     }
 
     if (retryRdReq && canRetryRdReq) {

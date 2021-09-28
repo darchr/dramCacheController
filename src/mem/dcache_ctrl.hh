@@ -199,6 +199,7 @@ class DcacheCtrl : public QoS::MemCtrl
 
     void printORB();
     void printCRB();
+    void printAddrInitRead();
     void printAddrRespReady();
     Addr returnTagDC(Addr pkt_addr, unsigned size);
     Addr returnIndexDC(Addr pkt_addr, unsigned size);
@@ -378,7 +379,7 @@ class DcacheCtrl : public QoS::MemCtrl
     void checkHitOrMiss(reqBufferEntry* orbEntry);
     bool checkConflictInDramCache(PacketPtr pkt);
     void checkConflictInCRB(reqBufferEntry* orbEntry);
-    void resumeConflictingReq(reqBufferEntry* orbEntry);
+    bool resumeConflictingReq(reqBufferEntry* orbEntry);
 
     /**
      * Holds count of commands issued in burst window starting at
