@@ -505,7 +505,7 @@ class DRAMDCInterface : public DCMemInterface
          * Incremented when a refresh event is started as well
          * Used to determine when a low-power state can be entered
          */
-        uint8_t outstandingEvents;
+        uint32_t outstandingEvents;
 
         /**
          * delay low-power exit until this requirement is met
