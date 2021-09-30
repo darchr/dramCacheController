@@ -200,7 +200,7 @@ class DcacheCtrl : public QoS::MemCtrl
     void printORB();
     void printCRB();
     void printAddrInitRead();
-    void printAddrRespReady();
+    void printAddrDramRespReady();
     Addr returnTagDC(Addr pkt_addr, unsigned size);
     Addr returnIndexDC(Addr pkt_addr, unsigned size);
 
@@ -216,14 +216,20 @@ class DcacheCtrl : public QoS::MemCtrl
     void processRespondEvent();
     EventFunctionWrapper respondEvent;
 
-    void processInitReadEvent();
-    EventFunctionWrapper initReadEvent;
+    void processDramReadEvent();
+    EventFunctionWrapper dramReadEvent;
 
-    void processNextOrbEvent();
-    EventFunctionWrapper nextOrbEvent;
+    void processDramWriteEvent();
+    EventFunctionWrapper dramWriteEvent;
 
-    void processRespOrbEvent();
-    EventFunctionWrapper respOrbEvent;
+    void processRespDramReadEvent();
+    EventFunctionWrapper respDramReadEvent;
+
+    void processNvmReadEvent();
+    EventFunctionWrapper nvmReadEvent;
+
+    void processRespNvmReadEvent();
+    EventFunctionWrapper respNvmReadEvent;
 
     /**
      * Actually do the burst based on media specific access function.
@@ -366,7 +372,10 @@ class DcacheCtrl : public QoS::MemCtrl
     std::vector<confReqBufferPair> confReqBuffer;
 
     std::deque <Addr> addrInitRead;
-    std::deque <Addr> addrRespReady;
+    std::deque <Addr> addrDramRespReady;
+    std::deque <Addr> addrNvmRead;
+    std::deque <Addr> addrNvmRespReady;
+    std::deque <Addr> addrDramFill;
 
     //std::priority_queue<reqBufferPair, std::vector<reqBufferPair>,
     //                    std::greater<reqBufferPair> > reqTable;
