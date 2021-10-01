@@ -1335,10 +1335,16 @@ AddrRangeList
 DcacheCtrl::MemoryPort::getAddrRanges() const
 {
     AddrRangeList ranges;
-    if (ctrl.dram) {
-        DPRINTF(DRAM, "Pushing DRAM ranges to port\n");
-        ranges.push_back(ctrl.dram->getAddrRange());
-    }
+    // push only nvm range, otherwise
+    // the membus can complain about memory range
+    // overlap (I don't think this will impact
+    // the membus decisions related to the mem ranges
+    // that it is supposed to respond to)
+
+    //if (ctrl.dram) {
+    //    DPRINTF(DRAM, "Pushing DRAM ranges to port\n");
+    //    ranges.push_back(ctrl.dram->getAddrRange());
+    //}
     if (ctrl.nvm) {
         DPRINTF(NVM, "Pushing NVM ranges to port\n");
         ranges.push_back(ctrl.nvm->getAddrRange());
