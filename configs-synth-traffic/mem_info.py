@@ -40,4 +40,5 @@ MemInfoDict = {
         'ddr4' : SingleChannelDDR3_1600_NVM_2400_1x64,
         'lpddr3' : SingleChannelDDR3_1600_NVM_2400_1x64,
         'hbm' : SingleChannelDDR3_1600_NVM_2400_1x64
+    }
 }
