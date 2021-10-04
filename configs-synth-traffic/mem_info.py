@@ -10,14 +10,14 @@ from components_library.memory.dramsim_3 import SingleChannelDDR4_2400 as Single
 from components_library.memory.dramsim_3 import SingleChannelLPDDR3_1600 as SingleChannelDS3LPDDR3_1600
 from components_library.memory.dramsim_3 import SingleChannelHBM as SingleChannelDS3HBM
 
-from components_library.memory.single_channel_dcache import
-                    (SingleChannelDDR3_1600_NVM_2400_1x64)
-from components_library.memory.single_channel_dcache import
-                    (SingleChannelDDR4_2400_NVM_2400_1x64)
-from components_library.memory.single_channel_dcache import
-                    (SingleChannelLPDDR3_1600_NVM_2400_1x64)
-from components_library.memory.single_channel_dcache import
-                    (SingleChannelHBM_NVM_2400_1x64
+from components_library.memory.single_channel_dcache import \
+        SingleChannelDDR3_1600_NVM_2400_1x64
+from components_library.memory.single_channel_dcache import \
+        SingleChannelDDR4_2400_NVM_2400_1x64
+from components_library.memory.single_channel_dcache import \
+        SingleChannelLPDDR3_1600_NVM_2400_1x64
+from components_library.memory.single_channel_dcache import \
+        SingleChannelHBM_NVM_2400_1x64
 
 def GetMemClass(simulator, mem_type):
     return MemInfoDict[simulator][mem_type]
@@ -37,8 +37,8 @@ MemInfoDict = {
     }
     'gem5_dcache': {
         'ddr3' : SingleChannelDDR3_1600_NVM_2400_1x64,
-        'ddr4' : SingleChannelDDR3_1600_NVM_2400_1x64,
-        'lpddr3' : SingleChannelDDR3_1600_NVM_2400_1x64,
-        'hbm' : SingleChannelDDR3_1600_NVM_2400_1x64
+        'ddr4' : SingleChannelDDR4_2400_NVM_2400_1x64,
+        'lpddr3' : SingleChannelLPDDR3_1600_NVM_2400_1x64,
+        'hbm' : SingleChannelHBM_NVM_2400_1x64
     }
 }
