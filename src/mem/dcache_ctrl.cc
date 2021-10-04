@@ -145,6 +145,7 @@ DcacheCtrl::printORB()
             e->second->owPkt->getAddr() << " // " <<
             e->second->arrivalTick << " // " <<
             e->second->owPkt->cmdString() << " // " <<
+            e->second->state << " // " <<
             e->second->dccPkt->readyTime << "\n";
         }
         i++;
@@ -209,10 +210,10 @@ DcacheCtrl::checkHitOrMiss(reqBufferEntry* orbEntry)
 {
     // access the tagMetadataStore data structure to
     // check if it's hit or miss
-    //orbEntry->isHit = tagMetadataStore.at(orbEntry->owPkt->getAddr()) & 1;
+    orbEntry->isHit = tagMetadataStore.at(orbEntry->owPkt->getAddr()) & 1;
 
     // for now assume everything hits in dram cache.
-    orbEntry->isHit = true;
+    //orbEntry->isHit = true;
 }
 
 void
@@ -618,6 +619,7 @@ DcacheCtrl::processDramReadEvent()
 
     addrDramRespReady.push_back(orbEntry->owPkt->getAddr());
 
+    std::cout << "a\n";
     orbEntry->state = dramRead;
 
     addrInitRead.pop_front();
@@ -704,9 +706,7 @@ DcacheCtrl::processRespDramReadEvent()
             // pass the second argument "false" to
             // indicate a write access to dram
             dram->setupRank(orbEntry->dccPkt->rank, false);
-
             orbEntry->state = dramWrite;
-
             addrDramFill.push_back(orbEntry->owPkt->getAddr());
 
             if (!dramWriteEvent.scheduled()) {
@@ -719,6 +719,7 @@ DcacheCtrl::processRespDramReadEvent()
         orbEntry->dccPkt->isRead() &&
         orbEntry->dccPkt->isDram() &&
         !orbEntry->isHit) {
+        std::cout << "1: " << orbEntry->owPkt->getAddr() << "\n";
         // initiate a NVM read
 
         // delete the current dcc pkt which is dram read.
@@ -738,17 +739,35 @@ DcacheCtrl::processRespDramReadEvent()
         // in processNvmReadEvent
         orbEntry->dccPkt->readyTime = MaxTick;
 
+        assert(nvm->readsWaitingToIssue());
+        nvm->processReadPkt(orbEntry->dccPkt);
+        std::cout << "4: " <<  orbEntry->dccPkt->getAddr() <<
+        " " <<  orbEntry->dccPkt->readyTime << "\n";
+
         // keeping the state as nvmRead
+        std::cout << "1********* " <<
+        reqBuffer.at(orbEntry->owPkt->getAddr())->state << "\n";
         orbEntry->state = nvmRead;
-        addrNvmRead.push_back(orbEntry->owPkt->getAddr());
+        std::cout << "2********* " <<
+        reqBuffer.at(orbEntry->owPkt->getAddr())->state << "\n";
+
 
         // to keep track of writes, we maintain the addresses
         // in a FIFO queue
         // addrDramFill.push_back(orbEntry->owPkt->getAddr());
 
-        if (!nvmReadEvent.scheduled()) {
-            schedule(nvmReadEvent, curTick());
+        if (addrNvmRead.empty()) {
+            assert(!nvmReadEvent.scheduled());
+            schedule(nvmReadEvent, orbEntry->dccPkt->readyTime+1);
         }
+        else {
+            assert(reqBuffer.at(addrNvmRead.back())->dccPkt->readyTime
+                                <= orbEntry->dccPkt->readyTime);
+
+            assert(nvmReadEvent.scheduled());
+        }
+
+        addrNvmRead.push_back(orbEntry->owPkt->getAddr());
 
     }
 
@@ -802,6 +821,8 @@ DcacheCtrl::processDramWriteEvent()
 
     while (!addrDramFill.empty()) {
 
+        printORB();
+
         auto e = reqBuffer.at(addrDramFill.front());
 
         // a series of sanity checks
@@ -812,6 +833,8 @@ DcacheCtrl::processDramWriteEvent()
         if (e->owPkt->isRead()) {
             assert(!e->isHit);
         }
+        std::cout << "??? : " << e->owPkt->getAddr() <<  " " <<
+        e->state <<  " " << curTick() <<"\n";
         assert(e->state == dramWrite);
         assert(packetReady(e->dccPkt));
         assert(e->dccPkt->size <=
@@ -855,49 +878,57 @@ DcacheCtrl::processDramWriteEvent()
 void
 DcacheCtrl::processNvmReadEvent()
 {
-    while (!addrNvmRead.empty()) {
-        auto e = reqBuffer.at(addrNvmRead.front());
 
-        assert(e->validEntry);
-        assert(e->state == nvmRead);
-        assert(!e->dccPkt->isDram());
-        assert(packetReady(e->dccPkt));
+    auto e = reqBuffer.at(addrNvmRead.front());
 
-        busState = DcacheCtrl::READ;
+    assert(e->validEntry);
+    assert(e->state == nvmRead);
+    assert(!e->dccPkt->isDram());
+    std::cout << "packetready adr: " << e->owPkt->getAddr() << "\n";
+    assert(packetReady(e->dccPkt));
 
-        doBurstAccess(e->dccPkt);
+    busState = DcacheCtrl::READ;
 
-        // sanity check
-        assert(e->dccPkt->size <= (e->dccPkt->isDram() ?
-                                    dram->bytesPerBurst() :
-                                    nvm->bytesPerBurst()));
-        assert(e->dccPkt->readyTime >= curTick());
+    doBurstAccess(e->dccPkt);
 
-        if (e->owPkt->isRead() && !e->isHit) {
-            logResponse(DcacheCtrl::READ,
-                        e->dccPkt->requestorId(),
-                        e->dccPkt->qosValue(),
-                        e->owPkt->getAddr(), 1,
-                        e->dccPkt->readyTime - e->dccPkt->entryTime);
-        }
+    // sanity check
+    assert(e->dccPkt->size <= (e->dccPkt->isDram() ?
+                                dram->bytesPerBurst() :
+                                nvm->bytesPerBurst()));
+    assert(e->dccPkt->readyTime >= curTick());
 
-        if (addrNvmRespReady.empty()) {
+    if (e->owPkt->isRead() && !e->isHit) {
+        logResponse(DcacheCtrl::READ,
+                    e->dccPkt->requestorId(),
+                    e->dccPkt->qosValue(),
+                    e->owPkt->getAddr(), 1,
+                    e->dccPkt->readyTime - e->dccPkt->entryTime);
+    }
 
-            assert(!respNvmReadEvent.scheduled());
-            schedule(respNvmReadEvent, e->dccPkt->readyTime);
-        }
-        else {
-            assert(reqBuffer.at(addrNvmRespReady.back())->dccPkt->readyTime
-                                <= e->dccPkt->readyTime);
+    if (addrNvmRespReady.empty()) {
+        assert(!respNvmReadEvent.scheduled());
+        schedule(respNvmReadEvent, e->dccPkt->readyTime);
+    }
+    else {
+        assert(reqBuffer.at(addrNvmRespReady.back())->dccPkt->readyTime
+                            <= e->dccPkt->readyTime);
 
-            assert(respNvmReadEvent.scheduled());
-        }
+        assert(respNvmReadEvent.scheduled());
+    }
 
-        addrNvmRespReady.push_back(e->owPkt->getAddr());
+    addrNvmRespReady.push_back(e->owPkt->getAddr());
 
-        e->state = nvmRead;
+    std::cout << "d\n";
+    e->state = nvmRead;
 
-        addrNvmRead.pop_front();
+    addrNvmRead.pop_front();
+
+    if (!addrNvmRead.empty()) {
+        assert(reqBuffer.at(addrNvmRead.front())->dccPkt->readyTime+1
+                >= curTick());
+        assert(!nvmReadEvent.scheduled());
+        schedule(nvmReadEvent,
+        reqBuffer.at(addrNvmRead.front())->dccPkt->readyTime+1);
     }
 }
 
@@ -905,6 +936,10 @@ void
 DcacheCtrl::processRespNvmReadEvent()
 {
     reqBufferEntry* orbEntry = reqBuffer.at(addrNvmRespReady.front());
+
+    std::cout << "processRespNvmReadEvent " << orbEntry->owPkt->getAddr() <<
+    " " << orbEntry->state << " " << curTick() << " "
+    << orbEntry->dccPkt->readyTime << "\n";
 
     // A series of sanity check
     assert(orbEntry->validEntry);
@@ -960,10 +995,17 @@ DcacheCtrl::processRespNvmReadEvent()
     dram->setupRank(orbEntry->dccPkt->rank, false);
 
     // update the state of the orb entry
+    std::cout << "3********* " <<
+    reqBuffer.at(orbEntry->owPkt->getAddr())->state << "\n";
     orbEntry->state = dramWrite;
+    //reqBuffer.at(orbEntry->owPkt->getAddr())->state = dramWrite;
+    std::cout << "4********* " <<
+    reqBuffer.at(orbEntry->owPkt->getAddr())->state << "\n";
+    orbEntry->state << " " << curTick() << "\n";
 
+    std::cout << "..... " << dramWriteEvent.scheduled() << "\n";
     if (!dramWriteEvent.scheduled()) {
-        schedule(dramWriteEvent, curTick());
+        schedule(dramWriteEvent, curTick()+1);
     }
 
     // to keep track of writes, we maintain the addresses
@@ -979,6 +1021,11 @@ DcacheCtrl::processRespNvmReadEvent()
         schedule(respNvmReadEvent,
         reqBuffer.at(addrNvmRespReady.front())->dccPkt->readyTime);
     }
+
+    std::cout << "{{{2 : " << orbEntry->owPkt->getAddr() << " " <<
+    orbEntry->state << " " << curTick() << "\n";
+    printORB();
+    std::cout << "______________________\n";
 
 }
 

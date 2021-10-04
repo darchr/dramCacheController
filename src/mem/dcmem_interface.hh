@@ -1184,6 +1184,8 @@ class NVMDCInterface : public DCMemInterface
      */
     void chooseRead(dccPacketQueue& queue);
 
+    void processReadPkt(dccPacket* pkt);
+
     /*
      * Function to calulate unloaded access latency
      */
