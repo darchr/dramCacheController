@@ -233,13 +233,6 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
     // initial DRAM Read for all the received packets
     dram->setupRank(dcc_pkt->rank, true);
 
-    // JASON: This setupRank is telling the dram interface that a read/write is
-    // coming. Since you are doing many read/writes for each packet you may
-    // need to call this multiple times depending on hit/miss (when you know)
-    // I don't know if *when* you call this matters (e.g., can you call it 3
-    // times right here or do you need to wait until after the first read
-    // finishes to set it up for the fill)
-
     reqBufferEntry* entry = new reqBufferEntry(
                                 true, curTick(),
                                 returnTagDC(pkt->getAddr(), pkt->getSize()),
@@ -358,14 +351,14 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 bool
 DcacheCtrl::recvTimingReq(PacketPtr pkt)
 {
+    // This is where we enter from the outside world
+
     totRecvdPkts++;
 
     // std::cout << "recvTimingReq Tick: " << curTick() <<
     // " " << pkt->getAddr()
     // << " " << pkt->cmdString() << " " <<
     // totRecvdPkts << "\n";
-
-    // This is where we enter from the outside world
 
     DPRINTF(DcacheCtrl, "recvTimingReq: request %s addr %lld size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getSize());
@@ -404,12 +397,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     unsigned size = std::min((addr | (burst_size - 1)) + 1,
                         base_addr + pkt->getSize()) - addr;
 
-    // run the QoS scheduler and assign a QoS priority value to the packet
-    // Ignored for now!
-    // qosSchedule( { &reqBuffer, &confReqBuffer }, burst_size, pkt);
-
     // process merging for writes
-    // JASON: I suggest skipping this here for now. We may revisit this.
     if (!pkt->isRead()) {
 
         assert(pkt_size != 0);
@@ -428,16 +416,6 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
             return true;
         }
     }
-
-    // JASON... what I would do
-    // If the (cache) address is in the reqBuffer, then check if we can forward
-    //     or merge
-    // if forward, then access and respond. CANNOT NOT FORWARD/MERGE
-    // if not conflict, add to reqBuffer
-    // If conflicting, check confReqBuffer for forward, if can, forward
-    // else, add to conflicting
-    // If conflicting, this means that it cannot possibly be to the same phys
-    // address as anything in the reqBuffer
 
     // process forwarding for reads
     bool foundInORB = false;
