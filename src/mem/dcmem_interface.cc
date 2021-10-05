@@ -2170,11 +2170,109 @@ NVMDCInterface::chooseRead(dccPacketQueue& queue)
 }
 
 void
+NVMDCInterface::processReadPkt(dccPacket* pkt)
+{
+    Tick cmd_at = std::max(curTick(), nextReadAt);
+
+    // This method does the arbitration between non-deterministic read
+    // requests to NVM. The chosen packet is not removed from the queue
+    // at this time. Removal from the queue will occur when the data is
+    // ready and a separate SEND command is issued to retrieve it via the
+    // chooseNext function in the top-level controller.
+    //assert(!queue.empty());
+
+    assert(numReadsToIssue > 0);
+    numReadsToIssue--;
+    // For simplicity, issue non-deterministic reads in order (fcfs)
+    //for (auto i = queue.begin(); i != queue.end() ; ++i) {
+        //dccPacket* pkt = *i;
+
+        // Find 1st NVM read packet that hasn't issued read command
+        //if (pkt->readyTime == MaxTick && !pkt->isDram() && pkt->isRead()) {
+            //assert(pkt->readyTime == MaxTick);
+            assert(!pkt->isDram());
+            assert(pkt->isRead());
+
+           // get the bank
+           Bank& bank_ref = ranks[pkt->rank]->banks[pkt->bank];
+
+            // issueing a read, inc counter and verify we haven't overrun
+            numPendingReads++;
+            assert(numPendingReads <= maxPendingReads);
+
+            // increment the bytes accessed and the accesses per row
+            bank_ref.bytesAccessed += burstSize;
+
+            // Verify command bandiwth to issue
+            // Host can issue read immediately uith buffering closer
+            // to the NVM. The actual execution at the NVM may be delayed
+            // due to busy resources
+            if (twoCycleRdWr) {
+                cmd_at = ctrl->verifyMultiCmd(cmd_at,
+                                              maxCommandsPerWindow, tCK);
+            } else {
+                cmd_at = ctrl->verifySingleCmd(cmd_at,
+                                               maxCommandsPerWindow);
+            }
+
+            // Update delay to next read
+            // Ensures single read command issued per cycle
+            nextReadAt = cmd_at + tCK;
+
+            // If accessing a new location in this bank, update timing
+            // and stats
+            if (bank_ref.openRow != pkt->row) {
+                // update the open bank, re-using row field
+                bank_ref.openRow = pkt->row;
+
+                // sample the bytes accessed to a buffer in this bank
+                // here when we are re-buffering the data
+                stats.bytesPerBank.sample(bank_ref.bytesAccessed);
+                // start counting anew
+                bank_ref.bytesAccessed = 0;
+
+                // holdoff next command to this bank until the read completes
+                // and the data has been successfully buffered
+                // can pipeline accesses to the same bank, sending them
+                // across the interface B2B, but will incur full access
+                // delay between data ready responses to different buffers
+                // in a bank
+                bank_ref.actAllowedAt = std::max(cmd_at,
+                                        bank_ref.actAllowedAt) + tREAD;
+            }
+            // update per packet readyTime to holdoff burst read operation
+            // overloading readyTime, which will be updated again when the
+            // burst is issued
+            pkt->readyTime = std::max(cmd_at, bank_ref.actAllowedAt);
+            DPRINTF(NVM, "Issuing NVM Read to bank %d at tick %d. "
+                         "Data ready at %d\n",
+                         bank_ref.bank, cmd_at, pkt->readyTime);
+
+            // Insert into read ready queue. It will be handled after
+            // the media delay has been met
+            if (readReadyQueue.empty()) {
+                assert(!readReadyEvent.scheduled());
+                schedule(readReadyEvent, pkt->readyTime);
+            } else if (readReadyEvent.when() > pkt->readyTime) {
+                // move it sooner in time, to the first read with data
+                reschedule(readReadyEvent, pkt->readyTime);
+            } else {
+                assert(readReadyEvent.scheduled());
+            }
+            readReadyQueue.push_back(pkt->readyTime);
+
+            // found an NVM read to issue - break out
+            //break;
+        //}
+    //}
+}
+
+
+void
 NVMDCInterface::processReadReadyEvent()
 {
     // signal that there is read data ready to be transmitted
     numReadDataReady++;
-
     DPRINTF(NVM,
             "processReadReadyEvent(): Data for an NVM read is ready. "
             "numReadDataReady is %d\t numPendingReads is %d\n",
