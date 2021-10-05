@@ -30,7 +30,7 @@ class NVMDCInterface;
  * the timestamp of when the packet entered the queue, and also
  * the decoded address.
  */
-// Jason: Inherit from MemPacket and remove shared code.
+
 class dccPacket
 {
   public:
@@ -145,7 +145,6 @@ class dccPacket
 
 // The memory packets are store in a multiple dequeue structure,
 // based on their QoS priority
-// Jason: not needed, can use memPacketQueue
 typedef std::deque<dccPacket*> dccPacketQueue;
 
 
@@ -217,18 +216,41 @@ class DcacheCtrl : public QoS::MemCtrl
     void processRespondEvent();
     EventFunctionWrapper respondEvent;
 
+    /**
+     * processDramReadEvent() is an event handler which
+     * schedules the initial DRAM read accesses for every
+     * received packet by the DRAM Cache Controller.
+    */
     void processDramReadEvent();
     EventFunctionWrapper dramReadEvent;
 
+    /**
+     * processDramWriteEvent() is an event handler which
+     * handles DRAM write accesses in the DRAM Cache Controller.
+    */
     void processDramWriteEvent();
     EventFunctionWrapper dramWriteEvent;
 
+    /**
+     * processRespDramReadEvent() is an event handler which
+     * handles the responses of the initial DRAM read accesses
+     * for the received packets by the DRAM Cache Controller.
+    */
     void processRespDramReadEvent();
     EventFunctionWrapper respDramReadEvent;
 
+    /**
+     * processNvmReadEvent() is an event handler which
+     * schedules the NVM read accesses in the DRAM Cache Controller.
+    */
     void processNvmReadEvent();
     EventFunctionWrapper nvmReadEvent;
 
+    /**
+     * processRespNvmReadEvent() is an event handler which
+     *  handles the responses of the NVM read accesses in
+     * the DRAM Cache Controller.
+    */
     void processRespNvmReadEvent();
     EventFunctionWrapper respNvmReadEvent;
 
@@ -249,9 +271,6 @@ class DcacheCtrl : public QoS::MemCtrl
      * @param pkt The packet from the outside world
      * @param static_latency Static latency to add before sending the packet
      */
-    // JASON: If unused delete.
-    // I suggest explicitly calling DRAM access and doing whatever response you
-    // need yourself.
     void accessAndRespond(PacketPtr pkt, Tick static_latency, bool in_dram);
 
     /**
@@ -274,8 +293,6 @@ class DcacheCtrl : public QoS::MemCtrl
      * @param return minimum delay
      */
     Tick minWriteToReadDataGap();
-
-
 
     /**
      * Calculate burst window aligned tick
@@ -300,21 +317,33 @@ class DcacheCtrl : public QoS::MemCtrl
     std::deque<dccPacket*> respQueue;
 
     /**
-     * To avoid iterating over the write queue to check for
-     * overlapping transactions, maintain a set of burst addresses
-     * that are currently queued. Since we merge writes to the same
-     * location we never have more than one address to the same burst
-     * address.
+     * To avoid iterating over the outstanding requests buffer
+     *  to check for overlapping transactions, maintain a set
+     * of burst addresses that are currently queued.
+     * Since we merge writes to the same location we never
+     * have more than one address to the same burst address.
      */
     std::unordered_set<Addr> isInWriteQueue;
 
+    /** A storage to keep the tag and metadata for the
+     * DRAM Cache entries.
+     */
     std::vector<unsigned> tagMetadataStore;
+
+    /** Different states a packet can transition from one
+     * to the other while it's process in the DRAM Cache
+     * Controller.
+     */
 
     enum reqState { idle,
                     dramRead, dramWrite, waitingForNvmRead,
                     nvmRead, nvmWrite,
                     respReady };
 
+    /**
+     * A class for the entries of the
+     * outstanding request buffer.
+     */
     class reqBufferEntry {
       public:
       bool validEntry = false;
@@ -358,40 +387,75 @@ class DcacheCtrl : public QoS::MemCtrl
       { }
     };
 
-    //typedef std::pair<Tick, reqBufferEntry*> reqBufferPair;
-    // JASON:
+    /**
+     * This is the outstanding request buffer data
+     * structure, the main DS within the DRAM Cache
+     * Controller. The key is the address, for each key
+     * the map returns a reqBufferEntry which maintains
+     * the entire info related to that address while it's
+     * been processed in the DRAM Cache controller.
+     */
     std::map<Addr,reqBufferEntry*> reqBuffer;
+
+    // This is a temporary stat counter to
+    // keep track of number of the received
+    // packets by the DRAM Cache Contoller.
     unsigned totRecvdPkts =0;
-    // reqBuffer.emplace(addr, valid, arrival, ...)
-    //std::vector<reqBufferEntry*> reqBuffer;
 
     typedef std::pair<Tick, PacketPtr> confReqBufferPair;
-    // JASON: I suggest using a multimap. Key is the conflicting cache address
-    // and then you can have any number of conflicts there which you can try
-    // to process in FIFO order. Keeping the pair with the tick still makes
-    // sense
-    // std::multimap<Addr, std::pair<Tick, PacketPtr>> confReqBuffer;
+    /**
+     * This is the second important data structure
+     * within the Dram Cache controller which hold
+     * received packets that had conflict with some
+     * other address(s) in the DRAM Cache that they
+     * are still under process in the controller.
+     * Once thoes addresses are finished processing,
+     * confReqBufferPair is consulted to see if any
+     * packet can be moved into outstanding request
+     * buffer and start processing in the DRAM Cache
+     * controller.
+     */
     std::vector<confReqBufferPair> confReqBuffer;
 
+    /**
+     * To avoid iterating over the outstanding requests
+     * buffer for dramReadEvent handler, we maintain the
+     * required addresses in a fifo queue.
+     */
     std::deque <Addr> addrInitRead;
+
+    /**
+     * To avoid iterating over the outstanding requests
+     * buffer for respDramReadEvent handler, we maintain the
+     * required addresses in a fifo queue.
+     */
     std::deque <Addr> addrDramRespReady;
 
     //priority queue ordered by earliest tick
     typedef std::pair<Tick, Addr> addrNvmReadPair;
-    // The min heap will be ordered by the first element of the pair
+    /**
+     * To avoid iterating over the outstanding requests
+     * buffer for nvmReadEvent handler, we maintain the
+     * required addresses in a priority queue.
+     */
     std::priority_queue<addrNvmReadPair, std::vector<addrNvmReadPair>,
                         std::greater<addrNvmReadPair> > addrNvmRead;
+
+    /**
+     * To avoid iterating over the outstanding requests
+     * buffer for respNvmReadEvent handler, we maintain the
+     * required addresses in a fifo queue.
+     */
     std::deque <Addr> addrNvmRespReady;
+
+    /**
+     * To avoid iterating over the outstanding requests
+     * buffer for dramWriteEvent handler, we maintain the
+     * required addresses in a fifo queue.
+     */
     std::deque <Addr> addrDramFill;
 
-    //std::priority_queue<reqBufferPair, std::vector<reqBufferPair>,
-    //                    std::greater<reqBufferPair> > reqTable;
-
-    //std::priority_queue<confBufferPair, std::vector<confBufferPair>,
-    //                    std::greater<confBufferPair> > confReqTable;
-
     void handleRequestorPkt(PacketPtr pkt);
-    //void processInitRead(reqBufferEntry* orbEntry);
     void checkHitOrMiss(reqBufferEntry* orbEntry);
     bool checkConflictInDramCache(PacketPtr pkt);
     void checkConflictInCRB(reqBufferEntry* orbEntry);
@@ -412,8 +476,7 @@ class DcacheCtrl : public QoS::MemCtrl
     /**
      * Create pointer to interface of the actual nvm media when connected
      */
-    // JASON: I would change this name to "backing memory" or something like
-    // that. Maybe mainMemory
+
     NVMDCInterface* const nvm;
 
     /**
