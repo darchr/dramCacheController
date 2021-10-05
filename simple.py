@@ -23,18 +23,18 @@ system.mem_ranges = [AddrRange('1GB')]
 system.generator.port = system.mem_ctrl.port
 
 def createRandomTraffic(tgen):
-    yield tgen.createRandom(1000000000,   # duration
+    yield tgen.createRandom(1000000000000,   # duration
                             0,          # min_addr
                             16700000,   # max_adr
                             64,         # block_size
                             1000,       # min_period
                             1000,       # max_period
-                            0,         # rd_perc
+                            100,         # rd_perc
                             0)       # data_limit
     yield tgen.createExit(0)
 
 def createLinearTraffic(tgen):
-    yield tgen.createLinear(1000000000,   # duration
+    yield tgen.createLinear(100000000000,   # duration
                             0,          # min_addr
                             16700000,   # max_adr
                             64,         # block_size
@@ -48,6 +48,6 @@ def createLinearTraffic(tgen):
 root = Root(full_system=False, system=system)
 
 m5.instantiate()
-#system.generator.start(createRandomTraffic(system.generator))
-system.generator.start(createLinearTraffic(system.generator))
+system.generator.start(createRandomTraffic(system.generator))
+#system.generator.start(createLinearTraffic(system.generator))
 exit_event = m5.simulate()

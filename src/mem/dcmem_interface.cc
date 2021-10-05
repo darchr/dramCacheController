@@ -2172,7 +2172,6 @@ NVMDCInterface::chooseRead(dccPacketQueue& queue)
 void
 NVMDCInterface::processReadPkt(dccPacket* pkt)
 {
-    std::cout << "2: " << pkt->getAddr() << " " << pkt->readyTime << "\n";
     Tick cmd_at = std::max(curTick(), nextReadAt);
 
     // This method does the arbitration between non-deterministic read
@@ -2245,7 +2244,6 @@ NVMDCInterface::processReadPkt(dccPacket* pkt)
             // overloading readyTime, which will be updated again when the
             // burst is issued
             pkt->readyTime = std::max(cmd_at, bank_ref.actAllowedAt);
-
             DPRINTF(NVM, "Issuing NVM Read to bank %d at tick %d. "
                          "Data ready at %d\n",
                          bank_ref.bank, cmd_at, pkt->readyTime);
@@ -2253,20 +2251,15 @@ NVMDCInterface::processReadPkt(dccPacket* pkt)
             // Insert into read ready queue. It will be handled after
             // the media delay has been met
             if (readReadyQueue.empty()) {
-                std::cout << "aa\n";
                 assert(!readReadyEvent.scheduled());
                 schedule(readReadyEvent, pkt->readyTime);
             } else if (readReadyEvent.when() > pkt->readyTime) {
-                std::cout << "bb\n";
                 // move it sooner in time, to the first read with data
                 reschedule(readReadyEvent, pkt->readyTime);
             } else {
-                std::cout << "cc\n";
                 assert(readReadyEvent.scheduled());
             }
             readReadyQueue.push_back(pkt->readyTime);
-            std::cout << "3: " << pkt->getAddr() <<
-            " " << pkt->readyTime << "\n";
 
             // found an NVM read to issue - break out
             //break;
@@ -2280,7 +2273,6 @@ NVMDCInterface::processReadReadyEvent()
 {
     // signal that there is read data ready to be transmitted
     numReadDataReady++;
-    std::cout<< curTick() << " +++++:  " << numReadDataReady << "\n";
     DPRINTF(NVM,
             "processReadReadyEvent(): Data for an NVM read is ready. "
             "numReadDataReady is %d\t numPendingReads is %d\n",
@@ -2322,11 +2314,6 @@ NVMDCInterface::processReadReadyEvent()
 
 bool
 NVMDCInterface::burstReady(dccPacket* pkt) const {
-    std::cout << "**** burstready: " << pkt->isRead()
-    << " " << ctrl->inReadBusState(true) << " " <<
-               pkt->readyTime << " " << curTick() <<
-               " " << numReadDataReady << "\n";
-
     bool read_rdy =  pkt->isRead() && (ctrl->inReadBusState(true)) &&
                (pkt->readyTime <= curTick()) && (numReadDataReady > 0);
     bool write_rdy =  !pkt->isRead() && !ctrl->inReadBusState(true) &&
@@ -2400,7 +2387,6 @@ NVMDCInterface::doBurstAccess(dccPacket* pkt, Tick next_burst_at)
 
         numPendingReads--;
         numReadDataReady--;
-        std::cout<< curTick() << " ----- :  " << numReadDataReady << "\n";
     } else {
         // Adjust number of NVM writes in Q
         assert(numWritesQueued > 0);

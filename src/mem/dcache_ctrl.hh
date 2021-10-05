@@ -196,6 +196,7 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     bool retryRdReq;
     bool retryWrReq;
+    bool retry;
 
     void printORB();
     void printCRB();
@@ -360,6 +361,7 @@ class DcacheCtrl : public QoS::MemCtrl
     //typedef std::pair<Tick, reqBufferEntry*> reqBufferPair;
     // JASON:
     std::map<Addr,reqBufferEntry*> reqBuffer;
+    unsigned totRecvdPkts =0;
     // reqBuffer.emplace(addr, valid, arrival, ...)
     //std::vector<reqBufferEntry*> reqBuffer;
 
@@ -373,7 +375,12 @@ class DcacheCtrl : public QoS::MemCtrl
 
     std::deque <Addr> addrInitRead;
     std::deque <Addr> addrDramRespReady;
-    std::deque <Addr> addrNvmRead;
+
+    //priority queue ordered by earliest tick
+    typedef std::pair<Tick, Addr> addrNvmReadPair;
+    // The min heap will be ordered by the first element of the pair
+    std::priority_queue<addrNvmReadPair, std::vector<addrNvmReadPair>,
+                        std::greater<addrNvmReadPair> > addrNvmRead;
     std::deque <Addr> addrNvmRespReady;
     std::deque <Addr> addrDramFill;
 
