@@ -135,10 +135,10 @@ class dccPacket
               uint8_t _bank, uint32_t _row, uint16_t bank_id, Addr _addr,
               unsigned int _size)
         : entryTime(curTick()), readyTime(curTick()), pkt(_pkt),
-          _requestorId(pkt->requestorId()),
+          _requestorId((_pkt!=nullptr)?_pkt->requestorId():-1),
           read(is_read), dram(is_dram), rank(_rank), bank(_bank), row(_row),
           bankId(bank_id), addr(_addr), size(_size),
-          _qosValue(_pkt->qosValue())
+          _qosValue((_pkt!=nullptr)?_pkt->qosValue():-1)
     { }
 
 };
@@ -200,6 +200,7 @@ class DcacheCtrl : public QoS::MemCtrl
     void printCRB();
     void printAddrInitRead();
     void printAddrDramRespReady();
+    void printNvmWritebackQueue();
     Addr returnTagDC(Addr pkt_addr, unsigned size);
     Addr returnIndexDC(Addr pkt_addr, unsigned size);
 
@@ -477,12 +478,13 @@ class DcacheCtrl : public QoS::MemCtrl
      * buffer for nvmWriteEvent handler, we maintain the
      * required addresses in a fifo queue.
      */
-    typedef std::pair<Addr, Addr> addrNvmWritePair;
-    std::deque <addrNvmWritePair> addrNvmWrite;
+    typedef std::pair<Tick, dccPacket*> nvmWritePair;
+    std::priority_queue<nvmWritePair, std::vector<nvmWritePair>,
+                        std::greater<nvmWritePair> > nvmWritebackQueue;
 
     void handleRequestorPkt(PacketPtr pkt);
     void checkHitOrMiss(reqBufferEntry* orbEntry);
-    bool checkDirtyOrClean(Addr addr);
+    bool checkDirty(Addr addr);
     bool checkConflictInDramCache(PacketPtr pkt);
     void checkConflictInCRB(reqBufferEntry* orbEntry);
     bool resumeConflictingReq(reqBufferEntry* orbEntry);

@@ -2314,14 +2314,15 @@ NVMDCInterface::processReadReadyEvent()
 
 bool
 NVMDCInterface::burstReady(dccPacket* pkt) const {
+
     bool read_rdy =  pkt->isRead() && (ctrl->inReadBusState(true)) &&
                (pkt->readyTime <= curTick()) && (numReadDataReady > 0);
-    bool write_rdy =  !pkt->isRead() && !ctrl->inReadBusState(true) &&
+    bool write_rdy =  !pkt->isRead() && !ctrl->inReadBusState(false) &&
                 !writeRespQueueFull();
     return (read_rdy || write_rdy);
 }
 
-    std::pair<Tick, Tick>
+std::pair<Tick, Tick>
 NVMDCInterface::doBurstAccess(dccPacket* pkt, Tick next_burst_at)
 {
     DPRINTF(NVM, "NVM Timing access to addr %lld, rank/bank/row %d %d %d\n",
@@ -2445,7 +2446,6 @@ NVMDCInterface::doBurstAccess(dccPacket* pkt, Tick next_burst_at)
         }
 
     }
-
     // Update the stats
     if (pkt->isRead()) {
         stats.readBursts++;

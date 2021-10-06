@@ -982,6 +982,8 @@ class DRAMDCInterface : public DCMemInterface
  */
 class NVMDCInterface : public DCMemInterface
 {
+  public:
+  std::list<Tick> writeRespQueue;
   private:
     /**
      * NVM rank class simply includes a vector of banks.
@@ -1081,7 +1083,7 @@ class NVMDCInterface : public DCMemInterface
      * This mimics a buffer on the media controller and therefore is
      * not added to the main write queue for sizing
      */
-    std::list<Tick> writeRespQueue;
+    //std::list<Tick> writeRespQueue;
 
     std::deque<Tick> readReadyQueue;
 

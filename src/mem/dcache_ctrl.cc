@@ -191,6 +191,20 @@ DcacheCtrl::printAddrDramRespReady()
     std::cout << "\n..........\n";
 }
 
+void
+DcacheCtrl::printNvmWritebackQueue()
+{
+    std::cout << curTick() <<
+    " nvmWritebackQueue size: " <<
+    nvmWritebackQueue.size() << "\n";
+
+    //for (int i=0; i < nvmWritebackQueue.size(); i++) {
+    //        std::cout << nvmWritebackQueue.at(i).first <<"/"
+    // << nvmWritebackQueue.at(i).second->getAddr() << " ,";
+    //}
+    std::cout << "\n_________\n";
+}
+
 Addr
 DcacheCtrl::returnTagDC(Addr request_addr, unsigned size)
 {
@@ -225,17 +239,17 @@ DcacheCtrl::checkHitOrMiss(reqBufferEntry* orbEntry)
 }
 
 bool
-DcacheCtrl::checkDirtyOrClean(Addr addr)
+DcacheCtrl::checkDirty(Addr addr)
 {
     // return (tagMetadataStore.at(addr).validLine &&
     //         tagMetadataStore.at(addr).dirtyLine);
 
 
     // always dirty
-    // return true;
+    return true;
 
     // always clean
-    return false;
+    //return false;
 }
 
 void
@@ -570,8 +584,18 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
 void
 DcacheCtrl::processDramReadEvent()
 {
-    assert(!addrInitRead.empty());
+    // std::cout << "*** " <<
+    // reqBuffer.size() << ", " <<
+    // confReqBuffer.size() << ", " <<
+    // addrInitRead.size() << ", " <<
+    // addrDramRespReady.size()  << ", " <<
+    // addrNvmRead.size()  <<  ", " <<
+    // addrNvmRespReady.size()  <<  ", " <<
+    // addrDramFill.size()  <<  ", " <<
+    // nvmWritebackQueue.size()  <<  ", " <<
+    // "\n";
 
+    assert(!addrInitRead.empty());
     reqBufferEntry* orbEntry = reqBuffer.at(addrInitRead.front());
 
     // sanity check for the packet at the head of the queue
@@ -585,7 +609,7 @@ DcacheCtrl::processDramReadEvent()
 
     checkHitOrMiss(orbEntry);
 
-    if (checkDirtyOrClean(orbEntry->owPkt->getAddr())) {
+    if (checkDirty(orbEntry->owPkt->getAddr())) {
         // handle write-back of dirty line of DRAM cache
         orbEntry->writebackPkt = nvm->decodePacket(nullptr,
                                 tagMetadataStore.at
@@ -593,18 +617,27 @@ DcacheCtrl::processDramReadEvent()
                                 orbEntry->owPkt->getSize(),
                                 false, false);
 
+        dccPacket* wbDccPkt = nvm->decodePacket(nullptr,
+                                tagMetadataStore.at
+                                (orbEntry->owPkt->getAddr()).nvmAddr,
+                                orbEntry->owPkt->getSize(),
+                                false, false);
+        // std::cout << "???? " << wbDccPkt->getAddr() << " / " <<
+        // tagMetadataStore.at(orbEntry->owPkt->getAddr()).nvmAddr << "\n";
+
         nvm->setupRank(orbEntry->writebackPkt->rank, false);
 
-        addrNvmWrite.push_back(std::make_pair
-                                (orbEntry->writebackPkt->getAddr(),
-                                 orbEntry->owPkt->getAddr()));
+        nvmWritebackQueue.push(std::make_pair(curTick(),wbDccPkt));
 
         // no need to call nvm->access for the dirty line.
         // Because, we already have written it in nvm, while
         // we were processing it into dram cache.
 
-        if (!nvmWriteEvent.scheduled()) {
+        if (!nvmWriteEvent.scheduled() && !nvm->writeRespQueueFull()) {
             schedule(nvmWriteEvent, curTick());
+        }
+        else if (!nvmWriteEvent.scheduled() && nvm->writeRespQueueFull()) {
+            schedule(nvmWriteEvent, nvm->writeRespQueue.front()+1);
         }
     }
 
@@ -652,18 +685,6 @@ DcacheCtrl::processDramReadEvent()
 void
 DcacheCtrl::processRespDramReadEvent()
 {
-    // std::cout << "*** " <<
-    // reqBuffer.size() << ", " <<
-    // confReqBuffer.size() << ", " <<
-    // addrInitRead.size() << ", " <<
-    // addrDramRespReady.size()  << ", " <<
-    // addrNvmRead.size()  <<  ", " <<
-    // addrNvmRespReady.size()  <<  ", " <<
-    // addrDramFill.size()  <<  ", " <<
-    // "\n";
-
-    //printAddrDramRespReady();
-
     reqBufferEntry* orbEntry = reqBuffer.at(addrDramRespReady.front());
 
     // A series of sanity check
@@ -684,7 +705,6 @@ DcacheCtrl::processRespDramReadEvent()
     if (orbEntry->owPkt->isRead() &&
         orbEntry->dccPkt->isDram() &&
         orbEntry->isHit) {
-
             PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
                                              false,
                                              orbEntry->owPkt->isRead());
@@ -839,7 +859,6 @@ DcacheCtrl::processDramWriteEvent()
     bool canRetry = false;
 
     while (!addrDramFill.empty()) {
-
         auto e = reqBuffer.at(addrDramFill.front());
 
         assert(e->validEntry);
@@ -945,7 +964,6 @@ void
 DcacheCtrl::processRespNvmReadEvent()
 {
     assert(!addrNvmRespReady.empty());
-
     reqBufferEntry* orbEntry = reqBuffer.at(addrNvmRespReady.front());
 
     // A series of sanity check
@@ -967,7 +985,6 @@ DcacheCtrl::processRespNvmReadEvent()
         accessAndRespond(orbEntry->owPkt,
                          frontendLatency + backendLatency,
                          false);
-
         reqBuffer.at(copyOwPkt->getAddr()) =  new reqBufferEntry(
                             orbEntry->validEntry,
                             orbEntry->arrivalTick,
@@ -984,7 +1001,6 @@ DcacheCtrl::processRespNvmReadEvent()
                             orbEntry->state,
                             orbEntry->isHit,
                             orbEntry->conflict);
-
         orbEntry = reqBuffer.at(addrNvmRespReady.front());
 
     }
@@ -1030,28 +1046,32 @@ DcacheCtrl::processRespNvmReadEvent()
 void
 DcacheCtrl::processNvmWriteEvent()
 {
-    // std::cout << curTick() << " " <<
-    // addrNvmWrite.size() << " processNvmWriteEvent\n";
+    //std::cout << curTick() << " nwe " << nvmWritebackQueue.size() <<"\n";
 
+    assert(!nvmWritebackQueue.empty());
 
-    while (!addrNvmWrite.empty()) {
+    busState = DcacheCtrl::WRITE;
 
-        auto e = reqBuffer.at(addrNvmWrite.front().second);
+    while (!nvmWritebackQueue.empty() && !nvm->writeRespQueueFull()) {
+
+        auto e = nvmWritebackQueue.top().second;
 
         // a series of sanity checks
-        assert(addrNvmWrite.front().first == e->writebackPkt->getAddr());
-        assert(packetReady(e->writebackPkt));
-        assert(e->writebackPkt->size <=
-                                (e->writebackPkt->isDram() ?
-                                dram->bytesPerBurst() :
-                                nvm->bytesPerBurst()) );
+        assert(packetReady(e));
+        assert(!e->isDram());
+        assert(e->size <= nvm->bytesPerBurst());
 
-        busState = DcacheCtrl::WRITE;
-
-        doBurstAccess(e->writebackPkt);
-
-        addrDramFill.pop_front();
+        doBurstAccess(e);
+        nvmWritebackQueue.pop();
     }
+    if (!nvmWriteEvent.scheduled() &&
+        !nvmWritebackQueue.empty() &&
+         nvm->writeRespQueueFull()) {
+            schedule(nvmWriteEvent, nvm->writeRespQueue.front()+1);
+    }
+
+    // std::cout << "+++ " << nvmWritebackQueue.size() << " "
+    // << curTick() << " " << nvmWriteEvent.when() << "\n";
 
 }
 
@@ -1285,17 +1305,19 @@ DcacheCtrl::doBurstAccess(dccPacket* dcc_pkt)
 
 
     // Update the common bus stats
-    if (dcc_pkt->isRead()) {
-        ++readsThisTime;
-        // Update latency stats
-        stats.requestorReadTotalLat[dcc_pkt->requestorId()] +=
-            dcc_pkt->readyTime - dcc_pkt->entryTime;
-        stats.requestorReadBytes[dcc_pkt->requestorId()] += dcc_pkt->size;
-    } else {
-        ++writesThisTime;
-        stats.requestorWriteBytes[dcc_pkt->requestorId()] += dcc_pkt->size;
-        stats.requestorWriteTotalLat[dcc_pkt->requestorId()] +=
-            dcc_pkt->readyTime - dcc_pkt->entryTime;
+    if (dcc_pkt->pkt != nullptr) {
+        if (dcc_pkt->isRead()) {
+            ++readsThisTime;
+            // Update latency stats
+            stats.requestorReadTotalLat[dcc_pkt->requestorId()] +=
+                dcc_pkt->readyTime - dcc_pkt->entryTime;
+            stats.requestorReadBytes[dcc_pkt->requestorId()] += dcc_pkt->size;
+        } else {
+            ++writesThisTime;
+            stats.requestorWriteBytes[dcc_pkt->requestorId()] += dcc_pkt->size;
+            stats.requestorWriteTotalLat[dcc_pkt->requestorId()] +=
+                dcc_pkt->readyTime - dcc_pkt->entryTime;
+        }
     }
 }
 
