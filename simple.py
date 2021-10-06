@@ -14,8 +14,8 @@ system.mem_ctrl.dram = DDR3_1600_8x8(range=AddrRange('1GB'), in_addr_map=False)
 system.mem_ctrl.nvm = NVM_2400_1x64(range=AddrRange('1GB'))
 
 system.mem_ctrl.dram.tREFI = "1000"
-system.mem_ctrl.orb_max_size = "512"
-system.mem_ctrl.crb_max_size = "32"
+system.mem_ctrl.orb_max_size = "1024"
+system.mem_ctrl.crb_max_size = "64"
 #system.mem_ctrl.static_frontend_latency = "0ns"
 
 system.mem_ranges = [AddrRange('1GB')]
@@ -23,18 +23,18 @@ system.mem_ranges = [AddrRange('1GB')]
 system.generator.port = system.mem_ctrl.port
 
 def createRandomTraffic(tgen):
-    yield tgen.createRandom(10000000000,   # duration
+    yield tgen.createRandom(100000000000,   # duration
                             0,          # min_addr
                             16700000,   # max_adr
                             64,         # block_size
                             1000,       # min_period
                             1000,       # max_period
-                            100,         # rd_perc
+                            50,         # rd_perc
                             0)       # data_limit
     yield tgen.createExit(0)
 
 def createLinearTraffic(tgen):
-    yield tgen.createLinear(100000000000,   # duration
+    yield tgen.createLinear(1000000000000,   # duration
                             0,          # min_addr
                             16700000,   # max_adr
                             64,         # block_size
