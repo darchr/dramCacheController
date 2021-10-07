@@ -17,6 +17,7 @@
 #include "base/callback.hh"
 #include "base/statistics.hh"
 #include "enums/MemSched.hh"
+#include "mem/abstract_mem.hh"
 #include "mem/qos/mem_ctrl.hh"
 #include "mem/qport.hh"
 #include "params/DcacheCtrl.hh"
@@ -134,10 +135,10 @@ class dccPacket
               uint8_t _bank, uint32_t _row, uint16_t bank_id, Addr _addr,
               unsigned int _size)
         : entryTime(curTick()), readyTime(curTick()), pkt(_pkt),
-          _requestorId(pkt->requestorId()),
+          _requestorId((_pkt!=nullptr)?_pkt->requestorId():-1),
           read(is_read), dram(is_dram), rank(_rank), bank(_bank), row(_row),
           bankId(bank_id), addr(_addr), size(_size),
-          _qosValue(_pkt->qosValue())
+          _qosValue((_pkt!=nullptr)?_pkt->qosValue():-1)
     { }
 
 };
@@ -146,8 +147,6 @@ class dccPacket
 // The memory packets are store in a multiple dequeue structure,
 // based on their QoS priority
 typedef std::deque<dccPacket*> dccPacketQueue;
-
-
 
 class DcacheCtrl : public QoS::MemCtrl
 {
@@ -201,6 +200,7 @@ class DcacheCtrl : public QoS::MemCtrl
     void printCRB();
     void printAddrInitRead();
     void printAddrDramRespReady();
+    void printNvmWritebackQueue();
     Addr returnTagDC(Addr pkt_addr, unsigned size);
     Addr returnIndexDC(Addr pkt_addr, unsigned size);
 
@@ -248,11 +248,18 @@ class DcacheCtrl : public QoS::MemCtrl
 
     /**
      * processRespNvmReadEvent() is an event handler which
-     *  handles the responses of the NVM read accesses in
+     * handles the responses of the NVM read accesses in
      * the DRAM Cache Controller.
     */
     void processRespNvmReadEvent();
     EventFunctionWrapper respNvmReadEvent;
+
+    /**
+     * processNvmWriteEvent() is an event handler which
+     * handles NVM write accesses in the DRAM Cache Controller.
+    */
+    void processNvmWriteEvent();
+    EventFunctionWrapper nvmWriteEvent;
 
     /**
      * Actually do the burst based on media specific access function.
@@ -325,10 +332,21 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     std::unordered_set<Addr> isInWriteQueue;
 
+    struct tagMetaStoreEntry {
+      // DRAM cache related metadata
+      Addr tagDC;
+      Addr indexDC;
+      // constant to indicate that the cache line is valid
+      bool validLine;
+      // constant to indicate that the cache line is dirty
+      bool dirtyLine;
+      Addr nvmAddr;
+    };
+
     /** A storage to keep the tag and metadata for the
      * DRAM Cache entries.
      */
-    std::vector<unsigned> tagMetadataStore;
+    std::vector<tagMetaStoreEntry> tagMetadataStore;
 
     /** Different states a packet can transition from one
      * to the other while it's process in the DRAM Cache
@@ -365,7 +383,7 @@ class DcacheCtrl : public QoS::MemCtrl
 
       // pointer to a dcc packet for the evicted dirty line (if any)
       // to be written back to NVM
-      dccPacket* dirtyCacheLine;
+      dccPacket* writebackPkt;
 
       reqState state = idle;
       bool isHit = false;
@@ -375,14 +393,14 @@ class DcacheCtrl : public QoS::MemCtrl
         bool _validEntry, Tick _arrivalTick,
         Addr _tagDC, Addr _indexDC,
         bool _validLine, bool _dirtyLine, Addr _nvmAddr,
-        PacketPtr _owPkt, dccPacket* _dccPkt, dccPacket* _dirtyCacheLine,
+        PacketPtr _owPkt, dccPacket* _dccPkt, dccPacket* _writebackPkt,
         reqState _state, bool _isHit, bool _conflict)
       :
       validEntry(_validEntry), arrivalTick(_arrivalTick),
       tagDC(_tagDC), indexDC(_indexDC),
       validLine(_validLine), dirtyLine(_dirtyLine),
       nvmAddr(_nvmAddr),
-      owPkt( _owPkt), dccPkt(_dccPkt), dirtyCacheLine(_dirtyCacheLine),
+      owPkt( _owPkt), dccPkt(_dccPkt), writebackPkt(_writebackPkt),
       state(_state), isHit(_isHit), conflict(_conflict)
       { }
     };
@@ -455,8 +473,18 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     std::deque <Addr> addrDramFill;
 
+    /**
+     * To avoid iterating over the outstanding requests
+     * buffer for nvmWriteEvent handler, we maintain the
+     * required addresses in a fifo queue.
+     */
+    typedef std::pair<Tick, dccPacket*> nvmWritePair;
+    std::priority_queue<nvmWritePair, std::vector<nvmWritePair>,
+                        std::greater<nvmWritePair> > nvmWritebackQueue;
+
     void handleRequestorPkt(PacketPtr pkt);
     void checkHitOrMiss(reqBufferEntry* orbEntry);
+    bool checkDirty(Addr addr);
     bool checkConflictInDramCache(PacketPtr pkt);
     void checkConflictInCRB(reqBufferEntry* orbEntry);
     bool resumeConflictingReq(reqBufferEntry* orbEntry);
