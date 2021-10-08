@@ -282,7 +282,7 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
 
     if (pkt->isRead()) {
         logRequest(DcacheCtrl::READ, pkt->requestorId(), pkt->qosValue(),
-                   dcc_pkt->addr, 1);
+                   pkt->getAddr(), 1);
     }
     else {
         //copying the packet
@@ -302,7 +302,7 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
                           );
 
         logRequest(DcacheCtrl::WRITE, pkt->requestorId(), pkt->qosValue(),
-                   dcc_pkt->addr, 1);
+                   pkt->getAddr(), 1);
     }
 }
 
@@ -761,6 +761,7 @@ DcacheCtrl::processRespDramReadEvent()
                                                   orbEntry->owPkt->getAddr(),
                                                   orbEntry->owPkt->getSize(),
                                                   false, true);
+            orbEntry->dccPkt->entryTime = orbEntry->arrivalTick;
 
             // pass the second argument "false" to
             // indicate a write access to dram
@@ -800,6 +801,7 @@ DcacheCtrl::processRespDramReadEvent()
                                              orbEntry->owPkt->getAddr(),
                                              orbEntry->owPkt->getSize(),
                                              true, false);
+        orbEntry->dccPkt->entryTime = orbEntry->arrivalTick;
 
         // pass the second argument "true" to
         // indicate a read access to nvm
@@ -900,8 +902,6 @@ DcacheCtrl::processDramWriteEvent()
         doBurstAccess(e->dccPkt);
 
         if (e->owPkt->isWrite() && e->isHit) {
-            // isInWriteQueue.erase(burstAlign(e->dccPkt->addr,
-            //                                 e->dccPkt->isDram()));
 
             // log the response
             logResponse(DcacheCtrl::WRITE,
@@ -1036,6 +1036,7 @@ DcacheCtrl::processRespNvmReadEvent()
                                             orbEntry->owPkt->getSize(),
                                             false,
                                             true);
+    orbEntry->dccPkt->entryTime = orbEntry->arrivalTick;
 
     // pass the second argument "false" to
     // indicate a write access to dram

@@ -37,7 +37,7 @@ class dccPacket
   public:
 
     /** When did request enter the controller */
-    const Tick entryTime;
+    Tick entryTime;
 
     /** When will request leave the controller */
     Tick readyTime;
