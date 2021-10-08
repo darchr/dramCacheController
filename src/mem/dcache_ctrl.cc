@@ -274,7 +274,7 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
                                 returnTagDC(pkt->getAddr(), pkt->getSize()),
                                 returnIndexDC(pkt->getAddr(), pkt->getSize()),
                                 true, pkt->isWrite(), pkt->getAddr(),
-                                pkt, dcc_pkt, nullptr,
+                                pkt, dcc_pkt,
                                 dramRead, false, false
                           );
 
@@ -297,7 +297,7 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
                                               copyOwPkt->getSize()),
                                 true, copyOwPkt->isWrite(),
                                 copyOwPkt->getAddr(),
-                                copyOwPkt, dcc_pkt, nullptr,
+                                copyOwPkt, dcc_pkt,
                                 dramRead, false, false
                           );
 
@@ -391,12 +391,9 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
 {
     // This is where we enter from the outside world
 
-    totRecvdPkts++;
-
     // std::cout << "recvTimingReq Tick: " << curTick() <<
     // " " << pkt->getAddr()
-    // << " " << pkt->cmdString() << " " <<
-    // totRecvdPkts << "\n";
+    // << " " << pkt->cmdString() << " " << "\n";
 
     DPRINTF(DcacheCtrl, "recvTimingReq: request %s addr %lld size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getSize());
@@ -636,22 +633,14 @@ DcacheCtrl::processDramReadEvent()
     checkHitOrMiss(orbEntry);
 
     if (checkDirty(orbEntry->owPkt->getAddr()) && !orbEntry->isHit) {
-        // handle write-back of dirty line of DRAM cache
-        orbEntry->writebackPkt = nvm->decodePacket(nullptr,
-                                tagMetadataStore.at
-                                (orbEntry->owPkt->getAddr()).nvmAddr,
-                                orbEntry->owPkt->getSize(),
-                                false, false);
 
         dccPacket* wbDccPkt = nvm->decodePacket(nullptr,
                                 tagMetadataStore.at
                                 (orbEntry->owPkt->getAddr()).nvmAddr,
                                 orbEntry->owPkt->getSize(),
                                 false, false);
-        // std::cout << "???? " << wbDccPkt->getAddr() << " / " <<
-        // tagMetadataStore.at(orbEntry->owPkt->getAddr()).nvmAddr << "\n";
 
-        nvm->setupRank(orbEntry->writebackPkt->rank, false);
+        nvm->setupRank(wbDccPkt->rank, false);
 
         nvmWritebackQueue.push(std::make_pair(curTick(),wbDccPkt));
         isInWriteQueue.insert(tagMetadataStore.
@@ -752,7 +741,6 @@ DcacheCtrl::processRespDramReadEvent()
                                 copyOwPkt->getAddr(),
                                 copyOwPkt,
                                 orbEntry->dccPkt,
-                                orbEntry->writebackPkt,
                                 orbEntry->state,
                                 orbEntry->isHit,
                                 orbEntry->conflict);
@@ -1031,7 +1019,6 @@ DcacheCtrl::processRespNvmReadEvent()
                             copyOwPkt->getAddr(),
                             copyOwPkt,
                             orbEntry->dccPkt,
-                            orbEntry->writebackPkt,
                             orbEntry->state,
                             orbEntry->isHit,
                             orbEntry->conflict);

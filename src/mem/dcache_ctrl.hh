@@ -381,10 +381,6 @@ class DcacheCtrl : public QoS::MemCtrl
       // pointer to the dram cache controller (dcc) packet
       dccPacket* dccPkt;
 
-      // pointer to a dcc packet for the evicted dirty line (if any)
-      // to be written back to NVM
-      dccPacket* writebackPkt;
-
       reqState state = idle;
       bool isHit = false;
       bool conflict = false;
@@ -393,14 +389,14 @@ class DcacheCtrl : public QoS::MemCtrl
         bool _validEntry, Tick _arrivalTick,
         Addr _tagDC, Addr _indexDC,
         bool _validLine, bool _dirtyLine, Addr _nvmAddr,
-        PacketPtr _owPkt, dccPacket* _dccPkt, dccPacket* _writebackPkt,
+        PacketPtr _owPkt, dccPacket* _dccPkt,
         reqState _state, bool _isHit, bool _conflict)
       :
       validEntry(_validEntry), arrivalTick(_arrivalTick),
       tagDC(_tagDC), indexDC(_indexDC),
       validLine(_validLine), dirtyLine(_dirtyLine),
       nvmAddr(_nvmAddr),
-      owPkt( _owPkt), dccPkt(_dccPkt), writebackPkt(_writebackPkt),
+      owPkt( _owPkt), dccPkt(_dccPkt),
       state(_state), isHit(_isHit), conflict(_conflict)
       { }
     };
@@ -415,10 +411,6 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     std::map<Addr,reqBufferEntry*> reqBuffer;
 
-    // This is a temporary stat counter to
-    // keep track of number of the received
-    // packets by the DRAM Cache Contoller.
-    unsigned totRecvdPkts =0;
 
     typedef std::pair<Tick, PacketPtr> confReqBufferPair;
     /**
