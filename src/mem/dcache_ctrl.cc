@@ -341,6 +341,8 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 {
     bool conflictFound = false;
 
+    isInWriteQueue.erase(orbEntry->owPkt->getAddr());
+
     for (auto e = confReqBuffer.begin(); e != confReqBuffer.end(); ++e) {
 
         auto entry = *e;
@@ -414,7 +416,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     // What type of media does this packet access?
     // We set a flag to make sure every single packet
     // checks DRAM first.
-    bool is_dram = true;
+    // bool is_dram = true;
 
     // Validate that pkt's address maps to the dram and nvm
     assert(nvm && nvm->getAddrRange().contains(pkt->getAddr()));
@@ -428,7 +430,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     unsigned pkt_size = pkt->getSize();
     const Addr base_addr = pkt->getAddr();
     Addr addr = base_addr;
-    Addr burst_addr = burstAlign(addr, is_dram);
+    // Addr burst_addr = burstAlign(addr, is_dram);
     uint32_t burst_size = dram->bytesPerBurst();
     unsigned size = std::min((addr | (burst_size - 1)) + 1,
                         base_addr + pkt->getSize()) - addr;
@@ -437,7 +439,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     if (!pkt->isRead()) {
 
         assert(pkt_size != 0);
-        bool merged = isInWriteQueue.find(burst_addr) !=
+        bool merged = isInWriteQueue.find(pkt->getAddr()) !=
             isInWriteQueue.end();
 
         if (merged) {
@@ -461,7 +463,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
 
         assert(pkt_size != 0);
 
-        if (isInWriteQueue.find(burst_addr) != isInWriteQueue.end()) {
+        if (isInWriteQueue.find(pkt->getAddr()) != isInWriteQueue.end()) {
 
             for (const auto& e : reqBuffer) {
 
@@ -534,7 +536,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
         confReqBuffer.push_back(std::make_pair(curTick(), pkt));
 
         if (pkt->isWrite()) {
-            isInWriteQueue.insert(burstAlign(addr, true));
+            isInWriteQueue.insert(pkt->getAddr());
         }
 
         // std::cout <<
@@ -562,7 +564,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     handleRequestorPkt(pkt);
 
     if (pkt->isWrite()) {
-        isInWriteQueue.insert(burstAlign(addr, true));
+        isInWriteQueue.insert(pkt->getAddr());
     }
 
     if (addrInitRead.empty()) {
@@ -609,7 +611,7 @@ DcacheCtrl::processDramReadEvent()
 
     checkHitOrMiss(orbEntry);
 
-    if (checkDirty(orbEntry->owPkt->getAddr())) {
+    if (checkDirty(orbEntry->owPkt->getAddr()) && !orbEntry->isHit) {
         // handle write-back of dirty line of DRAM cache
         orbEntry->writebackPkt = nvm->decodePacket(nullptr,
                                 tagMetadataStore.at
@@ -628,6 +630,8 @@ DcacheCtrl::processDramReadEvent()
         nvm->setupRank(orbEntry->writebackPkt->rank, false);
 
         nvmWritebackQueue.push(std::make_pair(curTick(),wbDccPkt));
+        isInWriteQueue.insert(tagMetadataStore.
+                              at(orbEntry->owPkt->getAddr()).nvmAddr);
 
         // no need to call nvm->access for the dirty line.
         // Because, we already have written it in nvm, while
@@ -884,8 +888,8 @@ DcacheCtrl::processDramWriteEvent()
         doBurstAccess(e->dccPkt);
 
         if (e->owPkt->isWrite() && e->isHit) {
-            isInWriteQueue.erase(burstAlign(e->dccPkt->addr,
-                                            e->dccPkt->isDram()));
+            // isInWriteQueue.erase(burstAlign(e->dccPkt->addr,
+            //                                 e->dccPkt->isDram()));
 
             // log the response
             logResponse(DcacheCtrl::WRITE,
@@ -1068,7 +1072,11 @@ DcacheCtrl::processNvmWriteEvent()
         assert(e->size <= nvm->bytesPerBurst());
 
         doBurstAccess(e);
+
+        isInWriteQueue.erase(e->getAddr());
+
         nvmWritebackQueue.pop();
+
     }
     if (!nvmWriteEvent.scheduled() &&
         !nvmWritebackQueue.empty() &&

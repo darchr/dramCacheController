@@ -24,7 +24,7 @@ system.mem_ranges = [AddrRange('1GB')]
 system.generator.port = system.mem_ctrl.port
 
 def createRandomTraffic(tgen):
-    yield tgen.createRandom(10000000000000,   # duration
+    yield tgen.createRandom(100000000000,   # duration
                             0,          # min_addr
                             16700000,   # max_adr
                             64,         # block_size
