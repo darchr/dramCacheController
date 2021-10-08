@@ -458,6 +458,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     // process forwarding for reads
     bool foundInORB = false;
     bool foundInCRB = false;
+    bool foundInNWB = false;
 
     if (pkt->isRead()) {
 
@@ -495,7 +496,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
                         ((addr + size) <=
                         (e.second->getAddr() + e.second->getSize()))) {
 
-                        foundInCRB = true;
+                        foundInNWB = true;
 
                         stats.servicedByWrQ++;
 
@@ -505,9 +506,32 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
                     }
                 }
             }
+
+            if (!foundInORB && !foundInCRB) {
+                std::priority_queue<nvmWritePair, std::vector<nvmWritePair>,
+                        std::greater<nvmWritePair> > temp = nvmWritebackQueue;
+                while (!temp.empty()) {
+                    auto e = temp.top().second;
+                    // check if the read is subsumed in the write queue
+                    // packet we are looking at
+                    if (e->getAddr() <= addr &&
+                        ((addr + size) <=
+                        (e->getAddr() + e->getSize()))) {
+
+                        foundInNWB = true;
+
+                        stats.servicedByWrQ++;
+
+                        stats.bytesReadWrQ += burst_size;
+
+                        break;
+                    }
+                    temp.pop();
+                }
+            }
         }
 
-        if (foundInORB || foundInCRB) {
+        if (foundInORB || foundInCRB || foundInNWB) {
 
             accessAndRespond(pkt, frontendLatency, false);
             // std::cout <<
