@@ -984,6 +984,7 @@ class NVMDCInterface : public DCMemInterface
 {
   public:
   std::list<Tick> writeRespQueue;
+
   private:
     /**
      * NVM rank class simply includes a vector of banks.
@@ -1207,8 +1208,8 @@ class NVMDCInterface : public DCMemInterface
     bool
     readsWaitingToIssue() const
     {
-        return ((numReadsToIssue != 0) &&
-                (numPendingReads < maxPendingReads));
+      return ((numReadsToIssue != 0) &&
+              (numPendingReads < maxPendingReads));
     }
 
     /**

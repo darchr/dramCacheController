@@ -768,6 +768,12 @@ DcacheCtrl::processRespDramReadEvent()
          orbEntry->dccPkt->isRead() &&
          orbEntry->dccPkt->isDram() &&
          !orbEntry->isHit)) {
+
+        // if (!nvm->readsWaitingToIssue() && nvmReadEvent.scheduled()) {
+        //     schedule(respDramReadEvent, nvmReadEvent.when()+1);
+        //     return;
+        // }
+
         // initiate a NVM read
 
         // delete the current dcc pkt which is dram read.
