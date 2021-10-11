@@ -477,6 +477,7 @@ class DcacheCtrl : public QoS::MemCtrl
     void handleRequestorPkt(PacketPtr pkt);
     void checkHitOrMiss(reqBufferEntry* orbEntry);
     bool checkDirty(Addr addr);
+    void handleDirtyCacheLine(reqBufferEntry* orbEntry);
     bool checkConflictInDramCache(PacketPtr pkt);
     void checkConflictInCRB(reqBufferEntry* orbEntry);
     bool resumeConflictingReq(reqBufferEntry* orbEntry);

@@ -225,31 +225,62 @@ DcacheCtrl::checkHitOrMiss(reqBufferEntry* orbEntry)
 {
     // access the tagMetadataStore data structure to
     // check if it's hit or miss
-    // orbEntry->isHit =
-    // tagMetadataStore.at(orbEntry->owPkt->getAddr()).validLine &&
-    // (orbEntry->tagDC ==
-    // tagMetadataStore.at(orbEntry->owPkt->getAddr()).tagDC);
+    orbEntry->isHit =
+    tagMetadataStore.at(orbEntry->indexDC).validLine &&
+    (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
 
 
     // always hit
     // orbEntry->isHit = true;
 
     // always miss
-    orbEntry->isHit = false;
+    // orbEntry->isHit = false;
 }
 
 bool
 DcacheCtrl::checkDirty(Addr addr)
 {
-    // return (tagMetadataStore.at(addr).validLine &&
-    //         tagMetadataStore.at(addr).dirtyLine);
+    return (tagMetadataStore.at(addr).validLine &&
+            tagMetadataStore.at(addr).dirtyLine);
 
 
     // always dirty
-    return true;
+    //return true;
 
     // always clean
     //return false;
+}
+
+void
+DcacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
+{
+    if (checkDirty(orbEntry->owPkt->getAddr()) && !orbEntry->isHit) {
+
+        dccPacket* wbDccPkt = nvm->decodePacket(nullptr,
+                                tagMetadataStore.at
+                                (orbEntry->owPkt->getAddr()).nvmAddr,
+                                orbEntry->owPkt->getSize(),
+                                false, false);
+
+        nvm->setupRank(wbDccPkt->rank, false);
+
+        nvmWritebackQueue.push(std::make_pair(curTick(),wbDccPkt));
+        isInWriteQueue.insert(tagMetadataStore.
+                              at(orbEntry->owPkt->getAddr()).nvmAddr);
+
+        // no need to call nvm->access for the dirty line.
+        // Because, we already have written it in nvm, while
+        // we were processing it into dram cache.
+
+        if (!nvmWriteEvent.scheduled()) {
+            if (!nvm->writeRespQueueFull()) {
+                schedule(nvmWriteEvent, curTick());
+            }
+            else {
+                schedule(nvmWriteEvent, nvm->writeRespQueueFront()+1);
+            }
+        }
+    }
 }
 
 void
@@ -305,8 +336,6 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
                    pkt->getAddr(), 1);
     }
 }
-
-
 
 bool
 DcacheCtrl::checkConflictInDramCache(PacketPtr pkt)
@@ -588,6 +617,22 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
         isInWriteQueue.insert(pkt->getAddr());
     }
 
+    reqBufferEntry* orbEntry = reqBuffer.at(pkt->getAddr());
+
+    checkHitOrMiss(orbEntry);
+
+    handleDirtyCacheLine(orbEntry);
+
+    // Updating Tag & Metadata
+    tagMetadataStore.at(orbEntry->indexDC).tagDC = orbEntry->tagDC;
+    tagMetadataStore.at(orbEntry->indexDC).indexDC = orbEntry->indexDC;
+    tagMetadataStore.at(orbEntry->indexDC).validLine = true;
+    tagMetadataStore.at(orbEntry->indexDC).dirtyLine = orbEntry->isHit ?
+                        tagMetadataStore.at(orbEntry->indexDC).dirtyLine :
+                        orbEntry->owPkt->isWrite();
+    tagMetadataStore.at(orbEntry->indexDC).nvmAddr =
+                        orbEntry->owPkt->getAddr();
+
     if (addrInitRead.empty()) {
 
         assert(!dramReadEvent.scheduled());
@@ -630,38 +675,6 @@ DcacheCtrl::processDramReadEvent()
     busState = DcacheCtrl::READ;
 
     assert(packetReady(orbEntry->dccPkt));
-
-
-
-    checkHitOrMiss(orbEntry);
-
-    if (checkDirty(orbEntry->owPkt->getAddr()) && !orbEntry->isHit) {
-
-        dccPacket* wbDccPkt = nvm->decodePacket(nullptr,
-                                tagMetadataStore.at
-                                (orbEntry->owPkt->getAddr()).nvmAddr,
-                                orbEntry->owPkt->getSize(),
-                                false, false);
-
-        nvm->setupRank(wbDccPkt->rank, false);
-
-        nvmWritebackQueue.push(std::make_pair(curTick(),wbDccPkt));
-        isInWriteQueue.insert(tagMetadataStore.
-                              at(orbEntry->owPkt->getAddr()).nvmAddr);
-
-        // no need to call nvm->access for the dirty line.
-        // Because, we already have written it in nvm, while
-        // we were processing it into dram cache.
-
-        if (!nvmWriteEvent.scheduled()) {
-            if (!nvm->writeRespQueueFull()) {
-                schedule(nvmWriteEvent, curTick());
-            }
-            else {
-                schedule(nvmWriteEvent, nvm->writeRespQueueFront()+1);
-            }
-        }
-    }
 
     doBurstAccess(orbEntry->dccPkt);
 

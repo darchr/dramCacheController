@@ -35,20 +35,20 @@ def createRandomTraffic(tgen):
     yield tgen.createExit(0)
 
 def createLinearTraffic(tgen):
-    yield tgen.createLinear(1000000000000,   # duration
+    yield tgen.createLinear(100000000000,   # duration
                             0,          # min_addr
                             16700000,   # max_adr
                             64,         # block_size
                             1000,       # min_period
                             1000,       # max_period
-                            100,         # rd_perc
-                            0)          # data_limit
+                            50,         # rd_perc
+                            0)       # data_limit
     yield tgen.createExit(0)
 
 
 root = Root(full_system=False, system=system)
 
 m5.instantiate()
-system.generator.start(createRandomTraffic(system.generator))
-#system.generator.start(createLinearTraffic(system.generator))
+#system.generator.start(createRandomTraffic(system.generator))
+system.generator.start(createLinearTraffic(system.generator))
 exit_event = m5.simulate()
