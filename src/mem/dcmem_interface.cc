@@ -2313,9 +2313,9 @@ NVMDCInterface::processReadReadyEvent()
 }
 
 bool
-NVMDCInterface::burstReady(dccPacket* pkt) const {
-
-    bool read_rdy =  pkt->isRead() && (ctrl->inReadBusState(true)) &&
+NVMDCInterface::burstReady(dccPacket* pkt) const
+{
+    bool read_rdy =  pkt->isRead() && (ctrl->inReadBusState(false)) &&
                (pkt->readyTime <= curTick()) && (numReadDataReady > 0);
     bool write_rdy =  !pkt->isRead() && !ctrl->inReadBusState(false) &&
                 !writeRespQueueFull();

@@ -626,9 +626,12 @@ DcacheCtrl::processDramReadEvent()
     assert(orbEntry->dccPkt->isDram());
     assert(orbEntry->dccPkt->isRead());
     assert(orbEntry->state == dramRead);
-    assert(packetReady(orbEntry->dccPkt));
 
     busState = DcacheCtrl::READ;
+
+    assert(packetReady(orbEntry->dccPkt));
+
+
 
     checkHitOrMiss(orbEntry);
 
@@ -893,13 +896,14 @@ DcacheCtrl::processDramWriteEvent()
         }
         assert(e->dccPkt->isDram());
         assert(e->state == dramWrite);
-        assert(packetReady(e->dccPkt));
         assert(e->dccPkt->size <=
                                 (e->dccPkt->isDram() ?
                                 dram->bytesPerBurst() :
                                 nvm->bytesPerBurst()) );
 
         busState = DcacheCtrl::WRITE;
+
+        assert(packetReady(e->dccPkt));
 
         doBurstAccess(e->dccPkt);
 
@@ -938,9 +942,10 @@ DcacheCtrl::processNvmReadEvent()
     assert(e->validEntry);
     assert(e->state == nvmRead);
     assert(!e->dccPkt->isDram());
-    assert(packetReady(e->dccPkt));
 
     busState = DcacheCtrl::READ;
+
+    assert(packetReady(e->dccPkt));
 
     doBurstAccess(e->dccPkt);
 
