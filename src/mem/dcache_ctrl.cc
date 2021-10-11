@@ -650,11 +650,13 @@ DcacheCtrl::processDramReadEvent()
         // Because, we already have written it in nvm, while
         // we were processing it into dram cache.
 
-        if (!nvmWriteEvent.scheduled() && !nvm->writeRespQueueFull()) {
-            schedule(nvmWriteEvent, curTick());
-        }
-        else if (!nvmWriteEvent.scheduled() && nvm->writeRespQueueFull()) {
-            schedule(nvmWriteEvent, nvm->writeRespQueue.front()+1);
+        if (!nvmWriteEvent.scheduled()) {
+            if (!nvm->writeRespQueueFull()) {
+                schedule(nvmWriteEvent, curTick());
+            }
+            else {
+                schedule(nvmWriteEvent, nvm->writeRespQueueFront()+1);
+            }
         }
     }
 
@@ -1093,11 +1095,8 @@ DcacheCtrl::processNvmWriteEvent()
     if (!nvmWriteEvent.scheduled() &&
         !nvmWritebackQueue.empty() &&
          nvm->writeRespQueueFull()) {
-            schedule(nvmWriteEvent, nvm->writeRespQueue.front()+1);
+            schedule(nvmWriteEvent, nvm->writeRespQueueFront()+1);
     }
-
-    // std::cout << "+++ " << nvmWritebackQueue.size() << " "
-    // << curTick() << " " << nvmWriteEvent.when() << "\n";
 
 }
 
