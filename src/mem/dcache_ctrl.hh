@@ -239,6 +239,9 @@ class DcacheCtrl : public QoS::MemCtrl
     void processRespDramReadEvent();
     EventFunctionWrapper respDramReadEvent;
 
+    void processWaitingToIssueNvmReadEvent();
+    EventFunctionWrapper waitingToIssueNvmReadEvent;
+
     /**
      * processNvmReadEvent() is an event handler which
      * schedules the NVM read accesses in the DRAM Cache Controller.
@@ -355,7 +358,7 @@ class DcacheCtrl : public QoS::MemCtrl
 
     enum reqState { idle,
                     dramRead, dramWrite, waitingForNvmRead,
-                    nvmRead, nvmWrite,
+                    waitingToIssueNvmRead, nvmRead, nvmWrite,
                     respReady };
 
     /**
@@ -449,7 +452,10 @@ class DcacheCtrl : public QoS::MemCtrl
      * required addresses in a priority queue.
      */
     std::priority_queue<addrNvmReadPair, std::vector<addrNvmReadPair>,
-                        std::greater<addrNvmReadPair> > addrNvmRead;
+            std::greater<addrNvmReadPair> > addrNvmRead;
+
+    std::priority_queue<addrNvmReadPair, std::vector<addrNvmReadPair>,
+            std::greater<addrNvmReadPair> > addrWaitingToIssueNvmRead;
 
     /**
      * To avoid iterating over the outstanding requests
