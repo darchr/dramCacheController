@@ -80,6 +80,7 @@ if args.mode == "linear":
         rate=args.rate,
         min_addr=min_addr,
         max_addr=max_addr,
+        rd_perc=args.rd_perc,
     )
 elif args.mode == "random":
     generator = RandomGenerator(
@@ -88,6 +89,7 @@ elif args.mode == "random":
         rate=args.rate,
         min_addr=min_addr,
         max_addr=max_addr,
+        rd_perc=args.rd_perc,
     )
 else:
     fatal("Generator type not supported")
