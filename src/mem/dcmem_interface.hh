@@ -214,18 +214,6 @@ class DCMemInterface : public AbstractMemory
     Tick rankDelay() const { return tCS; }
 
     /**
-     *
-     * @return minimum additional bus turnaround required for read-to-write
-     */
-    Tick minReadToWriteDataGap() const { return std::min(tRTW, tCS); }
-
-    /**
-     *
-     * @return minimum additional bus turnaround required for write-to-read
-     */
-    Tick minWriteToReadDataGap() const { return std::min(tWTR, tCS); }
-
-    /**
      * Address decoder to figure out physical mapping onto ranks,
      * banks, and rows. This function is called multiple times on the same
      * system packet if the pakcet is larger than burst of the memory. The
@@ -920,7 +908,6 @@ class DRAMDCInterface : public DCMemInterface
      */
     std::pair<Tick, Tick>
     doBurstAccess(dccPacket* dcc_pkt, Tick next_burst_at);
-                  //,const std::vector<dccPacketQueue>& queue);
 
     /**
      * Check if a burst operation can be issued to the DRAM

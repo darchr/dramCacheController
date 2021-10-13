@@ -13,7 +13,7 @@
 DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
     QoS::MemCtrl(p),
     port(name() + ".port", *this), isTimingMode(false),
-    retryRdReq(false), retryWrReq(false), retry(false),
+    retry(false),
     nextReqEvent([this]{ processNextReqEvent(); }, name()),
     respondEvent([this]{ processRespondEvent(); }, name()),
     dramReadEvent([this]{ processDramReadEvent(); }, name()),
@@ -25,19 +25,16 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
     respNvmReadEvent([this]{ processRespNvmReadEvent(); }, name()),
     nvmWriteEvent([this]{ processNvmWriteEvent(); }, name()),
     dram(p.dram), nvm(p.nvm),
-    readBufferSize((dram ? dram->readBufferSize : 0) +
-                   (nvm ? nvm->readBufferSize : 0)),
-    writeBufferSize((dram ? dram->writeBufferSize : 0) +
-                    (nvm ? nvm->writeBufferSize : 0)),
-    writeHighThreshold(writeBufferSize * p.write_high_thresh_perc / 100.0),
-    writeLowThreshold(writeBufferSize * p.write_low_thresh_perc / 100.0),
-    minWritesPerSwitch(p.min_writes_per_switch),
-    writesThisTime(0), readsThisTime(0),
+    // readBufferSize((dram ? dram->readBufferSize : 0) +
+    //                (nvm ? nvm->readBufferSize : 0)),
+    // writeBufferSize((dram ? dram->writeBufferSize : 0) +
+    //                 (nvm ? nvm->writeBufferSize : 0)),
+    // minWritesPerSwitch(p.min_writes_per_switch),
+    //writesThisTime(0), readsThisTime(0),
     dramCacheSize(p.dram_cache_size),
     blockSize(p.block_size),
     orbMaxSize(p.orb_max_size), orbSize(0),
     crbMaxSize(p.crb_max_size), crbSize(0),
-    memSchedPolicy(p.mem_sched_policy),
     frontendLatency(p.static_frontend_latency),
     backendLatency(p.static_backend_latency),
     commandWindow(p.command_window),
@@ -306,7 +303,6 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
                                 true, curTick(),
                                 returnTagDC(pkt->getAddr(), pkt->getSize()),
                                 returnIndexDC(pkt->getAddr(), pkt->getSize()),
-                                true, pkt->isWrite(), pkt->getAddr(),
                                 pkt, dcc_pkt,
                                 dramRead, false, false
                           );
@@ -328,8 +324,6 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
                                             copyOwPkt->getSize()),
                                 returnIndexDC(copyOwPkt->getAddr(),
                                               copyOwPkt->getSize()),
-                                true, copyOwPkt->isWrite(),
-                                copyOwPkt->getAddr(),
                                 copyOwPkt, dcc_pkt,
                                 dramRead, false, false
                           );
@@ -758,9 +752,6 @@ DcacheCtrl::processRespDramReadEvent()
                                             copyOwPkt->getSize()),
                                 returnIndexDC(copyOwPkt->getAddr(),
                                               copyOwPkt->getSize()),
-                                orbEntry->validLine,
-                                orbEntry->dirtyLine,
-                                copyOwPkt->getAddr(),
                                 copyOwPkt,
                                 orbEntry->dccPkt,
                                 orbEntry->state,
@@ -1016,10 +1007,7 @@ DcacheCtrl::processRespNvmReadEvent()
                             returnTagDC(copyOwPkt->getAddr(),
                                         copyOwPkt->getSize()),
                             returnIndexDC(copyOwPkt->getAddr(),
-                                            copyOwPkt->getSize()),
-                            orbEntry->validLine,
-                            orbEntry->dirtyLine,
-                            copyOwPkt->getAddr(),
+                                          copyOwPkt->getSize()),
                             copyOwPkt,
                             orbEntry->dccPkt,
                             orbEntry->state,
@@ -1356,7 +1344,6 @@ DcacheCtrl::doBurstAccess(dccPacket* dcc_pkt)
     // Issue the next burst and update bus state to reflect
     // when previous command was issued
     if (dcc_pkt->isDram()) {
-        //std::vector<dccPacketQueue>& queue = selQueue(dcc_pkt->isRead());
         std::tie(cmd_at, nextBurstAt) =
                  dram->doBurstAccess(dcc_pkt, nextBurstAt);//, queue);
 
@@ -1388,13 +1375,11 @@ DcacheCtrl::doBurstAccess(dccPacket* dcc_pkt)
     // Update the common bus stats
     if (dcc_pkt->pkt != nullptr) {
         if (dcc_pkt->isRead()) {
-            ++readsThisTime;
             // Update latency stats
             stats.requestorReadTotalLat[dcc_pkt->requestorId()] +=
                 dcc_pkt->readyTime - dcc_pkt->entryTime;
             stats.requestorReadBytes[dcc_pkt->requestorId()] += dcc_pkt->size;
         } else {
-            ++writesThisTime;
             stats.requestorWriteBytes[dcc_pkt->requestorId()] += dcc_pkt->size;
             stats.requestorWriteTotalLat[dcc_pkt->requestorId()] +=
                 dcc_pkt->readyTime - dcc_pkt->entryTime;
@@ -1413,22 +1398,6 @@ DcacheCtrl::packetReady(dccPacket* pkt)
 {
     return (pkt->isDram() ?
         dram->burstReady(pkt) : nvm->burstReady(pkt));
-}
-
-Tick
-DcacheCtrl::minReadToWriteDataGap()
-{
-    Tick dram_min = dram ?  dram->minReadToWriteDataGap() : MaxTick;
-    Tick nvm_min = nvm ?  nvm->minReadToWriteDataGap() : MaxTick;
-    return std::min(dram_min, nvm_min);
-}
-
-Tick
-DcacheCtrl::minWriteToReadDataGap()
-{
-    Tick dram_min = dram ? dram->minWriteToReadDataGap() : MaxTick;
-    Tick nvm_min = nvm ?  nvm->minWriteToReadDataGap() : MaxTick;
-    return std::min(dram_min, nvm_min);
 }
 
 Addr
@@ -1525,15 +1494,15 @@ DcacheCtrl::CtrlStats::regStats()
     readPktSize.init(ceilLog2(ctrl.system()->cacheLineSize()) + 1);
     writePktSize.init(ceilLog2(ctrl.system()->cacheLineSize()) + 1);
 
-    rdQLenPdf.init(ctrl.readBufferSize);
-    wrQLenPdf.init(ctrl.writeBufferSize);
+    //rdQLenPdf.init(ctrl.readBufferSize);
+    //wrQLenPdf.init(ctrl.writeBufferSize);
 
-    rdPerTurnAround
-        .init(ctrl.readBufferSize)
-        .flags(nozero);
-    wrPerTurnAround
-        .init(ctrl.writeBufferSize)
-        .flags(nozero);
+    // rdPerTurnAround
+    //     .init(ctrl.readBufferSize)
+    //     .flags(nozero);
+    //wrPerTurnAround
+    //    .init(ctrl.writeBufferSize)
+    //    .flags(nozero);
 
     avgRdBWSys.precision(2);
     avgWrBWSys.precision(2);

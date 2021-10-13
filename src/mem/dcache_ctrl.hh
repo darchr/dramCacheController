@@ -192,8 +192,6 @@ class DcacheCtrl : public QoS::MemCtrl
     /**
      * Remember if we have to retry a request when available.
      */
-    bool retryRdReq;
-    bool retryWrReq;
     bool retry;
 
     void printORB();
@@ -239,6 +237,12 @@ class DcacheCtrl : public QoS::MemCtrl
     void processRespDramReadEvent();
     EventFunctionWrapper respDramReadEvent;
 
+    /**
+     * processWaitingToIssueNvmReadEvent() is an event handler which
+     * handles the satte in which the packets that missed in DRAM cache
+     * will wait before being issued, if the NVM read has reached to the
+     * maximum number allowed for pending reads.
+    */
     void processWaitingToIssueNvmReadEvent();
     EventFunctionWrapper waitingToIssueNvmReadEvent;
 
@@ -291,20 +295,6 @@ class DcacheCtrl : public QoS::MemCtrl
     bool packetReady(dccPacket* pkt);
 
     /**
-     * Calculate the minimum delay used when scheduling a read-to-write
-     * transision.
-     * @param return minimum delay
-     */
-    Tick minReadToWriteDataGap();
-
-    /**
-     * Calculate the minimum delay used when scheduling a write-to-read
-     * transision.
-     * @param return minimum delay
-     */
-    Tick minWriteToReadDataGap();
-
-    /**
      * Calculate burst window aligned tick
      *
      * @param cmd_tick Initial tick of command
@@ -321,10 +311,6 @@ class DcacheCtrl : public QoS::MemCtrl
      * @return An address aligned to a memory burst
      */
     Addr burstAlign(Addr addr, bool is_dram) const;
-
-    std::vector<dccPacketQueue> readQueue;
-    std::vector<dccPacketQueue> writeQueue;
-    std::deque<dccPacket*> respQueue;
 
     /**
      * To avoid iterating over the outstanding requests buffer
@@ -355,11 +341,9 @@ class DcacheCtrl : public QoS::MemCtrl
      * to the other while it's process in the DRAM Cache
      * Controller.
      */
-
     enum reqState { idle,
-                    dramRead, dramWrite, waitingForNvmRead,
-                    waitingToIssueNvmRead, nvmRead, nvmWrite,
-                    respReady };
+                    dramRead, dramWrite,
+                    waitingToIssueNvmRead, nvmRead, nvmWrite};
 
     /**
      * A class for the entries of the
@@ -373,11 +357,6 @@ class DcacheCtrl : public QoS::MemCtrl
       // DRAM cache related metadata
       Addr tagDC = 0;
       Addr indexDC = 0;
-      // constant to indicate that the cache line is valid
-      bool validLine = false;
-      // constant to indicate that the cache line is dirty
-      bool dirtyLine = false;
-      Addr nvmAddr = 0;
 
       // pointer to the outside world (ow) packet received from llc
       const PacketPtr owPkt;
@@ -391,14 +370,11 @@ class DcacheCtrl : public QoS::MemCtrl
       reqBufferEntry(
         bool _validEntry, Tick _arrivalTick,
         Addr _tagDC, Addr _indexDC,
-        bool _validLine, bool _dirtyLine, Addr _nvmAddr,
         PacketPtr _owPkt, dccPacket* _dccPkt,
         reqState _state, bool _isHit, bool _conflict)
       :
       validEntry(_validEntry), arrivalTick(_arrivalTick),
       tagDC(_tagDC), indexDC(_indexDC),
-      validLine(_validLine), dirtyLine(_dirtyLine),
-      nvmAddr(_nvmAddr),
       owPkt( _owPkt), dccPkt(_dccPkt),
       state(_state), isHit(_isHit), conflict(_conflict)
       { }
@@ -446,6 +422,7 @@ class DcacheCtrl : public QoS::MemCtrl
 
     //priority queue ordered by earliest tick
     typedef std::pair<Tick, Addr> addrNvmReadPair;
+
     /**
      * To avoid iterating over the outstanding requests
      * buffer for nvmReadEvent handler, we maintain the
@@ -454,6 +431,12 @@ class DcacheCtrl : public QoS::MemCtrl
     std::priority_queue<addrNvmReadPair, std::vector<addrNvmReadPair>,
             std::greater<addrNvmReadPair> > addrNvmRead;
 
+    /**
+     * To maintain the packets missed in DRAM cache and
+     * now require to read NVM, this queue holds them in order,
+     * incase they can't be issued due to reaching to the maximum
+     * pending number of reads for NVM.
+     */
     std::priority_queue<addrNvmReadPair, std::vector<addrNvmReadPair>,
             std::greater<addrNvmReadPair> > addrWaitingToIssueNvmRead;
 
@@ -512,26 +495,12 @@ class DcacheCtrl : public QoS::MemCtrl
      * The rowsPerBank is determined based on the capacity, number of
      * ranks and banks, the burst size, and the row buffer size.
      */
-    const uint32_t readBufferSize;
-    const uint32_t writeBufferSize;
-    const uint32_t writeHighThreshold;
-    const uint32_t writeLowThreshold;
-    const uint32_t minWritesPerSwitch;
-    uint32_t writesThisTime;
-    uint32_t readsThisTime;
-
     uint64_t dramCacheSize;
     uint64_t blockSize;
     const uint32_t orbMaxSize;
     unsigned int orbSize;
     const uint32_t crbMaxSize;
     unsigned int crbSize;
-
-    /**
-     * Memory controller configuration initialized based on parameter
-     * values.
-     */
-    Enums::MemSched memSchedPolicy;
 
     /**
      * Pipeline latency of the controller frontend. The frontend
@@ -635,17 +604,6 @@ class DcacheCtrl : public QoS::MemCtrl
      * hold it for deletion until a subsequent call
      */
     std::unique_ptr<Packet> pendingDelete;
-
-    /**
-     * Select either the read or write queue
-     *
-     * @param is_read The current burst is a read, select read queue
-     * @return a reference to the appropriate queue
-     */
-    std::vector<dccPacketQueue>& selQueue(bool is_read)
-    {
-        return (is_read ? readQueue : writeQueue);
-    };
 
     /**
      * Remove commands that have already issued from burstTicks
