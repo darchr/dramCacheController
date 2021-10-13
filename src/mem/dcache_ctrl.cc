@@ -1439,13 +1439,13 @@ DcacheCtrl::CtrlStats::CtrlStats(DcacheCtrl &_ctrl)
     ADD_STAT(readPktSize, "Read request sizes (log2)"),
     ADD_STAT(writePktSize, "Write request sizes (log2)"),
 
-    ADD_STAT(rdQLenPdf, "What read queue length does an incoming req see"),
-    ADD_STAT(wrQLenPdf, "What write queue length does an incoming req see"),
+    //ADD_STAT(rdQLenPdf, "What read queue length does an incoming req see"),
+    //ADD_STAT(wrQLenPdf, "What write queue length does an incoming req see"),
 
-    ADD_STAT(rdPerTurnAround,
-             "Reads before turning the bus around for writes"),
-    ADD_STAT(wrPerTurnAround,
-             "Writes before turning the bus around for reads"),
+    //ADD_STAT(rdPerTurnAround,
+    //         "Reads before turning the bus around for writes"),
+    //ADD_STAT(wrPerTurnAround,
+    //         "Writes before turning the bus around for reads"),
 
     ADD_STAT(bytesReadWrQ, "Total number of bytes read from write queue"),
     ADD_STAT(bytesReadSys, "Total read bytes from the system interface side"),
