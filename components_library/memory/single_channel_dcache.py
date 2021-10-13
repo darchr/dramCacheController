@@ -121,7 +121,6 @@ class SingleChannelDCMemory(AbstractMemorySystem):
 
 from .dc_interfaces.ddr3 import DDR3_1600_8x8, DDR3_2133_8x8
 from .dc_interfaces.ddr4 import DDR4_2400_8x8
-from .dc_interfaces.lpddr3 import LPDDR3_1600_1x32
 from .dc_interfaces.hbm import HBM_1000_4H_1x128
 from .nvm_interfaces.nvm import NVM_2400_1x64
 
@@ -151,14 +150,6 @@ def SingleChannelDDR4_2400_NVM_2400_1x64(size_dcache: Optional[str] = None,
     """
     return SingleChannelDCMemory(DDR4_2400_8x8, NVM_2400_1x64, size_dcache,
                                                                     size_nvm)
-
-
-def SingleChannelLPDDR3_1600_NVM_2400_1x64(
-    size_dcache: Optional[str] = None,
-    size_nvm: Optional[str] = None
-) -> AbstractMemorySystem:
-    return SingleChannelDCMemory(LPDDR3_1600_1x32, size_dcache, size_nvm)
-
 
 def SingleChannelHBM_NVM_2400_1x64(size_dcache: Optional[str] = None,
                 size_nvm: Optional[str] = None) -> AbstractMemorySystem:
