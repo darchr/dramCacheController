@@ -35,9 +35,13 @@ DCMemInterface::DCMemInterface(const DCMemInterfaceParams &_p)
 {}
 
 void
-DCMemInterface::setCtrl(DcacheCtrl* _ctrl, unsigned int command_window)
+DCMemInterface::setCtrl(QoS::MemCtrl* _ctrl, unsigned int command_window)
 {
-    ctrl = _ctrl;
+    if (dynamic_cast<DcacheCtrl*>(_ctrl) != nullptr) {
+        ctrl = dynamic_cast<DcacheCtrl*>(_ctrl);
+    } else {
+        ctrl = dynamic_cast<MemCtrl*>(_ctrl);
+    }
     maxCommandsPerWindow = command_window / tCK;
 }
 
