@@ -341,8 +341,7 @@ class DcacheCtrl : public QoS::MemCtrl
      * to the other while it's process in the DRAM Cache
      * Controller.
      */
-    enum reqState { idle,
-                    dramRead, dramWrite,
+    enum reqState { dramRead, dramWrite,
                     waitingToIssueNvmRead, nvmRead, nvmWrite};
 
     /**
@@ -363,20 +362,30 @@ class DcacheCtrl : public QoS::MemCtrl
       // pointer to the dram cache controller (dcc) packet
       dccPacket* dccPkt;
 
-      reqState state = idle;
+      reqState state;
       bool isHit = false;
       bool conflict = false;
+
+      Tick drRd;
+      Tick drWr;
+      Tick nvWait;
+      Tick nvRd;
+      Tick nvWr;
+
 
       reqBufferEntry(
         bool _validEntry, Tick _arrivalTick,
         Addr _tagDC, Addr _indexDC,
         PacketPtr _owPkt, dccPacket* _dccPkt,
-        reqState _state, bool _isHit, bool _conflict)
+        reqState _state, bool _isHit, bool _conflict,
+        Tick _drRd, Tick _drWr, Tick _nvWait, Tick _nvRd, Tick _nvWr)
       :
       validEntry(_validEntry), arrivalTick(_arrivalTick),
       tagDC(_tagDC), indexDC(_indexDC),
       owPkt( _owPkt), dccPkt(_dccPkt),
-      state(_state), isHit(_isHit), conflict(_conflict)
+      state(_state), isHit(_isHit), conflict(_conflict),
+      drRd(_drRd), drWr(_drWr),
+      nvWait(_nvWait), nvRd(_nvRd), nvWr(_nvWr)
       { }
     };
 
@@ -470,6 +479,7 @@ class DcacheCtrl : public QoS::MemCtrl
     bool checkConflictInDramCache(PacketPtr pkt);
     void checkConflictInCRB(reqBufferEntry* orbEntry);
     bool resumeConflictingReq(reqBufferEntry* orbEntry);
+    void logStatsDcache(reqBufferEntry* orbEntry);
 
     /**
      * Holds count of commands issued in burst window starting at
@@ -552,7 +562,7 @@ class DcacheCtrl : public QoS::MemCtrl
         Stats::Scalar writeBursts;
         Stats::Scalar servicedByWrQ;
         Stats::Scalar mergedWrBursts;
-        Stats::Scalar neitherReadNorWriteReqs;
+        //Stats::Scalar neitherReadNorWriteReqs;
         // Average queue lengths
         Stats::Average avgRdQLen;
         Stats::Average avgWrQLen;
@@ -595,6 +605,19 @@ class DcacheCtrl : public QoS::MemCtrl
         // per-requestor raed and write average memory access latency
         Stats::Formula requestorReadAvgLat;
         Stats::Formula requestorWriteAvgLat;
+
+        Stats::Scalar numHits;
+        Stats::Scalar numMisses;
+        Stats::Scalar numRdHits;
+        Stats::Scalar numWrHits;
+        Stats::Scalar numRdMisses;
+        Stats::Scalar numWrMisses;
+
+        Stats::Scalar numTicksInDramRead;
+        Stats::Scalar numTicksInDramWrite;
+        Stats::Scalar numTicksInWaitingToIssueNvmRead;
+        Stats::Scalar numTicksInNvmRead;
+        Stats::Scalar numTicksInNvmWrite;
     };
 
     CtrlStats stats;
