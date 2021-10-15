@@ -375,6 +375,8 @@ class Packet : public Printable
     */
     PacketDataPtr data;
 
+    PacketDataPtr cacheLineRead;
+
     /// The address of the request.  This address could be virtual or
     /// physical, depending on the system configuration.
     Addr addr;
@@ -409,6 +411,9 @@ class Packet : public Printable
     uint64_t htmTransactionUid;
 
   public:
+
+    PacketDataPtr getCacheLineRead() { return cacheLineRead;}
+
 
     /**
      * The extra delay from seeing the packet until the header is
@@ -850,7 +855,8 @@ class Packet : public Printable
      */
     Packet(const RequestPtr &_req, MemCmd _cmd)
         :  cmd(_cmd), id((PacketId)_req.get()), req(_req),
-           data(nullptr), addr(0), _isSecure(false), size(0),
+           data(nullptr), cacheLineRead(nullptr), addr(0),
+           _isSecure(false), size(0),
            _qosValue(0),
            htmReturnReason(HtmCacheFailure::NO_FAIL),
            htmTransactionUid(0),
@@ -891,7 +897,7 @@ class Packet : public Printable
      */
     Packet(const RequestPtr &_req, MemCmd _cmd, int _blkSize, PacketId _id = 0)
         :  cmd(_cmd), id(_id ? _id : (PacketId)_req.get()), req(_req),
-           data(nullptr), addr(0), _isSecure(false),
+           data(nullptr), cacheLineRead(nullptr), addr(0), _isSecure(false),
            _qosValue(0),
            htmReturnReason(HtmCacheFailure::NO_FAIL),
            htmTransactionUid(0),
@@ -918,6 +924,7 @@ class Packet : public Printable
     Packet(const PacketPtr pkt, bool clear_flags, bool alloc_data)
         :  cmd(pkt->cmd), id(pkt->id), req(pkt->req),
            data(nullptr),
+           cacheLineRead(nullptr),
            addr(pkt->addr), _isSecure(pkt->_isSecure), size(pkt->size),
            bytesValid(pkt->bytesValid),
            _qosValue(pkt->qosValue()),
