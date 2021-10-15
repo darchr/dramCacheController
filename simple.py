@@ -47,6 +47,5 @@ def createLinearTraffic(tgen):
 root = Root(full_system=False, system=system)
 
 m5.instantiate()
-#system.generator.start(createRandomTraffic(system.generator))
-system.generator.start(createLinearTraffic(system.generator))
+system.generator.start(createRandomTraffic(system.generator))
 exit_event = m5.simulate()
