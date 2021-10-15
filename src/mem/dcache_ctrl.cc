@@ -253,7 +253,7 @@ DcacheCtrl::checkDirty(Addr addr)
 void
 DcacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
 {
-    if (checkDirty(orbEntry->owPkt->getAddr()) && !orbEntry->isHit) {
+    if (checkDirty(orbEntry->owPkt->getAddr())) {
 
         dccPacket* wbDccPkt = nvm->decodePacket(nullptr,
                                 tagMetadataStore.at
@@ -279,6 +279,8 @@ DcacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
                 schedule(nvmWriteEvent, nvm->writeRespQueueFront()+1);
             }
         }
+
+        stats.numWrBacks++;
     }
 }
 
@@ -334,8 +336,43 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
                                 MaxTick, MaxTick, MaxTick
                           );
 
-        logRequest(DcacheCtrl::WRITE, pkt->requestorId(), pkt->qosValue(),
-                   pkt->getAddr(), 1);
+        entry = reqBuffer.at(copyOwPkt->getAddr());
+
+        logRequest(DcacheCtrl::WRITE, copyOwPkt->requestorId(),
+                   copyOwPkt->qosValue(),
+                   copyOwPkt->getAddr(), 1);
+    }
+
+    checkHitOrMiss(entry);
+
+    handleDirtyCacheLine(entry);
+
+    // Updating Tag & Metadata
+    tagMetadataStore.at(entry->indexDC).tagDC = entry->tagDC;
+    tagMetadataStore.at(entry->indexDC).indexDC = entry->indexDC;
+    tagMetadataStore.at(entry->indexDC).validLine = true;
+
+    if (entry->owPkt->isRead()) {
+        if (entry->isHit) {
+            tagMetadataStore.at(entry->indexDC).dirtyLine =
+            tagMetadataStore.at(entry->indexDC).dirtyLine;
+        }
+        else {
+            tagMetadataStore.at(entry->indexDC).dirtyLine = false;
+        }
+    }
+    else if (!entry->owPkt->isRead()) {
+        tagMetadataStore.at(entry->indexDC).dirtyLine = true;
+    }
+
+    tagMetadataStore.at(entry->indexDC).nvmAddr =
+                        entry->owPkt->getAddr();
+
+    if (entry->owPkt->isRead()) {
+        stats.readReqs++;
+    }
+    else {
+        stats.writeReqs++;
     }
 }
 
@@ -465,13 +502,6 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
                 reqBuffer.erase(orbEntry->owPkt->getAddr());
 
                 handleRequestorPkt(entry.second);
-
-                if (entry.second->isRead()) {
-                    stats.readReqs++;
-                }
-                else {
-                    stats.writeReqs++;
-                }
 
                 reqBuffer.at(confAddr)->arrivalTick = entry.first;
 
@@ -665,7 +695,12 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     // process conflicting requests
     // calculate dram address: ignored for now (because Dsize=Nsize)
     if (checkConflictInDramCache(pkt)) {
+
+        stats.totNumConf++;
+
         if (confReqBuffer.size()>=crbMaxSize) {
+
+            stats.totNumConfBufFull++;
 
             retry = true;
 
@@ -688,6 +723,12 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
 
         if (pkt->isWrite()) {
             isInWriteQueue.insert(pkt->getAddr());
+        }
+
+
+        if (confReqBuffer.size() > maxConf) {
+            maxConf = confReqBuffer.size();
+            stats.maxNumConf = confReqBuffer.size();
         }
 
         // std::cout <<
@@ -721,32 +762,13 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     // then add the pkt to outstanding requests buffer
     handleRequestorPkt(pkt);
 
-    if (pkt->isRead()) {
-        stats.readReqs++;
-    }
-    else {
-        stats.writeReqs++;
-    }
-
     if (pkt->isWrite()) {
         isInWriteQueue.insert(pkt->getAddr());
     }
 
-    reqBufferEntry* orbEntry = reqBuffer.at(pkt->getAddr());
+    //reqBufferEntry* orbEntry = reqBuffer.at(pkt->getAddr());
 
-    checkHitOrMiss(orbEntry);
 
-    handleDirtyCacheLine(orbEntry);
-
-    // Updating Tag & Metadata
-    tagMetadataStore.at(orbEntry->indexDC).tagDC = orbEntry->tagDC;
-    tagMetadataStore.at(orbEntry->indexDC).indexDC = orbEntry->indexDC;
-    tagMetadataStore.at(orbEntry->indexDC).validLine = true;
-    tagMetadataStore.at(orbEntry->indexDC).dirtyLine = orbEntry->isHit ?
-                        tagMetadataStore.at(orbEntry->indexDC).dirtyLine :
-                        orbEntry->owPkt->isWrite();
-    tagMetadataStore.at(orbEntry->indexDC).nvmAddr =
-                        orbEntry->owPkt->getAddr();
 
     if (addrInitRead.empty()) {
 
@@ -1005,6 +1027,9 @@ DcacheCtrl::processRespDramReadEvent()
 void
 DcacheCtrl::processWaitingToIssueNvmReadEvent()
 {
+    if (addrWaitingToIssueNvmRead.size()>1)
+        std::cout << addrWaitingToIssueNvmRead.size() << "\n";
+
     assert(!addrWaitingToIssueNvmRead.empty());
 
     auto e = reqBuffer.at(addrWaitingToIssueNvmRead.top().second);
@@ -1176,7 +1201,8 @@ DcacheCtrl::processRespNvmReadEvent()
     orbEntry->drWr = curTick();
 
     if (!dramWriteEvent.scheduled()) {
-        schedule(dramWriteEvent, curTick()+1);
+        //schedule(dramWriteEvent, curTick()+1);
+        schedule(dramWriteEvent, curTick());
     }
 
     // to keep track of writes, we maintain the addresses
@@ -1599,8 +1625,10 @@ DcacheCtrl::CtrlStats::CtrlStats(DcacheCtrl &_ctrl)
     ADD_STAT(totGap, "Total gap between requests"),
     ADD_STAT(avgGap, "Average gap between requests"),
 
-    ADD_STAT(requestorReadBytes, "Per-requestor bytes read from memory"),
-    ADD_STAT(requestorWriteBytes, "Per-requestor bytes write to memory"),
+    ADD_STAT(requestorReadBytes,
+            "Per-requestor bytes read from memory"),
+    ADD_STAT(requestorWriteBytes,
+            "Per-requestor bytes write to memory"),
     ADD_STAT(requestorReadRate,
              "Per-requestor bytes read from memory rate (Bytes/sec)"),
     ADD_STAT(requestorWriteRate,
@@ -1617,6 +1645,7 @@ DcacheCtrl::CtrlStats::CtrlStats(DcacheCtrl &_ctrl)
              "Per-requestor read average memory access latency"),
     ADD_STAT(requestorWriteAvgLat,
              "Per-requestor write average memory access latency"),
+
     ADD_STAT(numHits,
             "Total number of hits on DRAM cache"),
     ADD_STAT(numMisses,
@@ -1629,6 +1658,16 @@ DcacheCtrl::CtrlStats::CtrlStats(DcacheCtrl &_ctrl)
             "Total number of read misses on DRAM cache"),
     ADD_STAT(numWrMisses,
             "Total number of write misses on DRAM cache"),
+    ADD_STAT(numWrBacks,
+            "Total number of write backs from DRAM cache to main memory"),
+    ADD_STAT(maxNumConf,
+            "Maximum number of packets conflicted on DRAM cache"),
+    ADD_STAT(totNumConf,
+            "Total number of packets conflicted on DRAM cache"),
+    ADD_STAT(totNumConfBufFull,
+            "Total number of packets conflicted and couldn't "
+            "enter confBuffer"),
+
     ADD_STAT(numTicksInDramRead,
              "Total number of ticks spent in dram read state"),
     ADD_STAT(numTicksInDramWrite,

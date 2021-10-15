@@ -151,6 +151,7 @@ typedef std::deque<dccPacket*> dccPacketQueue;
 class DcacheCtrl : public QoS::MemCtrl
 {
   private:
+   unsigned maxConf = 0;
 
     // For now, make use of a queued response port to avoid dealing with
     // flow control for the responses being sent back
@@ -612,6 +613,10 @@ class DcacheCtrl : public QoS::MemCtrl
         Stats::Scalar numWrHits;
         Stats::Scalar numRdMisses;
         Stats::Scalar numWrMisses;
+        Stats::Scalar numWrBacks;
+        Stats::Scalar maxNumConf;
+        Stats::Scalar totNumConf;
+        Stats::Scalar totNumConfBufFull;
 
         Stats::Scalar numTicksInDramRead;
         Stats::Scalar numTicksInDramWrite;
