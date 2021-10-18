@@ -264,8 +264,8 @@ DcacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
         nvm->setupRank(wbDccPkt->rank, false);
 
         nvmWritebackQueue.push(std::make_pair(curTick(),wbDccPkt));
-        isInWriteQueue.insert(tagMetadataStore.
-                              at(orbEntry->owPkt->getAddr()).nvmAddr);
+        // isInWriteQueue.insert(tagMetadataStore.
+        //                       at(orbEntry->owPkt->getAddr()).nvmAddr);
 
         // no need to call nvm->access for the dirty line.
         // Because, we already have written it in nvm, while
@@ -1241,7 +1241,7 @@ DcacheCtrl::processNvmWriteEvent()
 
         doBurstAccess(e);
 
-        isInWriteQueue.erase(e->getAddr());
+        //isInWriteQueue.erase(e->getAddr());
 
         stats.numTicksInNvmWrite += curTick() - nvmWritebackQueue.top().first;
 
