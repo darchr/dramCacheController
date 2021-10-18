@@ -24,7 +24,7 @@ system.generator.port = system.mem_ctrl.port
 def createRandomTraffic(tgen):
     yield tgen.createRandom(100000000000,   # duration
                             0,          # min_addr
-                            0,   # max_adr
+                            10000,   # max_adr
                             64,         # block_size
                             10000,       # min_period
                             10000,       # max_period

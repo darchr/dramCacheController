@@ -366,6 +366,7 @@ class DcacheCtrl : public QoS::MemCtrl
       reqState state;
       bool isHit = false;
       bool conflict = false;
+      bool handleDirtyLine = false;
 
       Tick drRd;
       Tick drWr;

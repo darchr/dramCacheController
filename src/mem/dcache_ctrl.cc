@@ -253,35 +253,33 @@ DcacheCtrl::checkDirty(Addr addr)
 void
 DcacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
 {
-    if (checkDirty(orbEntry->owPkt->getAddr())) {
+    dccPacket* wbDccPkt = nvm->decodePacket(nullptr,
+                            tagMetadataStore.at
+                            (orbEntry->owPkt->getAddr()).nvmAddr,
+                            orbEntry->owPkt->getSize(),
+                            false, false);
 
-        dccPacket* wbDccPkt = nvm->decodePacket(nullptr,
-                                tagMetadataStore.at
-                                (orbEntry->owPkt->getAddr()).nvmAddr,
-                                orbEntry->owPkt->getSize(),
-                                false, false);
+    nvm->setupRank(wbDccPkt->rank, false);
 
-        nvm->setupRank(wbDccPkt->rank, false);
+    nvmWritebackQueue.push(std::make_pair(curTick(),wbDccPkt));
+    // isInWriteQueue.insert(tagMetadataStore.
+    //                       at(orbEntry->owPkt->getAddr()).nvmAddr);
 
-        nvmWritebackQueue.push(std::make_pair(curTick(),wbDccPkt));
-        // isInWriteQueue.insert(tagMetadataStore.
-        //                       at(orbEntry->owPkt->getAddr()).nvmAddr);
+    // no need to call nvm->access for the dirty line.
+    // Because, we already have written it in nvm, while
+    // we were processing it into dram cache.
 
-        // no need to call nvm->access for the dirty line.
-        // Because, we already have written it in nvm, while
-        // we were processing it into dram cache.
-
-        if (!nvmWriteEvent.scheduled()) {
-            if (!nvm->writeRespQueueFull()) {
-                schedule(nvmWriteEvent, curTick());
-            }
-            else {
-                schedule(nvmWriteEvent, nvm->writeRespQueueFront()+1);
-            }
+    if (!nvmWriteEvent.scheduled()) {
+        if (!nvm->writeRespQueueFull()) {
+            schedule(nvmWriteEvent, curTick());
         }
-
-        stats.numWrBacks++;
+        else {
+            schedule(nvmWriteEvent, nvm->writeRespQueueFront()+1);
+        }
     }
+
+    stats.numWrBacks++;
+
 }
 
 void
@@ -345,7 +343,9 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
 
     checkHitOrMiss(entry);
 
-    handleDirtyCacheLine(entry);
+    if (checkDirty(entry->owPkt->getAddr())) {
+        entry->handleDirtyLine = true;
+    }
 
     // Updating Tag & Metadata
     tagMetadataStore.at(entry->indexDC).tagDC = entry->tagDC;
@@ -868,6 +868,10 @@ DcacheCtrl::processRespDramReadEvent()
     assert(orbEntry->dccPkt->isRead());
     assert(orbEntry->state == dramRead);
     assert(orbEntry->dccPkt->readyTime == curTick());
+
+    if (orbEntry->handleDirtyLine) {
+        handleDirtyCacheLine(orbEntry);
+    }
 
     // A flag which is used for retrying read requests
     // in case one slot in ORB becomes available here
