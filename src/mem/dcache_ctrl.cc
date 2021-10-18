@@ -644,7 +644,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
                         ((addr + size) <=
                         (e.second->getAddr() + e.second->getSize()))) {
 
-                        foundInNWB = true;
+                        foundInCRB = true;
 
                         stats.servicedByWrQ++;
 
