@@ -201,7 +201,7 @@ DcacheCtrl::printNvmWritebackQueue()
 Addr
 DcacheCtrl::returnTagDC(Addr request_addr, unsigned size)
 {
-    int index_bits = ceilLog2(dramCacheSize);
+    int index_bits = ceilLog2(dramCacheSize/blockSize);
     int block_bits = ceilLog2(size);
     return bits(request_addr, size-1, (index_bits+block_bits));
 }
@@ -209,8 +209,8 @@ DcacheCtrl::returnTagDC(Addr request_addr, unsigned size)
 Addr
 DcacheCtrl::returnIndexDC(Addr request_addr, unsigned size)
 {
-    return bits(request_addr, ceilLog2(size)+ceilLog2(dramCacheSize)-1,
-                ceilLog2(size));
+    return bits(request_addr, ceilLog2(size)+
+                (ceilLog2(dramCacheSize/blockSize)-1), ceilLog2(size));
 }
 
 void
@@ -233,8 +233,8 @@ DcacheCtrl::checkHitOrMiss(reqBufferEntry* orbEntry)
 bool
 DcacheCtrl::checkDirty(Addr addr)
 {
-    return (tagMetadataStore.at(addr).validLine &&
-            tagMetadataStore.at(addr).dirtyLine);
+    return (tagMetadataStore.at(returnIndexDC(addr, 64)).validLine &&
+            tagMetadataStore.at(returnIndexDC(addr, 64)).dirtyLine);
 
 
     // always dirty
@@ -249,7 +249,8 @@ DcacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
 {
     dccPacket* wbDccPkt = nvm->decodePacket(nullptr,
                             tagMetadataStore.at
-                            (orbEntry->owPkt->getAddr()).nvmAddr,
+                            (returnIndexDC(orbEntry->owPkt->getAddr(),
+                            orbEntry->owPkt->getSize())).nvmAddr,
                             orbEntry->owPkt->getSize(),
                             false, false);
 
