@@ -10,21 +10,22 @@ system.mem_mode = 'timing'
 system.generator = PyTrafficGen()
 
 system.mem_ctrl = DcacheCtrl()
-system.mem_ctrl.dram = DDR3_1600_8x8(range=AddrRange('8GB'), in_addr_map=False)
-system.mem_ctrl.nvm = NVM_2400_1x64(range=AddrRange('8GB'))
+system.mem_ctrl.dram = DDR3_1600_8x8(range=AddrRange('512MiB'),
+in_addr_map=False)
+system.mem_ctrl.nvm = NVM_2400_1x64(range=AddrRange('1GB'))
 
-system.mem_ctrl.dram.tREFI = "500"
+system.mem_ctrl.dram.tREFI = "200"
 system.mem_ctrl.orb_max_size = "512"
 system.mem_ctrl.crb_max_size = "32"
 
-system.mem_ranges = [AddrRange('8GB')]
+system.mem_ranges = [AddrRange('1GB')]
 
 system.generator.port = system.mem_ctrl.port
 
 def createRandomTraffic(tgen):
     yield tgen.createRandom(100000000000,   # duration
                             0,          # min_addr
-                            10000,   # max_adr
+                            8000000,   # max_adr
                             64,         # block_size
                             10000,       # min_period
                             10000,       # max_period
@@ -33,9 +34,9 @@ def createRandomTraffic(tgen):
     yield tgen.createExit(0)
 
 def createLinearTraffic(tgen):
-    yield tgen.createLinear(1000000000000,   # duration
+    yield tgen.createLinear(100000000000,   # duration
                             0,          # min_addr
-                            10000,   # max_adr
+                            8000000,   # max_adr
                             64,         # block_size
                             10000,       # min_period
                             10000,       # max_period
@@ -47,5 +48,5 @@ def createLinearTraffic(tgen):
 root = Root(full_system=False, system=system)
 
 m5.instantiate()
-system.generator.start(createRandomTraffic(system.generator))
+system.generator.start(createLinearTraffic(system.generator))
 exit_event = m5.simulate()

@@ -25,12 +25,6 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
     respNvmReadEvent([this]{ processRespNvmReadEvent(); }, name()),
     nvmWriteEvent([this]{ processNvmWriteEvent(); }, name()),
     dram(p.dram), nvm(p.nvm),
-    // readBufferSize((dram ? dram->readBufferSize : 0) +
-    //                (nvm ? nvm->readBufferSize : 0)),
-    // writeBufferSize((dram ? dram->writeBufferSize : 0) +
-    //                 (nvm ? nvm->writeBufferSize : 0)),
-    // minWritesPerSwitch(p.min_writes_per_switch),
-    //writesThisTime(0), readsThisTime(0),
     dramCacheSize(p.dram_cache_size),
     blockSize(p.block_size),
     orbMaxSize(p.orb_max_size), orbSize(0),
@@ -305,9 +299,10 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
                                 returnTagDC(pkt->getAddr(), pkt->getSize()),
                                 returnIndexDC(pkt->getAddr(), pkt->getSize()),
                                 pkt, dcc_pkt,
-                                dramRead, false, false,
+                                dramRead, false, false, false,
                                 curTick(), MaxTick,
-                                MaxTick, MaxTick, MaxTick
+                                MaxTick, MaxTick, MaxTick,
+                                MaxTick
                           );
 
     reqBuffer.emplace(pkt->getAddr(), entry);
@@ -323,15 +318,17 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
         accessAndRespond(pkt, frontendLatency, false);
         //** renew at the same tick of creation
         reqBuffer.at(copyOwPkt->getAddr()) =  new reqBufferEntry(
-                                true, curTick(),
-                                returnTagDC(copyOwPkt->getAddr(),
-                                            copyOwPkt->getSize()),
-                                returnIndexDC(copyOwPkt->getAddr(),
-                                              copyOwPkt->getSize()),
-                                copyOwPkt, dcc_pkt,
-                                dramRead, false, false,
-                                curTick(), MaxTick,
-                                MaxTick, MaxTick, MaxTick
+                                entry->validEntry, entry->arrivalTick,
+                                entry->tagDC, entry->indexDC,
+                                copyOwPkt, entry->dccPkt,
+                                entry->state, entry->isHit, entry->conflict,
+                                entry->handleDirtyLine,
+                                entry->drRd,
+                                entry->drWr,
+                                entry->nvWait,
+                                entry->nvRd,
+                                entry->nvWr,
+                                entry->nvmIssueReadyTime
                           );
 
         entry = reqBuffer.at(copyOwPkt->getAddr());
@@ -422,18 +419,20 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             assert(orbEntry->nvWait != MaxTick);
             assert(orbEntry->nvRd != MaxTick);
             assert(orbEntry->drWr != MaxTick);
+            assert(orbEntry->nvmIssueReadyTime != MaxTick);
 
             stats.numTicksInDramRead +=
                 orbEntry->nvWait - orbEntry->drRd;
 
             stats.numTicksInWaitingToIssueNvmRead +=
-                orbEntry->nvRd - orbEntry->nvWait;
+                orbEntry->nvRd - orbEntry->nvWait +
+                orbEntry->nvmIssueReadyTime;
 
             stats.numTicksInNvmRead +=
                 orbEntry->drWr - orbEntry->nvRd;
 
             stats.numTicksInDramWrite +=
-                curTick() - orbEntry->drWr;
+                curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime;
 
             stats.numMisses++;
             stats.numRdMisses++;
@@ -449,7 +448,7 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
                 orbEntry->drWr - orbEntry->drRd;
 
             stats.numTicksInDramWrite +=
-                curTick() - orbEntry->drWr;
+                curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime;
 
             stats.numHits++;
             stats.numWrHits++;
@@ -459,18 +458,20 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             assert(orbEntry->nvWait != MaxTick);
             assert(orbEntry->nvRd != MaxTick);
             assert(orbEntry->drWr != MaxTick);
+            assert(orbEntry->nvmIssueReadyTime != MaxTick);
 
             stats.numTicksInDramRead +=
                 orbEntry->nvWait - orbEntry->drRd;
 
             stats.numTicksInWaitingToIssueNvmRead +=
-                orbEntry->nvRd - orbEntry->nvWait;
+                orbEntry->nvRd - orbEntry->nvWait +
+                orbEntry->nvmIssueReadyTime;
 
             stats.numTicksInNvmRead +=
                 orbEntry->drWr - orbEntry->nvRd;
 
             stats.numTicksInDramWrite +=
-                curTick() - orbEntry->drWr;
+                curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime;
 
             stats.numMisses++;
             stats.numWrMisses++;
@@ -644,7 +645,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
                         ((addr + size) <=
                         (e.second->getAddr() + e.second->getSize()))) {
 
-                        foundInNWB = true;
+                        foundInCRB = true;
 
                         stats.servicedByWrQ++;
 
@@ -789,17 +790,6 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
 void
 DcacheCtrl::processDramReadEvent()
 {
-    // std::cout << "*** " <<
-    // reqBuffer.size() << ", " <<
-    // confReqBuffer.size() << ", " <<
-    // addrInitRead.size() << ", " <<
-    // addrDramRespReady.size()  << ", " <<
-    // addrNvmRead.size()  <<  ", " <<
-    // addrNvmRespReady.size()  <<  ", " <<
-    // addrDramFill.size()  <<  ", " <<
-    // nvmWritebackQueue.size()  <<  ", " <<
-    // "\n";
-
     assert(!addrInitRead.empty());
     reqBufferEntry* orbEntry = reqBuffer.at(addrInitRead.front());
 
@@ -894,20 +884,19 @@ DcacheCtrl::processRespDramReadEvent()
             reqBuffer.at(copyOwPkt->getAddr()) =  new reqBufferEntry(
                                 orbEntry->validEntry,
                                 orbEntry->arrivalTick,
-                                returnTagDC(copyOwPkt->getAddr(),
-                                            copyOwPkt->getSize()),
-                                returnIndexDC(copyOwPkt->getAddr(),
-                                              copyOwPkt->getSize()),
+                                orbEntry->tagDC, orbEntry->indexDC,
                                 copyOwPkt,
                                 orbEntry->dccPkt,
                                 orbEntry->state,
                                 orbEntry->isHit,
                                 orbEntry->conflict,
+                                orbEntry->handleDirtyLine,
                                 orbEntry->drRd,
                                 orbEntry->drWr,
                                 orbEntry->nvWait,
                                 orbEntry->nvRd,
-                                orbEntry->nvWr);
+                                orbEntry->nvWr,
+                                orbEntry->nvmIssueReadyTime);
             orbEntry = reqBuffer.at(addrDramRespReady.front());
     }
 
@@ -1031,9 +1020,6 @@ DcacheCtrl::processRespDramReadEvent()
 void
 DcacheCtrl::processWaitingToIssueNvmReadEvent()
 {
-    if (addrWaitingToIssueNvmRead.size()>1)
-        std::cout << addrWaitingToIssueNvmRead.size() << "\n";
-
     assert(!addrWaitingToIssueNvmRead.empty());
 
     auto e = reqBuffer.at(addrWaitingToIssueNvmRead.top().second);
@@ -1043,9 +1029,11 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
     assert(!e->dccPkt->isDram());
     assert(!e->isHit);
 
-     if (nvm->readsWaitingToIssue()) {
+    if (nvm->readsWaitingToIssue()) {
 
         nvm->processReadPkt(e->dccPkt);
+
+        e->nvmIssueReadyTime = e->dccPkt->readyTime;
 
         //** transition to nvmread
         e->state = nvmRead;
@@ -1063,22 +1051,21 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
 
         addrNvmRead.push(std::make_pair(e->dccPkt->readyTime,
         e->owPkt->getAddr()));
-     }
+    }
 
-     else {
+    else {
         assert(!addrNvmRead.empty());
         schedule(waitingToIssueNvmReadEvent,
         reqBuffer.at(addrNvmRead.top().second)->dccPkt->readyTime+2);
         return;
-     }
+    }
 
-     addrWaitingToIssueNvmRead.pop();
+    addrWaitingToIssueNvmRead.pop();
 
-     if (!waitingToIssueNvmReadEvent.scheduled() &&
+    if (!waitingToIssueNvmReadEvent.scheduled() &&
          !addrWaitingToIssueNvmRead.empty()) {
          schedule(waitingToIssueNvmReadEvent, curTick());
-     }
-
+    }
 }
 
 void
@@ -1165,20 +1152,19 @@ DcacheCtrl::processRespNvmReadEvent()
         reqBuffer.at(copyOwPkt->getAddr()) =  new reqBufferEntry(
                             orbEntry->validEntry,
                             orbEntry->arrivalTick,
-                            returnTagDC(copyOwPkt->getAddr(),
-                                        copyOwPkt->getSize()),
-                            returnIndexDC(copyOwPkt->getAddr(),
-                                          copyOwPkt->getSize()),
+                            orbEntry->tagDC, orbEntry->indexDC,
                             copyOwPkt,
                             orbEntry->dccPkt,
                             orbEntry->state,
                             orbEntry->isHit,
                             orbEntry->conflict,
+                            orbEntry->handleDirtyLine,
                             orbEntry->drRd,
                             orbEntry->drWr,
                             orbEntry->nvWait,
                             orbEntry->nvRd,
-                            orbEntry->nvWr);
+                            orbEntry->nvWr,
+                            orbEntry->nvmIssueReadyTime);
         orbEntry = reqBuffer.at(addrNvmRespReady.front());
 
     }
@@ -1247,7 +1233,8 @@ DcacheCtrl::processNvmWriteEvent()
 
         //isInWriteQueue.erase(e->getAddr());
 
-        stats.numTicksInNvmWrite += curTick() - nvmWritebackQueue.top().first;
+        stats.numTicksInNvmWrite += curTick() - nvmWritebackQueue.top().first
+                                    + e->readyTime;
 
         nvmWritebackQueue.pop();
 
@@ -1699,16 +1686,6 @@ DcacheCtrl::CtrlStats::regStats()
 
     readPktSize.init(ceilLog2(ctrl.system()->cacheLineSize()) + 1);
     writePktSize.init(ceilLog2(ctrl.system()->cacheLineSize()) + 1);
-
-    //rdQLenPdf.init(ctrl.readBufferSize);
-    //wrQLenPdf.init(ctrl.writeBufferSize);
-
-    // rdPerTurnAround
-    //     .init(ctrl.readBufferSize)
-    //     .flags(nozero);
-    //wrPerTurnAround
-    //    .init(ctrl.writeBufferSize)
-    //    .flags(nozero);
 
     avgRdBWSys.precision(2);
     avgWrBWSys.precision(2);

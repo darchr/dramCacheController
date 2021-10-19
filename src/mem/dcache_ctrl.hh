@@ -351,12 +351,12 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     class reqBufferEntry {
       public:
-      bool validEntry = false;
-      Tick arrivalTick = MaxTick;
+      bool validEntry;
+      Tick arrivalTick;
 
       // DRAM cache related metadata
-      Addr tagDC = 0;
-      Addr indexDC = 0;
+      Addr tagDC;
+      Addr indexDC;
 
       // pointer to the outside world (ow) packet received from llc
       const PacketPtr owPkt;
@@ -364,9 +364,9 @@ class DcacheCtrl : public QoS::MemCtrl
       dccPacket* dccPkt;
 
       reqState state;
-      bool isHit = false;
-      bool conflict = false;
-      bool handleDirtyLine = false;
+      bool isHit;
+      bool conflict;
+      bool handleDirtyLine;
 
       Tick drRd;
       Tick drWr;
@@ -374,20 +374,25 @@ class DcacheCtrl : public QoS::MemCtrl
       Tick nvRd;
       Tick nvWr;
 
+      Tick nvmIssueReadyTime;
+
 
       reqBufferEntry(
         bool _validEntry, Tick _arrivalTick,
         Addr _tagDC, Addr _indexDC,
         PacketPtr _owPkt, dccPacket* _dccPkt,
-        reqState _state, bool _isHit, bool _conflict,
-        Tick _drRd, Tick _drWr, Tick _nvWait, Tick _nvRd, Tick _nvWr)
+        reqState _state, bool _isHit, bool _conflict, bool _handleDirtyLine,
+        Tick _drRd, Tick _drWr, Tick _nvWait, Tick _nvRd, Tick _nvWr,
+        Tick _nvmIssueReadyTime)
       :
       validEntry(_validEntry), arrivalTick(_arrivalTick),
       tagDC(_tagDC), indexDC(_indexDC),
       owPkt( _owPkt), dccPkt(_dccPkt),
       state(_state), isHit(_isHit), conflict(_conflict),
+      handleDirtyLine(_handleDirtyLine),
       drRd(_drRd), drWr(_drWr),
-      nvWait(_nvWait), nvRd(_nvRd), nvWr(_nvWr)
+      nvWait(_nvWait), nvRd(_nvRd), nvWr(_nvWr),
+      nvmIssueReadyTime(_nvmIssueReadyTime)
       { }
     };
 
