@@ -553,12 +553,12 @@ class DcacheCtrl : public QoS::MemCtrl
      * The rowsPerBank is determined based on the capacity, number of
      * ranks and banks, the burst size, and the row buffer size.
      */
-    uint64_t dramCacheSize;
-    uint64_t blockSize;
-    const uint32_t orbMaxSize;
-    unsigned int orbSize;
-    const uint32_t crbMaxSize;
-    unsigned int crbSize;
+    unsigned long long dramCacheSize;
+    unsigned blockSize;
+    unsigned orbMaxSize;
+    unsigned orbSize;
+    unsigned crbMaxSize;
+    unsigned crbSize;
 
     /**
      * Pipeline latency of the controller frontend. The frontend

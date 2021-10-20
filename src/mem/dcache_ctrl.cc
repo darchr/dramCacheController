@@ -79,6 +79,8 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
 
     dramCacheSize = dram->dramDeviceCapacity;
 
+    dramCacheSize = dramCacheSize*1024*1024;
+
     tagMetadataStore.resize(dramCacheSize/blockSize);
 
     // Hook up interfaces to the controller
@@ -251,7 +253,7 @@ Addr
 DcacheCtrl::returnIndexDC(Addr request_addr, unsigned size)
 {
     return bits(request_addr, ceilLog2(size) +
-            ceilLog2(dramCacheSize / blockSize)-1, ceilLog2(size));
+            ceilLog2(dramCacheSize/blockSize)-1, ceilLog2(size));
 }
 
 void
@@ -417,7 +419,7 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
 bool
 DcacheCtrl::checkConflictInDramCache(PacketPtr pkt)
 {
-    Addr indexDC = returnIndexDC(pkt->getAddr(), pkt->getSize());
+    unsigned indexDC = returnIndexDC(pkt->getAddr(), pkt->getSize());
     for (auto e = reqBuffer.begin(); e != reqBuffer.end(); ++e) {
         if (indexDC == e->second->indexDC) {
             e->second->conflict = true;
@@ -524,6 +526,17 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
 bool
 DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 {
+    std::cout << reqBuffer.size() << ", " <<
+    confReqBuffer.size() << ", " <<
+    addrInitRead.size() << ", " <<
+    addrDramRespReady.size() << ", " <<
+    addrWaitingToIssueNvmRead.size() << ", " <<
+    addrNvmRead.size() << ", " <<
+    addrNvmRespReady.size() << ", " <<
+    addrDramFill.size() << ", " <<
+    nvmWritebackQueue.size() << ", " <<
+    "\n";
+
     bool conflictFound = false;
 
     isInWriteQueue.erase(orbEntry->owPkt->getAddr());
@@ -580,7 +593,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
 
     // std::cout << "recvTimingReq Tick: " << curTick() <<
     // " " << pkt->getAddr()
-    // << " " << pkt->cmdString() << " " << "\n";
+    // << " " << pkt->cmdString() << " "  << reqBuffer.size() << "\n";
 
     DPRINTF(DcacheCtrl, "recvTimingReq: request %s addr %lld size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getSize());
