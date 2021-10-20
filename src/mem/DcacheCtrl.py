@@ -62,13 +62,11 @@ class DcacheCtrl(QoSMemCtrl):
     port = ResponsePort("This port responds to memory requests")
 
     # Interface to volatile, DRAM media
-    dram = Param.DRAMDCInterface(NULL, "DRAM interface")
+    dram = Param.DRAMDCInterface("DRAM interface")
 
     # Interface to non-volatile media
-    nvm = Param.NVMDCInterface(NULL, "NVM interface")
+    nvm = Param.NVMDCInterface("NVM interface")
 
-    # JASON: let's get this size from the interface
-    dram_cache_size = Param.MemorySize('1024MiB', "DRAM cache size")
     block_size = Param.Unsigned('64', "DRAM cache block size in bytes")
     orb_max_size = Param.Unsigned(256, "Outstanding Requests Buffer size")
     crb_max_size = Param.Unsigned(64, "Conflicting Requests Buffer size")

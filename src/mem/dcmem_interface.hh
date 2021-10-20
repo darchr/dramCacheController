@@ -172,6 +172,7 @@ class DCMemInterface : public AbstractMemory
       * Defining them here allows for buffers to be resized based
       * on memory type / configuration.
       */
+    unsigned dramDeviceCapacity;
     const uint32_t readBufferSize;
     const uint32_t writeBufferSize;
 

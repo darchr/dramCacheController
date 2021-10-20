@@ -65,7 +65,6 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
     respNvmReadEvent([this]{ processRespNvmReadEvent(); }, name()),
     nvmWriteEvent([this]{ processNvmWriteEvent(); }, name()),
     dram(p.dram), nvm(p.nvm),
-    dramCacheSize(p.dram_cache_size),
     blockSize(p.block_size),
     orbMaxSize(p.orb_max_size), orbSize(0),
     crbMaxSize(p.crb_max_size), crbSize(0),
@@ -77,6 +76,8 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
     stats(*this)
 {
     DPRINTF(DcacheCtrl, "Setting up controller\n");
+
+    dramCacheSize = dram->dramDeviceCapacity;
 
     tagMetadataStore.resize(dramCacheSize/blockSize);
 
