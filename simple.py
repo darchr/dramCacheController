@@ -10,7 +10,9 @@ system.mem_mode = 'timing'
 system.generator = PyTrafficGen()
 
 system.mem_ctrl = DcacheCtrl()
-system.mem_ctrl.dram = DDR3_1600_8x8(range=AddrRange('512MiB'),
+#system.mem_ctrl.dram = DDR3_1600_8x8(range=AddrRange('512MiB'),
+system.mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('1GB'),
+#system.mem_ctrl.dram = HBM_1000_4H_1x128(range=AddrRange('128MiB'),
 in_addr_map=False)
 system.mem_ctrl.nvm = NVM_2400_1x64(range=AddrRange('1GB'))
 
