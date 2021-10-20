@@ -336,7 +336,7 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
     // initial DRAM Read for all the received packets
     dram->setupRank(dcc_pkt->rank, true);
 
-    //** create
+    //**** no problem
     reqBufferEntry* entry = new reqBufferEntry(
                                 true, curTick(),
                                 returnTagDC(pkt->getAddr(), pkt->getSize()),
@@ -1289,6 +1289,8 @@ DcacheCtrl::processNvmWriteEvent()
 
         stats.numTicksInNvmWrite += curTick() - nvmWritebackQueue.top().first
                                     + e->readyTime;
+
+        delete nvmWritebackQueue.top().second;
 
         nvmWritebackQueue.pop();
 
