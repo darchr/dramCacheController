@@ -192,7 +192,9 @@ typedef std::deque<dccPacket*> dccPacketQueue;
 class DcacheCtrl : public QoS::MemCtrl
 {
   private:
-   unsigned maxConf = 0;
+   unsigned maxConf,
+   maxDrRdEv, maxDrRdRespEv, maxDrWrEv,
+   maxNvRdIssEv, maxNvRdEv, maxNvRdRespEv, maxNvWrEv = 0;
 
     // For now, make use of a queued response port to avoid dealing with
     // flow control for the responses being sent back
@@ -315,8 +317,9 @@ class DcacheCtrl : public QoS::MemCtrl
      * Update bus statistics when complete.
      *
      * @param mem_pkt The memory packet created from the outside world pkt
+     * returns cmd_at tick
      */
-    void doBurstAccess(dccPacket* mem_pkt);
+    Tick doBurstAccess(dccPacket* mem_pkt);
 
     /**
      * When a packet reaches its "readyTime" in the response Q,
@@ -407,6 +410,8 @@ class DcacheCtrl : public QoS::MemCtrl
       reqState state;
       bool isHit;
       bool conflict;
+
+      Addr dirtyLineAddr;
       bool handleDirtyLine;
 
       Tick drRd;
@@ -417,23 +422,36 @@ class DcacheCtrl : public QoS::MemCtrl
 
       Tick nvmIssueReadyTime;
 
+      // Tick dramRdCmdAt;
+      // Tick dramWrCmdAt;
+      // Tick nvmRdCmdAt;
+      // Tick nvmWrCmdAt;
+
+      Tick dramRdDevTime;
+      Tick dramWrDevTime;
+      Tick nvmRdDevTime;
+      //Tick nvmWrDevTime;
 
       reqBufferEntry(
         bool _validEntry, Tick _arrivalTick,
         Addr _tagDC, Addr _indexDC,
         PacketPtr _owPkt, dccPacket* _dccPkt,
-        reqState _state, bool _isHit, bool _conflict, bool _handleDirtyLine,
+        reqState _state, bool _isHit, bool _conflict,
+        Addr _dirtyLineAddr, bool _handleDirtyLine,
         Tick _drRd, Tick _drWr, Tick _nvWait, Tick _nvRd, Tick _nvWr,
-        Tick _nvmIssueReadyTime)
+        Tick _nvmIssueReadyTime,
+        Tick _dramRdDevTime, Tick _dramWrDevTime, Tick _nvmRdDevTime)
       :
       validEntry(_validEntry), arrivalTick(_arrivalTick),
       tagDC(_tagDC), indexDC(_indexDC),
       owPkt( _owPkt), dccPkt(_dccPkt),
       state(_state), isHit(_isHit), conflict(_conflict),
-      handleDirtyLine(_handleDirtyLine),
+      dirtyLineAddr(_dirtyLineAddr), handleDirtyLine(_handleDirtyLine),
       drRd(_drRd), drWr(_drWr),
       nvWait(_nvWait), nvRd(_nvRd), nvWr(_nvWr),
-      nvmIssueReadyTime(_nvmIssueReadyTime)
+      nvmIssueReadyTime(_nvmIssueReadyTime),
+      dramRdDevTime(_dramRdDevTime), dramWrDevTime(_dramWrDevTime),
+      nvmRdDevTime( _nvmRdDevTime)
       { }
     };
 
@@ -661,7 +679,6 @@ class DcacheCtrl : public QoS::MemCtrl
         Stats::Scalar numRdMisses;
         Stats::Scalar numWrMisses;
         Stats::Scalar numWrBacks;
-        Stats::Scalar maxNumConf;
         Stats::Scalar totNumConf;
         Stats::Scalar totNumConfBufFull;
 
@@ -670,7 +687,28 @@ class DcacheCtrl : public QoS::MemCtrl
         Stats::Scalar numTicksInWaitingToIssueNvmRead;
         Stats::Scalar numTicksInNvmRead;
         Stats::Scalar numTicksInNvmWrite;
-    };
+
+        Stats::Scalar drRdQingTime;
+        Stats::Scalar drWrQingTime;
+        Stats::Scalar nvmRdQingTime;
+        Stats::Scalar nvmWrQingTime;
+
+        Stats::Scalar totNumPktsDrRd;
+        Stats::Scalar totNumPktsDrWr;
+        Stats::Scalar totNumPktsNvmRdWait;
+        Stats::Scalar totNumPktsNvmRd;
+        Stats::Scalar totNumPktsNvmWr;
+
+
+        Stats::Scalar maxNumConf;
+        Stats::Scalar maxDrRdEvQ;
+        Stats::Scalar maxDrRdRespEvQ;
+        Stats::Scalar maxDrWrEvQ;
+        Stats::Scalar maxNvRdIssEvQ;
+        Stats::Scalar maxNvRdEvQ;
+        Stats::Scalar maxNvRdRespEvQ;
+        Stats::Scalar maxNvWrEvQ;
+      };
 
     CtrlStats stats;
 

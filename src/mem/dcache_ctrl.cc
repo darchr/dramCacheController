@@ -291,16 +291,21 @@ DcacheCtrl::checkDirty(Addr addr)
 void
 DcacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
 {
+    assert(orbEntry->dirtyLineAddr != -1);
+
     dccPacket* wbDccPkt = nvm->decodePacket(nullptr,
-                            tagMetadataStore.at(orbEntry->indexDC).nvmAddr,
+                            orbEntry->dirtyLineAddr,
                             orbEntry->owPkt->getSize(),
                             false, false);
 
     nvm->setupRank(wbDccPkt->rank, false);
 
     nvmWritebackQueue.push(std::make_pair(curTick(),wbDccPkt));
-    // isInWriteQueue.insert(tagMetadataStore.
-    //                       at(orbEntry->owPkt->getAddr()).nvmAddr);
+
+    if (nvmWritebackQueue.size() > maxNvWrEv) {
+        maxNvWrEv = nvmWritebackQueue.size();
+        stats.maxNvWrEvQ = nvmWritebackQueue.size();
+    }
 
     // no need to call nvm->access for the dirty line.
     // Because, we already have written it in nvm, while
@@ -322,8 +327,6 @@ DcacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
 void
 DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
 {
-    //unsigned index = returnIndexORB(pkt->getAddr(), pkt->getSize());
-
     // Set is_read and is_dram to
     // "true", to do initial dram Read
     dccPacket* dcc_pkt = dram->decodePacket(pkt,
@@ -336,17 +339,18 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
     // initial DRAM Read for all the received packets
     dram->setupRank(dcc_pkt->rank, true);
 
-    //**** no problem
     reqBufferEntry* entry = new reqBufferEntry(
                                 true, curTick(),
                                 returnTagDC(pkt->getAddr(), pkt->getSize()),
                                 returnIndexDC(pkt->getAddr(), pkt->getSize()),
                                 pkt, dcc_pkt,
-                                dramRead, false, false, false,
+                                dramRead, false, false,
+                                -1, false,
                                 curTick(), MaxTick,
                                 MaxTick, MaxTick, MaxTick,
-                                MaxTick
-                          );
+                                MaxTick,
+                                MaxTick, MaxTick, MaxTick
+                            );
 
     reqBuffer.emplace(pkt->getAddr(), entry);
 
@@ -359,19 +363,23 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
         PacketPtr copyOwPkt = new Packet(pkt, false, pkt->isRead());
 
         accessAndRespond(pkt, frontendLatency, false);
-        //** renew at the same tick of creation
+
         reqBuffer.at(copyOwPkt->getAddr()) =  new reqBufferEntry(
                                 entry->validEntry, entry->arrivalTick,
                                 entry->tagDC, entry->indexDC,
                                 copyOwPkt, entry->dccPkt,
                                 entry->state, entry->isHit, entry->conflict,
+                                entry->dirtyLineAddr,
                                 entry->handleDirtyLine,
                                 entry->drRd,
                                 entry->drWr,
                                 entry->nvWait,
                                 entry->nvRd,
                                 entry->nvWr,
-                                entry->nvmIssueReadyTime
+                                entry->nvmIssueReadyTime,
+                                entry->dramRdDevTime,
+                                entry->dramWrDevTime,
+                                entry->nvmRdDevTime
                           );
 
         entry = reqBuffer.at(copyOwPkt->getAddr());
@@ -384,6 +392,7 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
     checkHitOrMiss(entry);
 
     if (checkDirty(entry->owPkt->getAddr())) {
+        entry->dirtyLineAddr = tagMetadataStore.at(entry->indexDC).nvmAddr;
         entry->handleDirtyLine = true;
     }
 
@@ -420,12 +429,16 @@ bool
 DcacheCtrl::checkConflictInDramCache(PacketPtr pkt)
 {
     unsigned indexDC = returnIndexDC(pkt->getAddr(), pkt->getSize());
+
     for (auto e = reqBuffer.begin(); e != reqBuffer.end(); ++e) {
         if (indexDC == e->second->indexDC) {
+
             e->second->conflict = true;
-                return true;
-            }
+
+            return true;
+        }
     }
+
     return false;
 }
 
@@ -453,6 +466,13 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
 
             stats.numTicksInDramRead += curTick() - orbEntry->drRd;
 
+            if ((curTick() - orbEntry->drRd) > 0) {
+                stats.totNumPktsDrRd++;
+            }
+
+            stats.drRdQingTime += curTick() - orbEntry->drRd -
+                                  orbEntry->dramRdDevTime;
+
             stats.numHits++;
             stats.numRdHits++;
 
@@ -467,6 +487,13 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             stats.numTicksInDramRead +=
                 orbEntry->nvWait - orbEntry->drRd;
 
+            if ((orbEntry->nvWait - orbEntry->drRd) > 0) {
+                stats.totNumPktsDrRd++;
+            }
+
+            stats.drRdQingTime += orbEntry->nvWait - orbEntry->drRd -
+                                  orbEntry->dramRdDevTime;
+
             stats.numTicksInWaitingToIssueNvmRead +=
                 orbEntry->nvRd - orbEntry->nvWait +
                 orbEntry->nvmIssueReadyTime;
@@ -474,8 +501,18 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             stats.numTicksInNvmRead +=
                 orbEntry->drWr - orbEntry->nvRd;
 
+            stats.nvmRdQingTime += (orbEntry->nvRd - orbEntry->nvWait +
+                                    orbEntry->nvmIssueReadyTime) +
+                                    (orbEntry->drWr - orbEntry->nvRd) -
+                                    orbEntry->nvmRdDevTime;
+
+
             stats.numTicksInDramWrite +=
                 curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime;
+
+            stats.drWrQingTime += curTick() - orbEntry->drWr +
+                                  orbEntry->dccPkt->readyTime -
+                                  orbEntry->dramWrDevTime;
 
             stats.numMisses++;
             stats.numRdMisses++;
@@ -490,8 +527,19 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             stats.numTicksInDramRead +=
                 orbEntry->drWr - orbEntry->drRd;
 
+            if ((orbEntry->drWr - orbEntry->drRd) > 0) {
+                stats.totNumPktsDrRd++;
+            }
+
+            stats.drRdQingTime += orbEntry->drWr - orbEntry->drRd -
+                                  orbEntry->dramRdDevTime;
+
             stats.numTicksInDramWrite +=
                 curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime;
+
+            stats.drWrQingTime += curTick() - orbEntry->drWr +
+                                  orbEntry->dccPkt->readyTime -
+                                  orbEntry->dramWrDevTime;
 
             stats.numHits++;
             stats.numWrHits++;
@@ -506,6 +554,14 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             stats.numTicksInDramRead +=
                 orbEntry->nvWait - orbEntry->drRd;
 
+            if ((orbEntry->nvWait - orbEntry->drRd) > 0) {
+                stats.totNumPktsDrRd++;
+            }
+
+            stats.drRdQingTime += orbEntry->nvWait -
+                                  orbEntry->drRd -
+                                  orbEntry->dramRdDevTime;
+
             stats.numTicksInWaitingToIssueNvmRead +=
                 orbEntry->nvRd - orbEntry->nvWait +
                 orbEntry->nvmIssueReadyTime;
@@ -513,33 +569,44 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             stats.numTicksInNvmRead +=
                 orbEntry->drWr - orbEntry->nvRd;
 
+            stats.nvmRdQingTime += (orbEntry->nvRd - orbEntry->nvWait +
+                                    orbEntry->nvmIssueReadyTime) +
+                                    (orbEntry->drWr - orbEntry->nvRd) -
+                                    orbEntry->nvmRdDevTime;
+
+
             stats.numTicksInDramWrite +=
                 curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime;
+
+            stats.drWrQingTime += curTick() - orbEntry->drWr +
+                                  orbEntry->dccPkt->readyTime -
+                                  orbEntry->dramWrDevTime;
 
             stats.numMisses++;
             stats.numWrMisses++;
         }
-
     }
 }
 
 bool
 DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 {
-    std::cout << reqBuffer.size() << ", " <<
-    confReqBuffer.size() << ", " <<
-    addrInitRead.size() << ", " <<
-    addrDramRespReady.size() << ", " <<
-    addrWaitingToIssueNvmRead.size() << ", " <<
-    addrNvmRead.size() << ", " <<
-    addrNvmRespReady.size() << ", " <<
-    addrDramFill.size() << ", " <<
-    nvmWritebackQueue.size() << ", " <<
-    "\n";
+    // std::cout << reqBuffer.size() << ", " <<
+    // confReqBuffer.size() << ", " <<
+    // addrInitRead.size() << ", " <<
+    // addrDramRespReady.size() << ", " <<
+    // addrWaitingToIssueNvmRead.size() << ", " <<
+    // addrNvmRead.size() << ", " <<
+    // addrNvmRespReady.size() << ", " <<
+    // addrDramFill.size() << ", " <<
+    // nvmWritebackQueue.size() << ", " <<
+    // "\n";
 
     bool conflictFound = false;
 
-    isInWriteQueue.erase(orbEntry->owPkt->getAddr());
+    if (orbEntry->owPkt->isWrite()) {
+        isInWriteQueue.erase(orbEntry->owPkt->getAddr());
+    }
 
     logStatsDcache(orbEntry);
 
@@ -564,7 +631,6 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 
                 checkConflictInCRB(reqBuffer.at(confAddr));
 
-                //processInitRead(reqBuffer.at(confAddr));
                 if (addrInitRead.empty()) {
                     assert(!dramReadEvent.scheduled());
                     schedule(dramReadEvent, curTick());
@@ -573,6 +639,11 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
                 }
 
                 addrInitRead.push_back(confAddr);
+
+                if (addrInitRead.size() > maxDrRdEv) {
+                    maxDrRdEv = addrInitRead.size();
+                    stats.maxDrRdEvQ = addrInitRead.size();
+                }
 
                 break;
         }
@@ -669,24 +740,26 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
 
         if (isInWriteQueue.find(pkt->getAddr()) != isInWriteQueue.end()) {
 
-            for (const auto& e : reqBuffer) {
+            if (!reqBuffer.empty()) {
+                for (const auto& e : reqBuffer) {
 
-                // check if the read is subsumed in the write queue
-                // packet we are looking at
-                if (e.second->validEntry &&
-                    e.second->owPkt->isWrite() &&
-                    e.second->owPkt->getAddr() <= addr &&
-                    ((addr + size) <=
-                    (e.second->owPkt->getAddr() +
-                     e.second->owPkt->getSize()))) {
+                    // check if the read is subsumed in the write queue
+                    // packet we are looking at
+                    if (e.second->validEntry &&
+                        e.second->owPkt->isWrite() &&
+                        e.second->owPkt->getAddr() <= addr &&
+                        ((addr + size) <=
+                        (e.second->owPkt->getAddr() +
+                        e.second->owPkt->getSize()))) {
 
-                    foundInORB = true;
+                        foundInORB = true;
 
-                    stats.servicedByWrQ++;
+                        stats.servicedByWrQ++;
 
-                    stats.bytesReadWrQ += burst_size;
+                        stats.bytesReadWrQ += burst_size;
 
-                    break;
+                        break;
+                    }
                 }
             }
             if (!foundInORB && !confReqBuffer.empty()) {
@@ -814,16 +887,12 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     }
 
     // if none of the above cases happens,
-    // then add the pkt to outstanding requests buffer
+    // then add the pkt to the outstanding requests buffer
     handleRequestorPkt(pkt);
 
     if (pkt->isWrite()) {
         isInWriteQueue.insert(pkt->getAddr());
     }
-
-    //reqBufferEntry* orbEntry = reqBuffer.at(pkt->getAddr());
-
-
 
     if (addrInitRead.empty()) {
 
@@ -838,6 +907,11 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
 
     addrInitRead.push_back(pkt->getAddr());
 
+    if (addrInitRead.size() > maxDrRdEv) {
+        maxDrRdEv = addrInitRead.size();
+        stats.maxDrRdEvQ = addrInitRead.size();
+    }
+
     return true;
 }
 
@@ -845,6 +919,7 @@ void
 DcacheCtrl::processDramReadEvent()
 {
     assert(!addrInitRead.empty());
+
     reqBufferEntry* orbEntry = reqBuffer.at(addrInitRead.front());
 
     // sanity check for the packet at the head of the queue
@@ -857,7 +932,9 @@ DcacheCtrl::processDramReadEvent()
 
     assert(packetReady(orbEntry->dccPkt));
 
-    doBurstAccess(orbEntry->dccPkt);
+    Tick cmd_at = doBurstAccess(orbEntry->dccPkt);
+
+    orbEntry->dramRdDevTime = orbEntry->dccPkt->readyTime - cmd_at;
 
     // sanity check
     assert(orbEntry->dccPkt->size <= (orbEntry->dccPkt->isDram() ?
@@ -885,6 +962,11 @@ DcacheCtrl::processDramReadEvent()
     }
 
     addrDramRespReady.push_back(orbEntry->owPkt->getAddr());
+
+    if (addrDramRespReady.size() > maxDrRdRespEv) {
+        maxDrRdRespEv = addrDramRespReady.size();
+        stats.maxDrRdRespEvQ = addrDramRespReady.size();
+    }
 
     //** keep the state as it is, no transition
     orbEntry->state = dramRead;
@@ -944,13 +1026,17 @@ DcacheCtrl::processRespDramReadEvent()
                                 orbEntry->state,
                                 orbEntry->isHit,
                                 orbEntry->conflict,
+                                orbEntry->dirtyLineAddr,
                                 orbEntry->handleDirtyLine,
                                 orbEntry->drRd,
                                 orbEntry->drWr,
                                 orbEntry->nvWait,
                                 orbEntry->nvRd,
                                 orbEntry->nvWr,
-                                orbEntry->nvmIssueReadyTime);
+                                orbEntry->nvmIssueReadyTime,
+                                orbEntry->dramRdDevTime,
+                                orbEntry->dramWrDevTime,
+                                orbEntry->nvmRdDevTime);
             orbEntry = reqBuffer.at(addrDramRespReady.front());
     }
 
@@ -979,6 +1065,11 @@ DcacheCtrl::processRespDramReadEvent()
             orbEntry->drWr = curTick();
 
             addrDramFill.push_back(orbEntry->owPkt->getAddr());
+
+            if (addrDramFill.size() > maxDrWrEv) {
+                maxDrWrEv = addrDramFill.size();
+                stats.maxDrWrEvQ = addrDramFill.size();
+            }
 
             if (!dramWriteEvent.scheduled()) {
                 schedule(dramWriteEvent, curTick());
@@ -1028,6 +1119,11 @@ DcacheCtrl::processRespDramReadEvent()
 
         addrWaitingToIssueNvmRead.push(std::make_pair(curTick(),
         orbEntry->owPkt->getAddr()));
+
+        if (addrWaitingToIssueNvmRead.size() > maxNvRdIssEv) {
+            maxNvRdIssEv = addrWaitingToIssueNvmRead.size();
+            stats.maxNvRdIssEvQ = addrWaitingToIssueNvmRead.size();
+        }
     }
 
     addrDramRespReady.pop_front();
@@ -1105,6 +1201,11 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
 
         addrNvmRead.push(std::make_pair(e->dccPkt->readyTime,
         e->owPkt->getAddr()));
+
+        if (addrNvmRead.size() > maxNvRdEv) {
+            maxNvRdEv = addrNvmRead.size();
+            stats.maxNvRdEvQ = addrNvmRead.size();
+        }
     }
 
     else {
@@ -1135,7 +1236,9 @@ DcacheCtrl::processNvmReadEvent()
 
     assert(packetReady(e->dccPkt));
 
-    doBurstAccess(e->dccPkt);
+    Tick cmd_at = doBurstAccess(e->dccPkt);
+
+    e->nvmRdDevTime = e->dccPkt->readyTime - cmd_at;
 
     // sanity check
     assert(e->dccPkt->size <= (e->dccPkt->isDram() ?
@@ -1163,6 +1266,11 @@ DcacheCtrl::processNvmReadEvent()
     }
 
     addrNvmRespReady.push_back(e->owPkt->getAddr());
+
+    if (addrNvmRespReady.size() > maxNvRdRespEv) {
+        maxNvRdRespEv = addrNvmRespReady.size();
+        stats.maxNvRdRespEvQ = addrNvmRespReady.size();
+    }
 
     //** keeping the state as it is, no transition
     e->state = nvmRead;
@@ -1212,13 +1320,17 @@ DcacheCtrl::processRespNvmReadEvent()
                             orbEntry->state,
                             orbEntry->isHit,
                             orbEntry->conflict,
+                            orbEntry->dirtyLineAddr,
                             orbEntry->handleDirtyLine,
                             orbEntry->drRd,
                             orbEntry->drWr,
                             orbEntry->nvWait,
                             orbEntry->nvRd,
                             orbEntry->nvWr,
-                            orbEntry->nvmIssueReadyTime);
+                            orbEntry->nvmIssueReadyTime,
+                            orbEntry->dramRdDevTime,
+                            orbEntry->dramWrDevTime,
+                            orbEntry->nvmRdDevTime);
         orbEntry = reqBuffer.at(addrNvmRespReady.front());
 
     }
@@ -1245,13 +1357,17 @@ DcacheCtrl::processRespNvmReadEvent()
     orbEntry->drWr = curTick();
 
     if (!dramWriteEvent.scheduled()) {
-        //schedule(dramWriteEvent, curTick()+1);
         schedule(dramWriteEvent, curTick());
     }
 
     // to keep track of writes, we maintain the addresses
     // in a FIFO queue
     addrDramFill.push_back(addrNvmRespReady.front());
+
+    if (addrDramFill.size() > maxDrWrEv) {
+        maxDrWrEv = addrDramFill.size();
+        stats.maxDrWrEvQ = addrDramFill.size();
+    }
 
     addrNvmRespReady.pop_front();
 
@@ -1283,18 +1399,23 @@ DcacheCtrl::processNvmWriteEvent()
         assert(!e->isDram());
         assert(e->size <= nvm->bytesPerBurst());
 
-        doBurstAccess(e);
+        Tick cmd_at = doBurstAccess(e);
 
         //isInWriteQueue.erase(e->getAddr());
 
-        stats.numTicksInNvmWrite += curTick() - nvmWritebackQueue.top().first
-                                    + e->readyTime;
+        unsigned stateTick = curTick() - nvmWritebackQueue.top().first +
+                             e->readyTime;
+
+        stats.numTicksInNvmWrite += stateTick;
+
+        stats.nvmWrQingTime += (stateTick - (e->readyTime - cmd_at));
 
         delete nvmWritebackQueue.top().second;
 
         nvmWritebackQueue.pop();
 
     }
+
     if (!nvmWriteEvent.scheduled() &&
         !nvmWritebackQueue.empty() &&
          nvm->writeRespQueueFull()) {
@@ -1329,7 +1450,9 @@ DcacheCtrl::processDramWriteEvent()
 
         assert(packetReady(e->dccPkt));
 
-        doBurstAccess(e->dccPkt);
+        Tick cmd_at = doBurstAccess(e->dccPkt);
+
+        e->dramWrDevTime = e->dccPkt->readyTime - cmd_at;
 
         if (e->owPkt->isWrite() && e->isHit) {
 
@@ -1545,7 +1668,7 @@ DcacheCtrl::inWriteBusState(bool next_state) const
     }
 }
 
-void
+Tick
 DcacheCtrl::doBurstAccess(dccPacket* dcc_pkt)
 {
     // first clean up the burstTick set, removing old entries
@@ -1599,6 +1722,8 @@ DcacheCtrl::doBurstAccess(dccPacket* dcc_pkt)
                 dcc_pkt->readyTime - dcc_pkt->entryTime;
         }
     }
+
+    return cmd_at;
 }
 
 void
@@ -1707,8 +1832,6 @@ DcacheCtrl::CtrlStats::CtrlStats(DcacheCtrl &_ctrl)
             "Total number of write misses on DRAM cache"),
     ADD_STAT(numWrBacks,
             "Total number of write backs from DRAM cache to main memory"),
-    ADD_STAT(maxNumConf,
-            "Maximum number of packets conflicted on DRAM cache"),
     ADD_STAT(totNumConf,
             "Total number of packets conflicted on DRAM cache"),
     ADD_STAT(totNumConfBufFull,
@@ -1724,7 +1847,44 @@ DcacheCtrl::CtrlStats::CtrlStats(DcacheCtrl &_ctrl)
     ADD_STAT(numTicksInNvmRead,
             "Total number of ticks spent in nvmRead state"),
     ADD_STAT(numTicksInNvmWrite,
-            "Total number of ticks spent in nvmWrite state")
+            "Total number of ticks spent in nvmWrite state"),
+
+    ADD_STAT(drRdQingTime,
+            "Total number of ticks spent as DRAM read queuing time"),
+    ADD_STAT(drWrQingTime,
+            "Total number of ticks spent as DRAM write queuing time"),
+    ADD_STAT(nvmRdQingTime,
+            "Total number of ticks spent as NVM read queuing time"),
+    ADD_STAT(nvmWrQingTime,
+            "Total number of ticks spent as NVM write queuing time"),
+
+    ADD_STAT(totNumPktsDrRd,
+            "Total number of packets enterted to Dram read state"),
+    ADD_STAT(totNumPktsDrWr,
+            "Total number of packets enterted to Dram write state"),
+    ADD_STAT(totNumPktsNvmRdWait,
+            "Total number of packets enterted to NVM waitToIssue state"),
+    ADD_STAT(totNumPktsNvmRd,
+            "Total number of packets enterted to NVM read state"),
+    ADD_STAT(totNumPktsNvmWr,
+            "Total number of packets enterted to NVM write state"),
+
+    ADD_STAT(maxNumConf,
+            "Maximum number of packets conflicted on DRAM cache"),
+    ADD_STAT(maxDrRdEvQ,
+            "Maximum number of packets been in DrRdEvent concurrently"),
+    ADD_STAT(maxDrRdRespEvQ,
+            "Maximum number of packets been in DrRdRespEvent concurrently"),
+    ADD_STAT(maxDrWrEvQ,
+            "Maximum number of packets been in DrWrEvent concurrently"),
+    ADD_STAT(maxNvRdIssEvQ,
+            "Maximum number of packets been in NvRdIssEvent concurrently"),
+    ADD_STAT(maxNvRdEvQ,
+            "Maximum number of packets been in NvRdEvent concurrently"),
+    ADD_STAT(maxNvRdRespEvQ,
+            "Maximum number of packets been in NvRdRespEvent concurrently"),
+    ADD_STAT(maxNvWrEvQ,
+            "Maximum number of packets been in NvWrEvent concurrently")
 
 {
 }
