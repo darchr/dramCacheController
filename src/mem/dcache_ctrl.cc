@@ -498,8 +498,17 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
                 orbEntry->nvRd - orbEntry->nvWait +
                 orbEntry->nvmIssueReadyTime;
 
+            if ((orbEntry->nvRd - orbEntry->nvWait +
+                orbEntry->nvmIssueReadyTime) > 0) {
+                stats.totNumPktsNvmRdWait++;
+            }
+
             stats.numTicksInNvmRead +=
                 orbEntry->drWr - orbEntry->nvRd;
+
+            if ((orbEntry->drWr - orbEntry->nvRd) > 0) {
+                stats.totNumPktsNvmRd++;
+            }
 
             stats.nvmRdQingTime += (orbEntry->nvRd - orbEntry->nvWait +
                                     orbEntry->nvmIssueReadyTime) +
@@ -509,6 +518,11 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
 
             stats.numTicksInDramWrite +=
                 curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime;
+
+            if ((curTick() - orbEntry->drWr +
+                orbEntry->dccPkt->readyTime) > 0) {
+                stats.totNumPktsDrWr++;
+            }
 
             stats.drWrQingTime += curTick() - orbEntry->drWr +
                                   orbEntry->dccPkt->readyTime -
@@ -536,6 +550,11 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
 
             stats.numTicksInDramWrite +=
                 curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime;
+
+            if ((curTick() - orbEntry->drWr +
+                orbEntry->dccPkt->readyTime) > 0) {
+                stats.totNumPktsDrWr++;
+            }
 
             stats.drWrQingTime += curTick() - orbEntry->drWr +
                                   orbEntry->dccPkt->readyTime -
@@ -566,17 +585,29 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
                 orbEntry->nvRd - orbEntry->nvWait +
                 orbEntry->nvmIssueReadyTime;
 
+            if ((orbEntry->nvRd - orbEntry->nvWait +
+                orbEntry->nvmIssueReadyTime) > 0) {
+                stats.totNumPktsNvmRdWait++;
+            }
+
             stats.numTicksInNvmRead +=
                 orbEntry->drWr - orbEntry->nvRd;
+
+            if ((orbEntry->drWr - orbEntry->nvRd) > 0) {
+                stats.totNumPktsNvmRd++;
+            }
 
             stats.nvmRdQingTime += (orbEntry->nvRd - orbEntry->nvWait +
                                     orbEntry->nvmIssueReadyTime) +
                                     (orbEntry->drWr - orbEntry->nvRd) -
                                     orbEntry->nvmRdDevTime;
 
-
             stats.numTicksInDramWrite +=
                 curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime;
+
+            if ((curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime)>0) {
+                stats.totNumPktsDrWr++;
+            }
 
             stats.drWrQingTime += curTick() - orbEntry->drWr +
                                   orbEntry->dccPkt->readyTime -
