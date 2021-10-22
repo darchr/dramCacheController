@@ -17,7 +17,7 @@ in_addr_map=False)
 system.mem_ctrl.nvm = NVM_2400_1x64(range=AddrRange('8GB'))
 
 system.mem_ctrl.dram.tREFI = "200"
-system.mem_ctrl.orb_max_size = "1024"
+system.mem_ctrl.orb_max_size = "256"
 system.mem_ctrl.crb_max_size = "32"
 
 system.mem_ranges = [AddrRange('8GB')]
@@ -27,7 +27,7 @@ system.generator.port = system.mem_ctrl.port
 def createRandomTraffic(tgen):
     yield tgen.createRandom(100000000000,   # duration
                             0,              # min_addr
-                            16700000,              # max_adr
+                            AddrRange('1GB').end,              # max_adr
                             64,             # block_size
                             10000,          # min_period
                             10000,          # max_period

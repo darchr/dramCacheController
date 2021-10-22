@@ -622,16 +622,16 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
 bool
 DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 {
-    // std::cout << reqBuffer.size() << ", " <<
-    // confReqBuffer.size() << ", " <<
-    // addrInitRead.size() << ", " <<
-    // addrDramRespReady.size() << ", " <<
-    // addrWaitingToIssueNvmRead.size() << ", " <<
-    // addrNvmRead.size() << ", " <<
-    // addrNvmRespReady.size() << ", " <<
-    // addrDramFill.size() << ", " <<
-    // nvmWritebackQueue.size() << ", " <<
-    // "\n";
+    //std::cout << reqBuffer.size() << ", " <<
+    //confReqBuffer.size() << ", " <<
+    //addrInitRead.size() << ", " <<
+    //addrDramRespReady.size() << ", " <<
+    //addrWaitingToIssueNvmRead.size() << ", " <<
+    //addrNvmRead.size() << ", " <<
+    //addrNvmRespReady.size() << ", " <<
+    //addrDramFill.size() << ", " <<
+    //nvmWritebackQueue.size() << ", " <<
+    //"\n";
 
     bool conflictFound = false;
 
@@ -1455,6 +1455,10 @@ DcacheCtrl::processNvmWriteEvent()
                              e->readyTime;
 
         stats.numTicksInNvmWrite += stateTick;
+
+        if (stateTick > 0) {
+            stats.totNumPktsNvmWr++;
+        }
 
         stats.nvmWrQingTime += (stateTick - (e->readyTime - cmd_at));
 
