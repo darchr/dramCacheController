@@ -196,6 +196,8 @@ class DcacheCtrl : public QoS::MemCtrl
    maxDrRdEv, maxDrRdRespEv, maxDrWrEv,
    maxNvRdIssEv, maxNvRdEv, maxNvRdRespEv, maxNvWrEv = 0;
 
+   unsigned numDirtyLinesInDrRdRespQ = 0;
+
     // For now, make use of a queued response port to avoid dealing with
     // flow control for the responses being sent back
     class MemoryPort : public QueuedResponsePort

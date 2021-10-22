@@ -928,6 +928,15 @@ DcacheCtrl::processDramReadEvent()
     assert(orbEntry->dccPkt->isRead());
     assert(orbEntry->state == dramRead);
 
+    if (orbEntry->handleDirtyLine &&
+        (nvmWritebackQueue.size() >= nvm->getMaxPendingWrites() ||
+         numDirtyLinesInDrRdRespQ >= nvm->getMaxPendingWrites() ||
+         nvm->writeRespQueueFull())) {
+
+        schedule(dramReadEvent, nvm->writeRespQueueFront()+2);
+        return;
+    }
+
     busState = DcacheCtrl::READ;
 
     assert(packetReady(orbEntry->dccPkt));
@@ -962,6 +971,10 @@ DcacheCtrl::processDramReadEvent()
     }
 
     addrDramRespReady.push_back(orbEntry->owPkt->getAddr());
+
+    if (orbEntry->handleDirtyLine) {
+        numDirtyLinesInDrRdRespQ++;
+    }
 
     if (addrDramRespReady.size() > maxDrRdRespEv) {
         maxDrRdRespEv = addrDramRespReady.size();
@@ -1124,6 +1137,10 @@ DcacheCtrl::processRespDramReadEvent()
             maxNvRdIssEv = addrWaitingToIssueNvmRead.size();
             stats.maxNvRdIssEvQ = addrWaitingToIssueNvmRead.size();
         }
+    }
+
+    if (orbEntry->handleDirtyLine) {
+        numDirtyLinesInDrRdRespQ--;
     }
 
     addrDramRespReady.pop_front();

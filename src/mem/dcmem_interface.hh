@@ -1232,6 +1232,12 @@ class NVMDCInterface : public DCMemInterface
         return writeRespQueue.size() == maxPendingWrites;
     }
 
+    uint32_t
+    getMaxPendingWrites()
+    {
+        return maxPendingWrites;
+    }
+
     Tick
     writeRespQueueFront()
     {
