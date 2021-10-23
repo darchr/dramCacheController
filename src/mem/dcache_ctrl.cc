@@ -313,10 +313,11 @@ DcacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
 
     if (!nvmWriteEvent.scheduled()) {
         if (!nvm->writeRespQueueFull()) {
-            schedule(nvmWriteEvent, curTick());
+            schedule(nvmWriteEvent, std::max(nextReqTime, curTick()));
         }
         else {
-            schedule(nvmWriteEvent, nvm->writeRespQueueFront()+1);
+            schedule(nvmWriteEvent, std::max(nextReqTime,
+                            nvm->writeRespQueueFront()+1));
         }
     }
 
@@ -664,7 +665,7 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 
                 if (addrInitRead.empty()) {
                     assert(!dramReadEvent.scheduled());
-                    schedule(dramReadEvent, curTick());
+                    schedule(dramReadEvent, std::max(nextReqTime, curTick()));
                 } else {
                     assert(dramReadEvent.scheduled());
                 }
@@ -929,7 +930,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
 
         assert(!dramReadEvent.scheduled());
 
-        schedule(dramReadEvent, curTick());
+        schedule(dramReadEvent, std::max(nextReqTime, curTick()));
 
     } else {
 
@@ -964,7 +965,8 @@ DcacheCtrl::processDramReadEvent()
          numDirtyLinesInDrRdRespQ >= nvm->getMaxPendingWrites() ||
          nvm->writeRespQueueFull())) {
 
-        schedule(dramReadEvent, nvm->writeRespQueueFront()+2);
+        schedule(dramReadEvent, std::max(nextReqTime,
+                                        nvm->writeRespQueueFront()+2));
         return;
     }
 
@@ -1021,7 +1023,7 @@ DcacheCtrl::processDramReadEvent()
 
         assert(!dramReadEvent.scheduled());
 
-        schedule(dramReadEvent, curTick());
+        schedule(dramReadEvent, std::max(nextReqTime, curTick()));
     }
 }
 
@@ -1116,7 +1118,7 @@ DcacheCtrl::processRespDramReadEvent()
             }
 
             if (!dramWriteEvent.scheduled()) {
-                schedule(dramWriteEvent, curTick());
+                schedule(dramWriteEvent, std::max(nextReqTime, curTick()));
             }
     }
 
@@ -1239,10 +1241,12 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
 
         if (addrNvmRead.empty()) {
             assert(!nvmReadEvent.scheduled());
-            schedule(nvmReadEvent, e->dccPkt->readyTime+1);
+            schedule(nvmReadEvent, std::max(nextReqTime,
+                                    e->dccPkt->readyTime+1));
         } else if (nvmReadEvent.when() > e->dccPkt->readyTime) {
             // move it sooner in time, to the first read with data
-            reschedule(nvmReadEvent, e->dccPkt->readyTime+1);
+            reschedule(nvmReadEvent, std::max(nextReqTime,
+                                    e->dccPkt->readyTime+1));
         } else {
             assert(nvmReadEvent.scheduled());
         }
@@ -1326,11 +1330,11 @@ DcacheCtrl::processNvmReadEvent()
     addrNvmRead.pop();
 
     if (!addrNvmRead.empty()) {
-        assert(reqBuffer.at(addrNvmRead.top().second)->dccPkt->readyTime+1
-        >= curTick());
+        //assert(reqBuffer.at(addrNvmRead.top().second)->dccPkt->readyTime+1
+        //>= curTick());
         assert(!nvmReadEvent.scheduled());
-        schedule(nvmReadEvent,
-        reqBuffer.at(addrNvmRead.top().second)->dccPkt->readyTime+1);
+        schedule(nvmReadEvent, std::max(nextReqTime,
+        reqBuffer.at(addrNvmRead.top().second)->dccPkt->readyTime+1));
     }
 }
 
@@ -1405,7 +1409,7 @@ DcacheCtrl::processRespNvmReadEvent()
     orbEntry->drWr = curTick();
 
     if (!dramWriteEvent.scheduled()) {
-        schedule(dramWriteEvent, curTick());
+        schedule(dramWriteEvent, std::max(nextReqTime, curTick()));
     }
 
     // to keep track of writes, we maintain the addresses
@@ -1471,7 +1475,8 @@ DcacheCtrl::processNvmWriteEvent()
     if (!nvmWriteEvent.scheduled() &&
         !nvmWritebackQueue.empty() &&
          nvm->writeRespQueueFull()) {
-            schedule(nvmWriteEvent, nvm->writeRespQueueFront()+1);
+            schedule(nvmWriteEvent, std::max(nextReqTime,
+                        nvm->writeRespQueueFront()+1));
     }
 
 }
