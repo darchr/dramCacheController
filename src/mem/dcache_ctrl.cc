@@ -307,6 +307,8 @@ DcacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
         stats.maxNvWrEvQ = nvmWritebackQueue.size();
     }
 
+    stats.numWrBacks++;
+
     // no need to call nvm->access for the dirty line.
     // Because, we already have written it in nvm, while
     // we were processing it into dram cache.
@@ -319,9 +321,6 @@ DcacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
             schedule(nvmWriteEvent, nvm->writeRespQueueFront()+1);
         }
     }
-
-    stats.numWrBacks++;
-
 }
 
 void
@@ -463,15 +462,21 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
     if (orbEntry->owPkt->isRead()) {
         if (orbEntry->isHit) {
             assert(orbEntry->drRd != MaxTick);
+            assert(orbEntry->dramRdDevTime != MaxTick);
 
-            stats.numTicksInDramRead += curTick() - orbEntry->drRd;
 
-            if ((curTick() - orbEntry->drRd) > 0) {
+            long long int stateTick1 = (curTick() - orbEntry->drRd)/1000000;
+            assert(stateTick1 >= 0);
+            stats.numTicksInDramRead += stateTick1;
+
+            if (stateTick1 > 0) {
                 stats.totNumPktsDrRd++;
             }
 
-            stats.drRdQingTime += curTick() - orbEntry->drRd -
-                                  orbEntry->dramRdDevTime;
+            long long int stateQT1 = stateTick1 -
+                                     (orbEntry->dramRdDevTime/1000000);
+            assert(stateQT1 >= 0);
+            stats.drRdQingTime += stateQT1;
 
             stats.numHits++;
             stats.numRdHits++;
@@ -483,50 +488,60 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             assert(orbEntry->nvRd != MaxTick);
             assert(orbEntry->drWr != MaxTick);
             assert(orbEntry->nvmIssueReadyTime != MaxTick);
+            assert(orbEntry->dramRdDevTime != MaxTick);
 
-            stats.numTicksInDramRead +=
-                orbEntry->nvWait - orbEntry->drRd;
+            long long int  stateTick1 =
+                           (orbEntry->nvWait - orbEntry->drRd)/1000000;
+            assert(stateTick1 >= 0);
+            stats.numTicksInDramRead += stateTick1;
 
-            if ((orbEntry->nvWait - orbEntry->drRd) > 0) {
+            if (stateTick1 > 0) {
                 stats.totNumPktsDrRd++;
             }
 
-            stats.drRdQingTime += orbEntry->nvWait - orbEntry->drRd -
-                                  orbEntry->dramRdDevTime;
+            long long int  stateQT1 = stateTick1 -
+                                      (orbEntry->dramRdDevTime/1000000);
+            assert(stateQT1 >= 0);
+            stats.drRdQingTime += stateQT1;
 
-            stats.numTicksInWaitingToIssueNvmRead +=
-                orbEntry->nvRd - orbEntry->nvWait +
-                orbEntry->nvmIssueReadyTime;
+            long long int  stateTick2 =
+            (orbEntry->nvRd - orbEntry->nvWait + orbEntry->nvmIssueReadyTime)
+            /1000000;
 
-            if ((orbEntry->nvRd - orbEntry->nvWait +
-                orbEntry->nvmIssueReadyTime) > 0) {
+            assert(stateTick2 >= 0);
+            stats.numTicksInWaitingToIssueNvmRead += stateTick2;
+
+            if (stateTick2 > 0) {
                 stats.totNumPktsNvmRdWait++;
             }
 
-            stats.numTicksInNvmRead +=
-                orbEntry->drWr - orbEntry->nvRd;
+            long long int  stateTick3 =
+                           (orbEntry->drWr - orbEntry->nvRd)/1000000;
+            assert(stateTick3 >= 0);
+            stats.numTicksInNvmRead += stateTick3;
 
-            if ((orbEntry->drWr - orbEntry->nvRd) > 0) {
+            if (stateTick3 > 0) {
                 stats.totNumPktsNvmRd++;
             }
 
-            stats.nvmRdQingTime += (orbEntry->nvRd - orbEntry->nvWait +
-                                    orbEntry->nvmIssueReadyTime) +
-                                    (orbEntry->drWr - orbEntry->nvRd) -
-                                    orbEntry->nvmRdDevTime;
+            long long int  stateQT2 = stateTick2 + stateTick3 -
+                                      (orbEntry->nvmRdDevTime/1000000);
+            assert(stateQT2 >= 0);
+            stats.nvmRdQingTime += stateQT2;
 
+            long long int  stateTick4 =
+            (curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime)/1000000;
+            assert(stateTick4 >= 0);
+            stats.numTicksInDramWrite += stateTick4;
 
-            stats.numTicksInDramWrite +=
-                curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime;
-
-            if ((curTick() - orbEntry->drWr +
-                orbEntry->dccPkt->readyTime) > 0) {
+            if (stateTick4 > 0) {
                 stats.totNumPktsDrWr++;
             }
 
-            stats.drWrQingTime += curTick() - orbEntry->drWr +
-                                  orbEntry->dccPkt->readyTime -
-                                  orbEntry->dramWrDevTime;
+            long long int  stateQT3 = stateTick4 -
+                                      (orbEntry->dramWrDevTime/1000000);
+            assert(stateQT3 >= 0);
+            stats.drWrQingTime += stateQT3;
 
             stats.numMisses++;
             stats.numRdMisses++;
@@ -537,28 +552,37 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
         if (orbEntry->isHit) {
             assert(orbEntry->drRd != MaxTick);
             assert(orbEntry->drWr != MaxTick);
+            assert(orbEntry->dramRdDevTime != MaxTick);
+            assert(orbEntry->dramWrDevTime != MaxTick);
 
-            stats.numTicksInDramRead +=
-                orbEntry->drWr - orbEntry->drRd;
+            long long int  stateTick1 =
+                           (orbEntry->drWr - orbEntry->drRd)/1000000;
+            assert(stateTick1 >= 0);
+            stats.numTicksInDramRead += stateTick1;
 
-            if ((orbEntry->drWr - orbEntry->drRd) > 0) {
+            if (stateTick1 > 0) {
                 stats.totNumPktsDrRd++;
             }
 
-            stats.drRdQingTime += orbEntry->drWr - orbEntry->drRd -
-                                  orbEntry->dramRdDevTime;
+            long long int  stateQT1 = stateTick1 -
+                                      (orbEntry->dramRdDevTime/1000000);
+            assert(stateQT1 >= 0);
+            stats.drRdQingTime += stateQT1;
 
-            stats.numTicksInDramWrite +=
-                curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime;
+            long long int  stateTick2 =
+            (curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime)/1000000;
+            assert(stateTick2 >= 0);
+            stats.numTicksInDramWrite += stateTick2;
 
-            if ((curTick() - orbEntry->drWr +
-                orbEntry->dccPkt->readyTime) > 0) {
+
+            if (stateTick2 > 0) {
                 stats.totNumPktsDrWr++;
             }
 
-            stats.drWrQingTime += curTick() - orbEntry->drWr +
-                                  orbEntry->dccPkt->readyTime -
-                                  orbEntry->dramWrDevTime;
+            long long int  stateQT2 =
+                           stateTick2 - (orbEntry->dramWrDevTime/1000000);
+            assert(stateQT2 >= 0);
+            stats.drWrQingTime += stateQT2;
 
             stats.numHits++;
             stats.numWrHits++;
@@ -569,49 +593,62 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             assert(orbEntry->nvRd != MaxTick);
             assert(orbEntry->drWr != MaxTick);
             assert(orbEntry->nvmIssueReadyTime != MaxTick);
+            assert(orbEntry->dramRdDevTime != MaxTick);
+            assert(orbEntry->nvmRdDevTime != MaxTick);
+            assert(orbEntry->dramWrDevTime != MaxTick);
 
-            stats.numTicksInDramRead +=
-                orbEntry->nvWait - orbEntry->drRd;
+            long long int  stateTick1 =
+                            (orbEntry->nvWait - orbEntry->drRd)/1000000;
+            assert(stateTick1 >= 0);
+            stats.numTicksInDramRead += stateTick1;
 
-            if ((orbEntry->nvWait - orbEntry->drRd) > 0) {
+            if (stateTick1 > 0) {
                 stats.totNumPktsDrRd++;
             }
 
-            stats.drRdQingTime += orbEntry->nvWait -
-                                  orbEntry->drRd -
-                                  orbEntry->dramRdDevTime;
+            long long int  stateQT1 = stateTick1 -
+                                      (orbEntry->dramRdDevTime/1000000);
+            assert(stateQT1 >= 0);
+            stats.drRdQingTime += stateQT1;
 
-            stats.numTicksInWaitingToIssueNvmRead +=
-                orbEntry->nvRd - orbEntry->nvWait +
-                orbEntry->nvmIssueReadyTime;
+            long long int  stateTick2 =
+            (orbEntry->nvRd - orbEntry->nvWait + orbEntry->nvmIssueReadyTime)
+            /1000000;
 
-            if ((orbEntry->nvRd - orbEntry->nvWait +
-                orbEntry->nvmIssueReadyTime) > 0) {
+            assert(stateTick2 >= 0);
+            stats.numTicksInWaitingToIssueNvmRead += stateTick2;
+
+            if (stateTick2 > 0) {
                 stats.totNumPktsNvmRdWait++;
             }
 
-            stats.numTicksInNvmRead +=
-                orbEntry->drWr - orbEntry->nvRd;
+            long long int  stateTick3 =
+                            (orbEntry->drWr - orbEntry->nvRd)/1000000;
+            assert(stateTick3 >= 0);
+            stats.numTicksInNvmRead += stateTick3;
 
-            if ((orbEntry->drWr - orbEntry->nvRd) > 0) {
+            if (stateTick3 > 0) {
                 stats.totNumPktsNvmRd++;
             }
 
-            stats.nvmRdQingTime += (orbEntry->nvRd - orbEntry->nvWait +
-                                    orbEntry->nvmIssueReadyTime) +
-                                    (orbEntry->drWr - orbEntry->nvRd) -
-                                    orbEntry->nvmRdDevTime;
+            long long int  stateQT2 = stateTick2 + stateTick3 -
+                                      (orbEntry->nvmRdDevTime/1000000);
+            assert(stateQT2 >= 0);
+            stats.nvmRdQingTime += stateQT2;
 
-            stats.numTicksInDramWrite +=
-                curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime;
+            long long int  stateTick4 = (curTick() - orbEntry->drWr +
+                                        orbEntry->dccPkt->readyTime)/1000000;
+            assert(stateTick4 >= 0);
+            stats.numTicksInDramWrite += stateTick4;
 
-            if ((curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime)>0) {
+            if (stateTick4 > 0) {
                 stats.totNumPktsDrWr++;
             }
 
-            stats.drWrQingTime += curTick() - orbEntry->drWr +
-                                  orbEntry->dccPkt->readyTime -
-                                  orbEntry->dramWrDevTime;
+            long long int  stateQT3 = stateTick4 -
+                                      (orbEntry->dramWrDevTime/1000000);
+            assert(stateQT3 >= 0);
+            stats.drWrQingTime += stateQT3;
 
             stats.numMisses++;
             stats.numWrMisses++;
@@ -622,16 +659,16 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
 bool
 DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 {
-    //std::cout << reqBuffer.size() << ", " <<
-    //confReqBuffer.size() << ", " <<
-    //addrInitRead.size() << ", " <<
-    //addrDramRespReady.size() << ", " <<
-    //addrWaitingToIssueNvmRead.size() << ", " <<
-    //addrNvmRead.size() << ", " <<
-    //addrNvmRespReady.size() << ", " <<
-    //addrDramFill.size() << ", " <<
-    //nvmWritebackQueue.size() << ", " <<
-    //"\n";
+    std::cout << curTick () << ": " << reqBuffer.size() << ", " <<
+    confReqBuffer.size() << ", " <<
+    addrInitRead.size() << ", " <<
+    addrDramRespReady.size() << ", " <<
+    addrWaitingToIssueNvmRead.size() << ", " <<
+    addrNvmRead.size() << ", " <<
+    addrNvmRespReady.size() << ", " <<
+    addrDramFill.size() << ", " <<
+    nvmWritebackQueue.size() << ", " <<
+    "\n";
 
     bool conflictFound = false;
 
@@ -653,6 +690,10 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
                 Addr confAddr = entry.second->getAddr();
 
                 reqBuffer.erase(orbEntry->owPkt->getAddr());
+
+                delete orbEntry->owPkt;
+
+                delete orbEntry->dccPkt;
 
                 handleRequestorPkt(entry.second);
 
