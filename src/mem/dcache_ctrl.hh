@@ -695,12 +695,16 @@ class DcacheCtrl : public QoS::MemCtrl
         Stats::Scalar nvmRdQingTime;
         Stats::Scalar nvmWrQingTime;
 
+        Stats::Scalar drRdDevTime;
+        Stats::Scalar drWrDevTime;
+        Stats::Scalar nvRdDevTime;
+        Stats::Scalar nvWrDevTime;
+
         Stats::Scalar totNumPktsDrRd;
         Stats::Scalar totNumPktsDrWr;
         Stats::Scalar totNumPktsNvmRdWait;
         Stats::Scalar totNumPktsNvmRd;
         Stats::Scalar totNumPktsNvmWr;
-
 
         Stats::Scalar maxNumConf;
         Stats::Scalar maxDrRdEvQ;
