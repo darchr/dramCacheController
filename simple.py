@@ -27,21 +27,21 @@ system.generator.port = system.mem_ctrl.port
 def createRandomTraffic(tgen):
     yield tgen.createRandom(100000000000,   # duration
                             0,              # min_addr
-                            AddrRange('8GB').end,              # max_adr
+                            AddrRange('1GB').end,              # max_adr
                             64,             # block_size
-                            10000,          # min_period
-                            10000,          # max_period
+                            500,          # min_period
+                            500,          # max_period
                             70,             # rd_perc
                             0)              # data_limit
     yield tgen.createExit(0)
 
 def createLinearTraffic(tgen):
-    yield tgen.createLinear(10000000000,   # duration
+    yield tgen.createLinear(1000000000000,   # duration
                             0,              # min_addr
-                            AddrRange('8GB').end,  # max_adr
+                            AddrRange('512MiB').end,  # max_adr
                             64,             # block_size
-                            1000,          # min_period
-                            1000,          # max_period
+                            250,          # min_period
+                            250,          # max_period
                             70,             # rd_perc
                             0)              # data_limit
     yield tgen.createExit(0)
@@ -50,5 +50,5 @@ def createLinearTraffic(tgen):
 root = Root(full_system=False, system=system)
 
 m5.instantiate()
-system.generator.start(createRandomTraffic(system.generator))
+system.generator.start(createLinearTraffic(system.generator))
 exit_event = m5.simulate()

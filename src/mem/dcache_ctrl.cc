@@ -381,6 +381,7 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
                                 entry->dramWrDevTime,
                                 entry->nvmRdDevTime
                           );
+        delete entry;
 
         entry = reqBuffer.at(copyOwPkt->getAddr());
 
@@ -467,7 +468,7 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
 
             long long int stateTick1 = (curTick() - orbEntry->drRd)/1000000;
             assert(stateTick1 >= 0);
-            stats.numTicksInDramRead += stateTick1;
+            stats.timeInDramRead += stateTick1;
 
             if (stateTick1 > 0) {
                 stats.totNumPktsDrRd++;
@@ -496,7 +497,7 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             long long int  stateTick1 =
                            (orbEntry->nvWait - orbEntry->drRd)/1000000;
             assert(stateTick1 >= 0);
-            stats.numTicksInDramRead += stateTick1;
+            stats.timeInDramRead += stateTick1;
 
             if (stateTick1 > 0) {
                 stats.totNumPktsDrRd++;
@@ -513,7 +514,7 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             /1000000;
 
             assert(stateTick2 >= 0);
-            stats.numTicksInWaitingToIssueNvmRead += stateTick2;
+            stats.timeInWaitingToIssueNvmRead += stateTick2;
 
             if (stateTick2 > 0) {
                 stats.totNumPktsNvmRdWait++;
@@ -522,7 +523,7 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             long long int  stateTick3 =
                            (orbEntry->drWr - orbEntry->nvRd)/1000000;
             assert(stateTick3 >= 0);
-            stats.numTicksInNvmRead += stateTick3;
+            stats.timeInNvmRead += stateTick3;
 
             if (stateTick3 > 0) {
                 stats.totNumPktsNvmRd++;
@@ -537,7 +538,7 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             long long int  stateTick4 =
             (curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime)/1000000;
             assert(stateTick4 >= 0);
-            stats.numTicksInDramWrite += stateTick4;
+            stats.timeInDramWrite += stateTick4;
 
             if (stateTick4 > 0) {
                 stats.totNumPktsDrWr++;
@@ -564,7 +565,7 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             long long int  stateTick1 =
                            (orbEntry->drWr - orbEntry->drRd)/1000000;
             assert(stateTick1 >= 0);
-            stats.numTicksInDramRead += stateTick1;
+            stats.timeInDramRead += stateTick1;
 
             if (stateTick1 > 0) {
                 stats.totNumPktsDrRd++;
@@ -579,7 +580,7 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             long long int  stateTick2 =
             (curTick() - orbEntry->drWr + orbEntry->dccPkt->readyTime)/1000000;
             assert(stateTick2 >= 0);
-            stats.numTicksInDramWrite += stateTick2;
+            stats.timeInDramWrite += stateTick2;
 
 
             if (stateTick2 > 0) {
@@ -608,7 +609,7 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             long long int  stateTick1 =
                             (orbEntry->nvWait - orbEntry->drRd)/1000000;
             assert(stateTick1 >= 0);
-            stats.numTicksInDramRead += stateTick1;
+            stats.timeInDramRead += stateTick1;
 
             if (stateTick1 > 0) {
                 stats.totNumPktsDrRd++;
@@ -625,7 +626,7 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             /1000000;
 
             assert(stateTick2 >= 0);
-            stats.numTicksInWaitingToIssueNvmRead += stateTick2;
+            stats.timeInWaitingToIssueNvmRead += stateTick2;
 
             if (stateTick2 > 0) {
                 stats.totNumPktsNvmRdWait++;
@@ -634,7 +635,7 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             long long int  stateTick3 =
                             (orbEntry->drWr - orbEntry->nvRd)/1000000;
             assert(stateTick3 >= 0);
-            stats.numTicksInNvmRead += stateTick3;
+            stats.timeInNvmRead += stateTick3;
 
             if (stateTick3 > 0) {
                 stats.totNumPktsNvmRd++;
@@ -649,7 +650,7 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
             long long int  stateTick4 = (curTick() - orbEntry->drWr +
                                         orbEntry->dccPkt->readyTime)/1000000;
             assert(stateTick4 >= 0);
-            stats.numTicksInDramWrite += stateTick4;
+            stats.timeInDramWrite += stateTick4;
 
             if (stateTick4 > 0) {
                 stats.totNumPktsDrWr++;
@@ -706,6 +707,8 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 
                 delete orbEntry->dccPkt;
 
+                delete orbEntry;
+
                 handleRequestorPkt(entry.second);
 
                 reqBuffer.at(confAddr)->arrivalTick = entry.first;
@@ -735,6 +738,12 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 
     if (!conflictFound) {
         reqBuffer.erase(orbEntry->owPkt->getAddr());
+
+        delete orbEntry->owPkt;
+
+        delete orbEntry->dccPkt;
+
+        delete orbEntry;
     }
 
     return conflictFound;
@@ -1135,6 +1144,8 @@ DcacheCtrl::processRespDramReadEvent()
                                 orbEntry->dramRdDevTime,
                                 orbEntry->dramWrDevTime,
                                 orbEntry->nvmRdDevTime);
+            delete orbEntry;
+
             orbEntry = reqBuffer.at(addrDramRespReady.front());
     }
 
@@ -1433,6 +1444,7 @@ DcacheCtrl::processRespNvmReadEvent()
                             orbEntry->dramRdDevTime,
                             orbEntry->dramWrDevTime,
                             orbEntry->nvmRdDevTime);
+        delete orbEntry;
         orbEntry = reqBuffer.at(addrNvmRespReady.front());
 
     }
@@ -1508,7 +1520,7 @@ DcacheCtrl::processNvmWriteEvent()
 
         assert(stateTick >= 0);
 
-        stats.numTicksInNvmWrite += stateTick;
+        stats.timeInNvmWrite += stateTick;
 
         if (stateTick > 0) {
             stats.totNumPktsNvmWr++;
@@ -1949,34 +1961,34 @@ DcacheCtrl::CtrlStats::CtrlStats(DcacheCtrl &_ctrl)
             "Total number of packets conflicted and couldn't "
             "enter confBuffer"),
 
-    ADD_STAT(numTicksInDramRead,
-             "Total number of ticks spent in dram read state"),
-    ADD_STAT(numTicksInDramWrite,
-            "Total number of ticks spent in dram write state"),
-    ADD_STAT(numTicksInWaitingToIssueNvmRead,
-            "Total number of ticks spent in waitingToIssueNvmRead state"),
-    ADD_STAT(numTicksInNvmRead,
-            "Total number of ticks spent in nvmRead state"),
-    ADD_STAT(numTicksInNvmWrite,
-            "Total number of ticks spent in nvmWrite state"),
+    ADD_STAT(timeInDramRead,
+             "Total time spent in dram read state in us"),
+    ADD_STAT(timeInDramWrite,
+            "Total time spent in dram write state in us"),
+    ADD_STAT(timeInWaitingToIssueNvmRead,
+            "Total time spent in waitingToIssueNvmRead state in us"),
+    ADD_STAT(timeInNvmRead,
+            "Total time spent in nvmRead state in us"),
+    ADD_STAT(timeInNvmWrite,
+            "Total time spent in nvmWrite state in us"),
 
     ADD_STAT(drRdQingTime,
-            "Total number of ticks spent as DRAM read queuing time"),
+            "Total time spent as DRAM read queuing time in us"),
     ADD_STAT(drWrQingTime,
-            "Total number of ticks spent as DRAM write queuing time"),
+            "Total time spent as DRAM write queuing time in us"),
     ADD_STAT(nvmRdQingTime,
-            "Total number of ticks spent as NVM read queuing time"),
+            "Total time spent as NVM read queuing time in us"),
     ADD_STAT(nvmWrQingTime,
-            "Total number of ticks spent as NVM write queuing time"),
+            "Total time spent as NVM write queuing time in us"),
 
     ADD_STAT(drRdDevTime,
-            "Total number of ticks spent as DRAM read device time"),
+            "Total time spent as DRAM read device time in ns"),
     ADD_STAT(drWrDevTime,
-            "Total number of ticks spent as DRAM write device time"),
+            "Total time spent as DRAM write device time in ns"),
     ADD_STAT(nvRdDevTime,
-            "Total number of ticks spent as NVM read device time"),
+            "Total time spent as NVM read device time in ns"),
     ADD_STAT(nvWrDevTime,
-            "Total number of ticks spent as NVM write device time"),
+            "Total time spent as NVM write device time in ns"),
 
     ADD_STAT(totNumPktsDrRd,
             "Total number of packets enterted to Dram read state"),
@@ -1992,19 +2004,19 @@ DcacheCtrl::CtrlStats::CtrlStats(DcacheCtrl &_ctrl)
     ADD_STAT(maxNumConf,
             "Maximum number of packets conflicted on DRAM cache"),
     ADD_STAT(maxDrRdEvQ,
-            "Maximum number of packets been in DrRdEvent concurrently"),
+            "Maximum number of packets in DrRdEvent concurrently"),
     ADD_STAT(maxDrRdRespEvQ,
-            "Maximum number of packets been in DrRdRespEvent concurrently"),
+            "Maximum number of packets in DrRdRespEvent concurrently"),
     ADD_STAT(maxDrWrEvQ,
-            "Maximum number of packets been in DrWrEvent concurrently"),
+            "Maximum number of packets in DrWrEvent concurrently"),
     ADD_STAT(maxNvRdIssEvQ,
-            "Maximum number of packets been in NvRdIssEvent concurrently"),
+            "Maximum number of packets in NvRdIssEvent concurrently"),
     ADD_STAT(maxNvRdEvQ,
-            "Maximum number of packets been in NvRdEvent concurrently"),
+            "Maximum number of packets in NvRdEvent concurrently"),
     ADD_STAT(maxNvRdRespEvQ,
-            "Maximum number of packets been in NvRdRespEvent concurrently"),
+            "Maximum number of packets in NvRdRespEvent concurrently"),
     ADD_STAT(maxNvWrEvQ,
-            "Maximum number of packets been in NvWrEvent concurrently")
+            "Maximum number of packets in NvWrEvent concurrently")
 
 {
 }

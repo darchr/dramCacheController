@@ -684,11 +684,11 @@ class DcacheCtrl : public QoS::MemCtrl
         Stats::Scalar totNumConf;
         Stats::Scalar totNumConfBufFull;
 
-        Stats::Scalar numTicksInDramRead;
-        Stats::Scalar numTicksInDramWrite;
-        Stats::Scalar numTicksInWaitingToIssueNvmRead;
-        Stats::Scalar numTicksInNvmRead;
-        Stats::Scalar numTicksInNvmWrite;
+        Stats::Scalar timeInDramRead;
+        Stats::Scalar timeInDramWrite;
+        Stats::Scalar timeInWaitingToIssueNvmRead;
+        Stats::Scalar timeInNvmRead;
+        Stats::Scalar timeInNvmWrite;
 
         Stats::Scalar drRdQingTime;
         Stats::Scalar drWrQingTime;
