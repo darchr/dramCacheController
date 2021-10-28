@@ -192,9 +192,9 @@ typedef std::deque<dccPacket*> dccPacketQueue;
 class DcacheCtrl : public QoS::MemCtrl
 {
   private:
-   unsigned maxConf,
-   maxDrRdEv, maxDrRdRespEv, maxDrWrEv,
-   maxNvRdIssEv, maxNvRdEv, maxNvRdRespEv, maxNvWrEv = 0;
+   unsigned maxConf = 0,
+   maxDrRdEv = 0, maxDrRdRespEv = 0, maxDrWrEv = 0,
+   maxNvRdIssEv = 0, maxNvRdEv = 0, maxNvRdRespEv = 0, maxNvWrEv = 0;
 
    unsigned numDirtyLinesInDrRdRespQ = 0;
 
