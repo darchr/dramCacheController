@@ -265,6 +265,14 @@ DcacheCtrl::checkHitOrMiss(reqBufferEntry* orbEntry)
     tagMetadataStore.at(orbEntry->indexDC).validLine &&
     (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
 
+    if (!tagMetadataStore.at(orbEntry->indexDC).validLine &&
+        !orbEntry->isHit) {
+        stats.numColdMisses++;
+    }
+    else if (tagMetadataStore.at(orbEntry->indexDC).validLine &&
+             !orbEntry->isHit) {
+        stats.numHotMisses++;
+    }
 
     // always hit
     // orbEntry->isHit = true;
@@ -1952,6 +1960,11 @@ DcacheCtrl::CtrlStats::CtrlStats(DcacheCtrl &_ctrl)
             "Total number of read misses on DRAM cache"),
     ADD_STAT(numWrMisses,
             "Total number of write misses on DRAM cache"),
+    ADD_STAT(numColdMisses,
+            "Total number of misses on DRAM cache due to"
+            " first reference to a cache block"),
+    ADD_STAT(numHotMisses,
+            "Total number of misses on DRAM cache that are not cold miss"),
     ADD_STAT(numWrBacks,
             "Total number of write backs from DRAM cache to main memory"),
     ADD_STAT(totNumConf,

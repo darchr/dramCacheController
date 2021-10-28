@@ -373,9 +373,9 @@ class DcacheCtrl : public QoS::MemCtrl
       Addr tagDC;
       Addr indexDC;
       // constant to indicate that the cache line is valid
-      bool validLine;
+      bool validLine = false;
       // constant to indicate that the cache line is dirty
-      bool dirtyLine;
+      bool dirtyLine = false;
       Addr nvmAddr;
     };
 
@@ -680,6 +680,8 @@ class DcacheCtrl : public QoS::MemCtrl
         Stats::Scalar numWrHits;
         Stats::Scalar numRdMisses;
         Stats::Scalar numWrMisses;
+        Stats::Scalar numColdMisses;
+        Stats::Scalar numHotMisses;
         Stats::Scalar numWrBacks;
         Stats::Scalar totNumConf;
         Stats::Scalar totNumConfBufFull;
