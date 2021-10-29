@@ -575,6 +575,7 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     unsigned long long dramCacheSize;
     unsigned blockSize;
+    unsigned addrSize;
     unsigned orbMaxSize;
     unsigned orbSize;
     unsigned crbMaxSize;

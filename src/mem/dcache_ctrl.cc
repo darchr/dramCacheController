@@ -65,7 +65,9 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
     respNvmReadEvent([this]{ processRespNvmReadEvent(); }, name()),
     nvmWriteEvent([this]{ processNvmWriteEvent(); }, name()),
     dram(p.dram), nvm(p.nvm),
+    dramCacheSize(p.dram_cache_size),
     blockSize(p.block_size),
+    addrSize(p.addr_size),
     orbMaxSize(p.orb_max_size), orbSize(0),
     crbMaxSize(p.crb_max_size), crbSize(0),
     frontendLatency(p.static_frontend_latency),
@@ -77,9 +79,8 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
 {
     DPRINTF(DcacheCtrl, "Setting up controller\n");
 
-    dramCacheSize = dram->dramDeviceCapacity;
-
-    dramCacheSize = dramCacheSize*1024*1024;
+    // dramCacheSize = dram->dramDeviceCapacity;
+    // dramCacheSize = dramCacheSize*1024*1024;
 
     tagMetadataStore.resize(dramCacheSize/blockSize);
 
@@ -244,9 +245,9 @@ DcacheCtrl::printNvmWritebackQueue()
 Addr
 DcacheCtrl::returnTagDC(Addr request_addr, unsigned size)
 {
-    int index_bits = ceilLog2(dramCacheSize);
+    int index_bits = ceilLog2(dramCacheSize/blockSize);
     int block_bits = ceilLog2(size);
-    return bits(request_addr, size-1, (index_bits+block_bits));
+    return bits(request_addr, addrSize-1, (index_bits+block_bits));
 }
 
 Addr
