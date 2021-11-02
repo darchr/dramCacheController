@@ -1317,8 +1317,7 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
 
     else {
         assert(!addrNvmRead.empty());
-        schedule(waitingToIssueNvmReadEvent,
-        reqBuffer.at(addrNvmRead.top().second)->dccPkt->readyTime+2);
+        schedule(waitingToIssueNvmReadEvent, nvmReadEvent.when()+2);
         return;
     }
 
@@ -1326,8 +1325,9 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
 
     if (!waitingToIssueNvmReadEvent.scheduled() &&
          !addrWaitingToIssueNvmRead.empty()) {
-         schedule(waitingToIssueNvmReadEvent, curTick());
+        schedule(waitingToIssueNvmReadEvent, curTick());
     }
+
 }
 
 void
@@ -1492,7 +1492,6 @@ DcacheCtrl::processRespNvmReadEvent()
         schedule(respNvmReadEvent,
         reqBuffer.at(addrNvmRespReady.front())->dccPkt->readyTime);
     }
-
 }
 
 void
@@ -1549,7 +1548,6 @@ DcacheCtrl::processNvmWriteEvent()
             schedule(nvmWriteEvent, std::max(nextReqTime,
                         nvm->writeRespQueueFront()+1));
     }
-
 }
 
 void
@@ -1610,7 +1608,6 @@ DcacheCtrl::processDramWriteEvent()
         retry = false;
         port.sendRetryReq();
     }
-
 }
 
 void
