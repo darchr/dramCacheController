@@ -302,7 +302,7 @@ DcacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
 {
     assert(orbEntry->dirtyLineAddr != -1);
 
-    dccPacket* wbDccPkt = nvm->decodePacket(nullptr,
+    MemPacket* wbDccPkt = nvm->decodePacket(nullptr,
                             orbEntry->dirtyLineAddr,
                             orbEntry->owPkt->getSize(),
                             false, false);
@@ -342,7 +342,7 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
 {
     // Set is_read and is_dram to
     // "true", to do initial dram Read
-    dccPacket* dcc_pkt = dram->decodePacket(pkt,
+    MemPacket* dcc_pkt = dram->decodePacket(pkt,
                                             pkt->getAddr(),
                                             pkt->getSize(),
                                             true,
@@ -1798,7 +1798,7 @@ DcacheCtrl::inWriteBusState(bool next_state) const
 }
 
 Tick
-DcacheCtrl::doBurstAccess(dccPacket* dcc_pkt)
+DcacheCtrl::doBurstAccess(MemPacket* dcc_pkt)
 {
     // first clean up the burstTick set, removing old entries
     // before adding new entries for next burst
@@ -1861,7 +1861,7 @@ DcacheCtrl::processNextReqEvent()
 }
 
 bool
-DcacheCtrl::packetReady(dccPacket* pkt)
+DcacheCtrl::packetReady(MemPacket* pkt)
 {
     return (pkt->isDram() ?
         dram->burstReady(pkt) : nvm->burstReady(pkt));
