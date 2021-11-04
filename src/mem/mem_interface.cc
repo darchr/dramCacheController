@@ -713,6 +713,215 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     return std::make_pair(cmd_at, cmd_at + burst_gap);
 }
 
+std::pair<Tick, Tick>
+DRAMInterface::doBurstAccess(MemPacket* dcc_pkt, Tick next_burst_at)
+{
+    DPRINTF(DRAM, "Timing access to addr %lld, rank/bank/row %d %d %d\n",
+            dcc_pkt->addr, dcc_pkt->rank, dcc_pkt->bank, dcc_pkt->row);
+
+    // get the rank
+    Rank& rank_ref = *ranks[dcc_pkt->rank];
+    assert(rank_ref.inRefIdleState());
+
+    // are we in or transitioning to a low-power state and have not scheduled
+    // a power-up event?
+    // if so, wake up from power down to issue RD/WR burst
+    if (rank_ref.inLowPowerState) {
+        assert(rank_ref.pwrState != PWR_SREF);
+        rank_ref.scheduleWakeUpEvent(tXP);
+    }
+
+    // get the bank
+    Bank& bank_ref = rank_ref.banks[dcc_pkt->bank];
+
+    // for the state we need to track if it is a row hit or not
+    bool row_hit = true;
+
+    // Determine the access latency and update the bank state
+    if (bank_ref.openRow == dcc_pkt->row) {
+        // nothing to do
+    } else {
+        row_hit = false;
+
+        // If there is a page open, precharge it.
+        if (bank_ref.openRow != Bank::NO_ROW) {
+            prechargeBank(rank_ref, bank_ref, std::max(bank_ref.preAllowedAt,
+                                                   curTick()));
+        }
+
+        // next we need to account for the delay in activating the page
+        Tick act_tick = std::max(bank_ref.actAllowedAt, curTick());
+
+        // Record the activation and deal with all the global timing
+        // constraints caused be a new activation (tRRD and tXAW)
+        activateBank(rank_ref, bank_ref, act_tick, dcc_pkt->row);
+    }
+
+    // respect any constraints on the command (e.g. tRCD or tCCD)
+    const Tick col_allowed_at = dcc_pkt->isRead() ?
+                                bank_ref.rdAllowedAt : bank_ref.wrAllowedAt;
+
+    // we need to wait until the bus is available before we can issue
+    // the command; need to ensure minimum bus delay requirement is met
+    Tick cmd_at = std::max({col_allowed_at, next_burst_at, curTick()});
+
+    // verify that we have command bandwidth to issue the burst
+    // if not, shift to next burst window
+    if (dataClockSync && ((cmd_at - rank_ref.lastBurstTick) > clkResyncDelay))
+        cmd_at = ctrl->verifyMultiCmd(cmd_at, maxCommandsPerWindow, tCK);
+    else
+        cmd_at = ctrl->verifySingleCmd(cmd_at, maxCommandsPerWindow);
+
+    // if we are interleaving bursts, ensure that
+    // 1) we don't double interleave on next burst issue
+    // 2) we are at an interleave boundary; if not, shift to next boundary
+    Tick burst_gap = tBURST_MIN;
+    if (burstInterleave) {
+        if (cmd_at == (rank_ref.lastBurstTick + tBURST_MIN)) {
+            // already interleaving, push next command to end of full burst
+            burst_gap = tBURST;
+        } else if (cmd_at < (rank_ref.lastBurstTick + tBURST)) {
+            // not at an interleave boundary after bandwidth check
+            // Shift command to tBURST boundary to avoid data contention
+            // Command will remain in the same burst window given that
+            // tBURST is less than tBURST_MAX
+            cmd_at = rank_ref.lastBurstTick + tBURST;
+        }
+    }
+    DPRINTF(DRAM, "Schedule RD/WR burst at tick %d\n", cmd_at);
+
+    // update the packet ready time
+    dcc_pkt->readyTime = cmd_at + tCL + tBURST;
+
+    rank_ref.lastBurstTick = cmd_at;
+
+    // update the time for the next read/write burst for each
+    // bank (add a max with tCCD/tCCD_L/tCCD_L_WR here)
+    Tick dly_to_rd_cmd;
+    Tick dly_to_wr_cmd;
+    for (int j = 0; j < ranksPerChannel; j++) {
+        for (int i = 0; i < banksPerRank; i++) {
+            if (dcc_pkt->rank == j) {
+                if (bankGroupArch &&
+                   (bank_ref.bankgr == ranks[j]->banks[i].bankgr)) {
+                    // bank group architecture requires longer delays between
+                    // RD/WR burst commands to the same bank group.
+                    // tCCD_L is default requirement for same BG timing
+                    // tCCD_L_WR is required for write-to-write
+                    // Need to also take bus turnaround delays into account
+                    dly_to_rd_cmd = dcc_pkt->isRead() ?
+                                    tCCD_L : std::max(tCCD_L, wrToRdDlySameBG);
+                    dly_to_wr_cmd = dcc_pkt->isRead() ?
+                                    std::max(tCCD_L, rdToWrDlySameBG) :
+                                    tCCD_L_WR;
+                } else {
+                    // tBURST is default requirement for diff BG timing
+                    // Need to also take bus turnaround delays into account
+                    dly_to_rd_cmd = dcc_pkt->isRead() ? burst_gap :
+                                                       writeToReadDelay();
+                    dly_to_wr_cmd = dcc_pkt->isRead() ? readToWriteDelay() :
+                                                       burst_gap;
+                }
+            } else {
+                // different rank is by default in a different bank group and
+                // doesn't require longer tCCD or additional RTW, WTR delays
+                // Need to account for rank-to-rank switching
+                dly_to_wr_cmd = rankToRankDelay();
+                dly_to_rd_cmd = rankToRankDelay();
+            }
+            ranks[j]->banks[i].rdAllowedAt = std::max(cmd_at + dly_to_rd_cmd,
+                                             ranks[j]->banks[i].rdAllowedAt);
+            ranks[j]->banks[i].wrAllowedAt = std::max(cmd_at + dly_to_wr_cmd,
+                                             ranks[j]->banks[i].wrAllowedAt);
+        }
+    }
+
+    // Save rank of current access
+    activeRank = dcc_pkt->rank;
+
+    // If this is a write, we also need to respect the write recovery
+    // time before a precharge, in the case of a read, respect the
+    // read to precharge constraint
+    bank_ref.preAllowedAt = std::max(bank_ref.preAllowedAt,
+                                 dcc_pkt->isRead() ? cmd_at + tRTP :
+                                 dcc_pkt->readyTime + tWR);
+
+    // increment the bytes accessed and the accesses per row
+    bank_ref.bytesAccessed += burstSize;
+    ++bank_ref.rowAccesses;
+
+    // if we reached the max, then issue with an auto-precharge
+    bool auto_precharge = pageMgmt == Enums::close ||
+        bank_ref.rowAccesses == maxAccessesPerRow;
+
+    // DRAMPower trace command to be written
+    std::string mem_cmd = dcc_pkt->isRead() ? "RD" : "WR";
+
+    // MemCommand required for DRAMPower library
+    MemCommand::cmds command = (mem_cmd == "RD") ? MemCommand::RD :
+                                                   MemCommand::WR;
+
+    rank_ref.cmdList.push_back(Command(command, dcc_pkt->bank, cmd_at));
+
+    DPRINTF(DRAMPower, "%llu,%s,%d,%d\n", divCeil(cmd_at, tCK) -
+            timeStampOffset, mem_cmd, dcc_pkt->bank, dcc_pkt->rank);
+
+    // if this access should use auto-precharge, then we are
+    // closing the row after the read/write burst
+    if (auto_precharge) {
+        // if auto-precharge push a PRE command at the correct tick to the
+        // list used by DRAMPower library to calculate power
+        prechargeBank(rank_ref, bank_ref, std::max(curTick(),
+                      bank_ref.preAllowedAt), true);
+
+        DPRINTF(DRAM, "Auto-precharged bank: %d\n", dcc_pkt->bankId);
+    }
+
+    // Update the stats and schedule the next request
+    if (dcc_pkt->isRead()) {
+        // Every respQueue which will generate an event, increment count
+        ++rank_ref.outstandingEvents;
+
+        stats.readBursts++;
+        if (row_hit)
+            stats.readRowHits++;
+        stats.bytesRead += burstSize;
+        stats.perBankRdBursts[dcc_pkt->bankId]++;
+
+        // Update latency stats
+        stats.totMemAccLat += dcc_pkt->readyTime - dcc_pkt->entryTime;
+        stats.totQLat += cmd_at - dcc_pkt->entryTime;
+        stats.totBusLat += tBURST;
+    } else {
+        // Schedule write done event to decrement event count
+        // after the readyTime has been reached
+        // Only schedule latest write event to minimize events
+        // required; only need to ensure that final event scheduled covers
+        // the time that writes are outstanding and bus is active
+        // to holdoff power-down entry events
+        if (!rank_ref.writeDoneEvent.scheduled()) {
+            schedule(rank_ref.writeDoneEvent, dcc_pkt->readyTime);
+            // New event, increment count
+            ++rank_ref.outstandingEvents;
+
+        } else if (rank_ref.writeDoneEvent.when() < dcc_pkt->readyTime) {
+            reschedule(rank_ref.writeDoneEvent, dcc_pkt->readyTime);
+        }
+        // will remove write from queue when returned to parent function
+        // decrement count for DRAM rank
+        --rank_ref.writeEntries;
+
+        stats.writeBursts++;
+        if (row_hit)
+            stats.writeRowHits++;
+        stats.bytesWritten += burstSize;
+        stats.perBankWrBursts[dcc_pkt->bankId]++;
+
+    }
+    // Update bus state to reflect when previous command was issued
+    return std::make_pair(cmd_at, cmd_at + burst_gap);
+}
+
 void
 DRAMInterface::addRankToRankDelay(Tick cmd_at)
 {

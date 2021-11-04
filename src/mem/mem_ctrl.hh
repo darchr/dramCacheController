@@ -235,14 +235,18 @@ typedef std::deque<MemPacket*> MemPacketQueue;
  */
 class MemCtrl : public QoS::MemCtrl
 {
-  private:
+  protected:
 
     // For now, make use of a queued response port to avoid dealing with
     // flow control for the responses being sent back
     class MemoryPort : public QueuedResponsePort
     {
+      protected:
 
         RespPacketQueue queue;
+
+      private:
+
         MemCtrl& ctrl;
 
       public:
@@ -251,15 +255,15 @@ class MemCtrl : public QoS::MemCtrl
 
       protected:
 
-        Tick recvAtomic(PacketPtr pkt) override;
-        Tick recvAtomicBackdoor(
+        virtual Tick recvAtomic(PacketPtr pkt) override;
+        virtual Tick recvAtomicBackdoor(
                 PacketPtr pkt, MemBackdoorPtr &backdoor) override;
 
-        void recvFunctional(PacketPtr pkt) override;
+        virtual void recvFunctional(PacketPtr pkt) override;
 
-        bool recvTimingReq(PacketPtr) override;
+        virtual bool recvTimingReq(PacketPtr) override;
 
-        AddrRangeList getAddrRanges() const override;
+        virtual AddrRangeList getAddrRanges() const override;
 
     };
 
@@ -286,10 +290,10 @@ class MemCtrl : public QoS::MemCtrl
      * processRespondEvent is called; no parameters are allowed
      * in these methods
      */
-    void processNextReqEvent();
+    virtual void processNextReqEvent();
     EventFunctionWrapper nextReqEvent;
 
-    void processRespondEvent();
+    virtual void processRespondEvent();
     EventFunctionWrapper respondEvent;
 
     /**
@@ -527,6 +531,8 @@ class MemCtrl : public QoS::MemCtrl
 
     struct CtrlStats : public Stats::Group
     {
+      private:
+
         CtrlStats(MemCtrl &ctrl);
 
         void regStats() override;
@@ -702,10 +708,10 @@ class MemCtrl : public QoS::MemCtrl
 
   protected:
 
-    Tick recvAtomic(PacketPtr pkt);
-    Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor);
-    void recvFunctional(PacketPtr pkt);
-    bool recvTimingReq(PacketPtr pkt);
+    virtual Tick recvAtomic(PacketPtr pkt);
+    virtual Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor);
+    virtual void recvFunctional(PacketPtr pkt);
+    virtual bool recvTimingReq(PacketPtr pkt);
 
 };
 

@@ -53,10 +53,10 @@
 #include "mem/mem_ctrl.hh"
 #include "params/DcacheCtrl.hh"
 
-class DRAMDCInterface;
-class NVMDCInterface;
+// class DRAMInterface;
+// class NVMInterface;
 
-class DcacheCtrl : public QoS::MemCtrl
+class DcacheCtrl : public MemCtrl
 {
   private:
    unsigned maxConf = 0,
@@ -69,27 +69,27 @@ class DcacheCtrl : public QoS::MemCtrl
 
     // For now, make use of a queued response port to avoid dealing with
     // flow control for the responses being sent back
-    class MemoryPort : public QueuedResponsePort
+    class MemoryPortDcache : public MemCtrl::MemoryPort
     {
 
-        RespPacketQueue queue;
+        //RespPacketQueue queue;
         DcacheCtrl& ctrl;
 
       public:
 
-        MemoryPort(const std::string& name, DcacheCtrl& _ctrl);
+        MemoryPortDcache(const std::string& name, DcacheCtrl& _ctrl);
 
-      protected:
+      //protected:
 
-        Tick recvAtomic(PacketPtr pkt) override;
-        Tick recvAtomicBackdoor(
-                PacketPtr pkt, MemBackdoorPtr &backdoor) override;
+        //Tick recvAtomic(PacketPtr pkt) override;
+        //Tick recvAtomicBackdoor(
+               // PacketPtr pkt, MemBackdoorPtr &backdoor) override;
 
-        void recvFunctional(PacketPtr pkt) override;
+        //void recvFunctional(PacketPtr pkt) override;
 
-        bool recvTimingReq(PacketPtr) override;
+        //bool recvTimingReq(PacketPtr) override;
 
-        AddrRangeList getAddrRanges() const override;
+        //AddrRangeList getAddrRanges() const override;
 
     };
 
@@ -97,12 +97,12 @@ class DcacheCtrl : public QoS::MemCtrl
      * Our incoming port, for a multi-ported controller add a crossbar
      * in front of it
      */
-    MemoryPort port;
+    MemoryPortDcache port;
 
     /**
      * Remember if the memory system is in timing mode
      */
-    bool isTimingMode;
+    //bool isTimingMode;
 
     /**
      * Remember if we have to retry a request when available.
@@ -123,11 +123,11 @@ class DcacheCtrl : public QoS::MemCtrl
      * processRespondEvent is called; no parameters are allowed
      * in these methods
      */
-    void processNextReqEvent();
-    EventFunctionWrapper nextReqEvent;
+    void processNextReqEvent() override;
+    //EventFunctionWrapper nextReqEvent;
 
-    void processRespondEvent();
-    EventFunctionWrapper respondEvent;
+    void processRespondEvent() override;
+    //EventFunctionWrapper respondEvent;
 
     /**
      * processDramReadEvent() is an event handler which
@@ -208,7 +208,7 @@ class DcacheCtrl : public QoS::MemCtrl
      *
      * @param pkt The packet to evaluate
      */
-    bool packetReady(MemPacket* pkt);
+    //bool packetReady(MemPacket* pkt);
 
     /**
      * Calculate burst window aligned tick
@@ -216,7 +216,7 @@ class DcacheCtrl : public QoS::MemCtrl
      * @param cmd_tick Initial tick of command
      * @return burst window aligned tick
      */
-    Tick getBurstWindow(Tick cmd_tick);
+    //Tick getBurstWindow(Tick cmd_tick);
 
     /**
      * Burst-align an address.
@@ -226,7 +226,7 @@ class DcacheCtrl : public QoS::MemCtrl
      *
      * @return An address aligned to a memory burst
      */
-    Addr burstAlign(Addr addr, bool is_dram) const;
+    //Addr burstAlign(Addr addr, bool is_dram) const;
 
     /**
      * To avoid iterating over the outstanding requests buffer
@@ -235,7 +235,7 @@ class DcacheCtrl : public QoS::MemCtrl
      * Since we merge writes to the same location we never
      * have more than one address to the same burst address.
      */
-    std::unordered_set<Addr> isInWriteQueue;
+    //std::unordered_set<Addr> isInWriteQueue;
 
     struct tagMetaStoreEntry {
       // DRAM cache related metadata
@@ -423,18 +423,18 @@ class DcacheCtrl : public QoS::MemCtrl
      * defined Tick. This is used to ensure that the command bandwidth
      * does not exceed the allowable media constraints.
      */
-    std::unordered_multiset<Tick> burstTicks;
+    //std::unordered_multiset<Tick> burstTicks;
 
     /**
      * Create pointer to interface of the actual dram media when connected
      */
-    DRAMDCInterface* const dram;
+    //DRAMInterface* const dram;
 
     /**
      * Create pointer to interface of the actual nvm media when connected
      */
 
-    NVMDCInterface* const nvm;
+    //NVMInterface* const nvm;
 
     /**
      * The following are basic design parameters of the memory
@@ -455,27 +455,27 @@ class DcacheCtrl : public QoS::MemCtrl
      * contribution is added to writes (that complete when they are in
      * the write buffer) and reads that are serviced the write buffer.
      */
-    const Tick frontendLatency;
+    //const Tick frontendLatency;
 
     /**
      * Pipeline latency of the backend and PHY. Along with the
      * frontend contribution, this latency is added to reads serviced
      * by the memory.
      */
-    const Tick backendLatency;
+    //const Tick backendLatency;
 
     /**
      * Length of a command window, used to check
      * command bandwidth
      */
-    const Tick commandWindow;
+    //const Tick commandWindow;
 
     /**
      * Till when must we wait before issuing next RD/WR burst?
      */
-    Tick nextBurstAt;
+    //Tick nextBurstAt;
 
-    Tick prevArrival;
+    //Tick prevArrival;
 
     /**
      * The soonest you have to start thinking about the next request
@@ -483,66 +483,66 @@ class DcacheCtrl : public QoS::MemCtrl
      * nextBurstAt. Assuming you need to precharge, open a new row,
      * and access, it is tRP + tRCD + tCL.
      */
-    Tick nextReqTime;
+    //Tick nextReqTime;
 
-    struct CtrlStats : public Stats::Group
+    struct DcacheStats : public MemCtrl::CtrlStats
     {
-        CtrlStats(DcacheCtrl &ctrl);
+        DcacheStats(DcacheCtrl &ctrl);
 
-        void regStats() override;
+        //void regStats() override;
 
         DcacheCtrl &ctrl;
 
         // All statistics that the model needs to capture
-        Stats::Scalar readReqs;
-        Stats::Scalar writeReqs;
-        Stats::Scalar readBursts;
-        Stats::Scalar writeBursts;
-        Stats::Scalar servicedByWrQ;
-        Stats::Scalar mergedWrBursts;
+        // Stats::Scalar readReqs;
+        // Stats::Scalar writeReqs;
+        // Stats::Scalar readBursts;
+        // Stats::Scalar writeBursts;
+        // Stats::Scalar servicedByWrQ;
+        // Stats::Scalar mergedWrBursts;
         //Stats::Scalar neitherReadNorWriteReqs;
         // Average queue lengths
-        Stats::Average avgRdQLen;
-        Stats::Average avgWrQLen;
+        // Stats::Average avgRdQLen;
+        // Stats::Average avgWrQLen;
 
-        Stats::Scalar numRdRetry;
-        Stats::Scalar numWrRetry;
-        Stats::Vector readPktSize;
-        Stats::Vector writePktSize;
+        // Stats::Scalar numRdRetry;
+        // Stats::Scalar numWrRetry;
+        // Stats::Vector readPktSize;
+        // Stats::Vector writePktSize;
         //Stats::Vector rdQLenPdf;
         //Stats::Vector wrQLenPdf;
         //Stats::Histogram rdPerTurnAround;
         //Stats::Histogram wrPerTurnAround;
 
-        Stats::Scalar bytesReadWrQ;
-        Stats::Scalar bytesReadSys;
-        Stats::Scalar bytesWrittenSys;
+        // Stats::Scalar bytesReadWrQ;
+        // Stats::Scalar bytesReadSys;
+        // Stats::Scalar bytesWrittenSys;
         // Average bandwidth
-        Stats::Formula avgRdBWSys;
-        Stats::Formula avgWrBWSys;
+        // Stats::Formula avgRdBWSys;
+        // Stats::Formula avgWrBWSys;
 
-        Stats::Scalar totGap;
-        Stats::Formula avgGap;
+        // Stats::Scalar totGap;
+        // Stats::Formula avgGap;
 
         // per-requestor bytes read and written to memory
-        Stats::Vector requestorReadBytes;
-        Stats::Vector requestorWriteBytes;
+        // Stats::Vector requestorReadBytes;
+        // Stats::Vector requestorWriteBytes;
 
         // per-requestor bytes read and written to memory rate
-        Stats::Formula requestorReadRate;
-        Stats::Formula requestorWriteRate;
+        // Stats::Formula requestorReadRate;
+        // Stats::Formula requestorWriteRate;
 
         // per-requestor read and write serviced memory accesses
-        Stats::Vector requestorReadAccesses;
-        Stats::Vector requestorWriteAccesses;
+        // Stats::Vector requestorReadAccesses;
+        // Stats::Vector requestorWriteAccesses;
 
         // per-requestor read and write total memory access latency
-        Stats::Vector requestorReadTotalLat;
-        Stats::Vector requestorWriteTotalLat;
+        // Stats::Vector requestorReadTotalLat;
+        // Stats::Vector requestorWriteTotalLat;
 
         // per-requestor raed and write average memory access latency
-        Stats::Formula requestorReadAvgLat;
-        Stats::Formula requestorWriteAvgLat;
+        // Stats::Formula requestorReadAvgLat;
+        // Stats::Formula requestorWriteAvgLat;
 
         Stats::Scalar numHits;
         Stats::Scalar numMisses;
@@ -588,18 +588,18 @@ class DcacheCtrl : public QoS::MemCtrl
         Stats::Scalar maxNvWrEvQ;
       };
 
-    CtrlStats stats;
+    DcacheStats dcStats;
 
     /**
      * Upstream caches need this packet until true is returned, so
      * hold it for deletion until a subsequent call
      */
-    std::unique_ptr<Packet> pendingDelete;
+    //std::unique_ptr<Packet> pendingDelete;
 
     /**
      * Remove commands that have already issued from burstTicks
      */
-    void pruneBurstTick();
+    //void pruneBurstTick();
 
   public:
 
@@ -611,9 +611,9 @@ class DcacheCtrl : public QoS::MemCtrl
      *
      * @return bool flag, set once drain complete
      */
-    bool allIntfDrained() const;
+    // bool allIntfDrained() const;
 
-    DrainState drain() override;
+    // DrainState drain() override;
 
     /**
      * Check for command bus contention for single cycle command.
@@ -628,7 +628,7 @@ class DcacheCtrl : public QoS::MemCtrl
      *                           in a burst window
      * @return tick for command issue without contention
      */
-    Tick verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst);
+    // Tick verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst);
 
     /**
      * Check for command bus contention for multi-cycle (2 currently)
@@ -644,22 +644,22 @@ class DcacheCtrl : public QoS::MemCtrl
      *                           in a burst window
      * @return tick for command issue without contention
      */
-    Tick verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
-                        Tick max_multi_cmd_split = 0);
+    // Tick verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
+    //                     Tick max_multi_cmd_split = 0);
 
     /**
      * Is there a respondEvent scheduled?
      *
      * @return true if event is scheduled
      */
-    bool respondEventScheduled() const { return respondEvent.scheduled(); }
+    // bool respondEventScheduled() const { return respondEvent.scheduled(); }
 
     /**
      * Is there a read/write burst Event scheduled?
      *
      * @return true if event is scheduled
      */
-    bool requestEventScheduled() const { return nextReqEvent.scheduled(); }
+    // bool requestEventScheduled() const { return nextReqEvent.scheduled(); }
 
     /**
      * restart the controller
@@ -668,7 +668,7 @@ class DcacheCtrl : public QoS::MemCtrl
      *
      * @param Tick to schedule next event
      */
-    void restartScheduler(Tick tick) { schedule(nextReqEvent, tick); }
+    // void restartScheduler(Tick tick) { schedule(nextReqEvent, tick); }
 
     /**
      * Check the current direction of the memory channel
@@ -676,7 +676,7 @@ class DcacheCtrl : public QoS::MemCtrl
      * @param next_state Check either the current or next bus state
      * @return True when bus is currently in a read state
      */
-    bool inReadBusState(bool next_state) const;
+    // bool inReadBusState(bool next_state) const;
 
     /**
      * Check the current direction of the memory channel
@@ -684,10 +684,10 @@ class DcacheCtrl : public QoS::MemCtrl
      * @param next_state Check either the current or next bus state
      * @return True when bus is currently in a write state
      */
-    bool inWriteBusState(bool next_state) const;
+    // bool inWriteBusState(bool next_state) const;
 
-    Port &getPort(const std::string &if_name,
-                  PortID idx=InvalidPortID) override;
+    // Port &getPort(const std::string &if_name,
+    //               PortID idx=InvalidPortID) override;
 
     virtual void init() override;
     virtual void startup() override;
@@ -695,10 +695,10 @@ class DcacheCtrl : public QoS::MemCtrl
 
   protected:
 
-    Tick recvAtomic(PacketPtr pkt);
-    Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor);
-    void recvFunctional(PacketPtr pkt);
-    bool recvTimingReq(PacketPtr pkt);
+    Tick recvAtomic(PacketPtr pkt) override;
+    Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override;
+    void recvFunctional(PacketPtr pkt) override;
+    bool recvTimingReq(PacketPtr pkt) override;
 
 };
 

@@ -170,6 +170,7 @@ class MemInterface : public AbstractMemory
       * Defining them here allows for buffers to be resized based
       * on memory type / configuration.
       */
+    unsigned dramDeviceCapacity;
     const uint32_t readBufferSize;
     const uint32_t writeBufferSize;
 
@@ -543,7 +544,7 @@ class DRAMInterface : public MemInterface
          * Incremented when a refresh event is started as well
          * Used to determine when a low-power state can be entered
          */
-        uint8_t outstandingEvents;
+        uint32_t outstandingEvents;
 
         /**
          * delay low-power exit until this requirement is met
@@ -960,6 +961,9 @@ class DRAMInterface : public MemInterface
     doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
                   const std::vector<MemPacketQueue>& queue);
 
+    std::pair<Tick, Tick>
+    doBurstAccess(MemPacket* dcc_pkt, Tick next_burst_at);
+
     /**
      * Check if a burst operation can be issued to the DRAM
      *
@@ -1222,6 +1226,8 @@ class NVMInterface : public MemInterface
      */
     void chooseRead(MemPacketQueue& queue);
 
+    void processReadPkt(MemPacket* pkt);
+
     /*
      * Function to calulate unloaded access latency
      */
@@ -1236,6 +1242,18 @@ class NVMInterface : public MemInterface
     writeRespQueueFull() const
     {
         return writeRespQueue.size() == maxPendingWrites;
+    }
+
+    uint32_t
+    getMaxPendingWrites()
+    {
+        return maxPendingWrites;
+    }
+
+    Tick
+    writeRespQueueFront()
+    {
+        return writeRespQueue.front();
     }
 
     bool
