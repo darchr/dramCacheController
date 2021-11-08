@@ -64,6 +64,12 @@ args.add_argument(
     help="Read Percentage",
 )
 
+args.add_argument(
+    "nvm",
+    type = str,
+    help = "NVM interface to use"
+)
+
 options = args.parse_args()
 
 system = System()
@@ -77,7 +83,7 @@ system.generator = PyTrafficGen()
 system.mem_ctrl = DcacheCtrl()
 system.mem_ctrl.dram = eval(options.device)(range=AddrRange('8GB'),
                                                 in_addr_map=False)
-system.mem_ctrl.nvm = NVM_2400_1x64(range=AddrRange('8GB'))
+system.mem_ctrl.nvm = eval(options.nvm)(range=AddrRange('8GB'))
 
 system.mem_ctrl.dram.tREFI = "200"
 system.mem_ctrl.dram_cache_size = options.dram_cache_size

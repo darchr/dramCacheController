@@ -67,3 +67,43 @@ class NVM_2400_1x64(NVMDCInterface):
     tRTW = '1.666ns';
     tCS = '1.666ns'
 
+# NVM delays and device architecture defined to mimic PCM like memory.
+# Can be configured with DDR4_2400 sharing the channel
+# This is a hypothetical NVM interface (a scaled down version of NVM_2400_1x64)
+# to be used with a single HBM channel (HBM_1000_4H_1x128)
+# The clock frequency is reduced to 150MHz, and thus the other timing params
+# as well
+class NVM_300_1x64(NVMDCInterface):
+    write_buffer_size = 128
+    read_buffer_size = 64
+
+    max_pending_writes = 128
+    max_pending_reads = 64
+
+    device_rowbuffer_size = '256B'
+
+    # 8X capacity compared to DDR4 x4 DIMM with 8Gb devices
+    device_size = '64GiB'
+    # Mimic 64-bit media agnostic DIMM interface
+    device_bus_width = 64
+    devices_per_rank = 1
+    ranks_per_channel = 1
+    banks_per_rank = 16
+
+    burst_length = 8
+
+    two_cycle_rdwr = True
+
+    # 300 MHz
+    tCK = '6.664ns'
+
+    tREAD = '1200ns'
+    tWRITE = '4000ns';
+    tSEND = '113.28ns';
+    tBURST = '26.56ns';
+
+    # Default all bus turnaround and rank bus delay to 2 cycles
+    # With DDR data bus, clock = 1200 MHz = 1.666 ns
+    tWTR = '13.328ns';
+    tRTW = '13.328ns';
+    tCS = '13.328ns'
