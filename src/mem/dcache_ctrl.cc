@@ -1022,10 +1022,6 @@ DcacheCtrl::processDramReadEvent()
 
     reqBufferEntry* orbEntry = reqBuffer.at((*to_read)->getAddr());
 
-    std::cout << (*to_read)->getAddr() <<
-    " / " << pktInitRead[0].front()->getAddr() << " / " <<
-    pktInitRead[0].size() << " / " << addrInitRead.size() << "\n";
-
     // sanity check for the packet at the head of the queue
     assert(orbEntry->validEntry);
     assert(orbEntry->dccPkt->isDram());
