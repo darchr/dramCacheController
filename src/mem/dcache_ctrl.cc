@@ -372,6 +372,11 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
                    pkt->getAddr(), 1);
     }
     else {
+
+        logRequest(DcacheCtrl::WRITE, pkt->requestorId(),
+                   pkt->qosValue(),
+                   pkt->getAddr(), 1);
+
         //copying the packet
         PacketPtr copyOwPkt = new Packet(pkt, false, pkt->isRead());
 
@@ -397,10 +402,6 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
         delete entry;
 
         entry = reqBuffer.at(copyOwPkt->getAddr());
-
-        logRequest(DcacheCtrl::WRITE, copyOwPkt->requestorId(),
-                   copyOwPkt->qosValue(),
-                   copyOwPkt->getAddr(), 1);
     }
 
     checkHitOrMiss(entry);
