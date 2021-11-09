@@ -17,7 +17,7 @@ args = argparse.ArgumentParser()
 #             32 random 100000000 2GB    1000 100
 
 args.add_argument(
-    "device",
+    "dram",
     type = str,
     help = "Memory device to use as a dram cache"
 )
@@ -72,6 +72,15 @@ args.add_argument(
 
 options = args.parse_args()
 
+MemTypes = {
+    'ddr3_1600' : DDR3_1600_8x8,
+    'ddr4_2400' : DDR4_2400_16x4,
+    'ddr5_6800' : DDR5_6800_2x8,
+    'hbm_1000': HBM_1000_4H_1x128,
+    'nvm_2400' : NVM_2400_1x64,
+    'nvm_300' : NVM_300_1x64
+}
+
 system = System()
 system.clk_domain = SrcClockDomain()
 system.clk_domain.clock = "4GHz"
@@ -81,9 +90,10 @@ system.mem_mode = 'timing'
 system.generator = PyTrafficGen()
 
 system.mem_ctrl = DcacheCtrl()
-system.mem_ctrl.dram = eval(options.device)(range=AddrRange('8GB'),
+
+system.mem_ctrl.dram = MemTypes[options.dram](range=AddrRange('8GB'),
                                                 in_addr_map=False)
-system.mem_ctrl.nvm = eval(options.nvm)(range=AddrRange('8GB'))
+system.mem_ctrl.nvm = MemTypes[options.nvm](range=AddrRange('8GB'))
 
 system.mem_ctrl.dram.tREFI = "200"
 system.mem_ctrl.dram_cache_size = options.dram_cache_size
