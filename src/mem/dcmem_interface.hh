@@ -224,8 +224,8 @@ class DCMemInterface : public AbstractMemory
      * @return an iterator to the selected packet, else queue.end()
      * @return the tick when the packet selected will issue
      */
-    virtual std::pair<dccPacketQueue::iterator, Tick>
-    chooseNextFRFCFS(dccPacketQueue& queue, Tick min_col_at) const = 0;
+    virtual std::pair<MemPacketQueue::iterator, Tick>
+    chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const = 0;
 
     /*
      * Function to calulate unloaded latency
@@ -247,7 +247,7 @@ class DCMemInterface : public AbstractMemory
      *
      * @param Return true if RD/WR can issue
      */
-    virtual bool burstReady(dccPacket* pkt) const = 0;
+    virtual bool burstReady(MemPacket* pkt) const = 0;
 
     /**
      * Determine the required delay for an access to a different rank
@@ -267,9 +267,9 @@ class DCMemInterface : public AbstractMemory
      * @param size The size of the packet in bytes
      * @param is_read Is the request for a read or a write to memory
      * @param is_dram Is the request to a DRAM interface
-     * @return A dccPacket pointer with the decoded information
+     * @return A MemPacket pointer with the decoded information
      */
-    dccPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,
+    MemPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,
                            unsigned int size, bool is_read, bool is_dram);
 
     /**
@@ -863,7 +863,7 @@ class DRAMDCInterface : public DCMemInterface
      * @return boolean indicating burst can issue seamlessly, with no gaps
      */
     std::pair<std::vector<uint32_t>, bool>
-    minBankPrep(const dccPacketQueue& queue, Tick min_col_at) const;
+    minBankPrep(const MemPacketQueue& queue, Tick min_col_at) const;
 
     /*
      * @return time to send a burst of data without gaps
@@ -932,8 +932,8 @@ class DRAMDCInterface : public DCMemInterface
      * @return an iterator to the selected packet, else queue.end()
      * @return the tick when the packet selected will issue
      */
-    std::pair<dccPacketQueue::iterator, Tick>
-    chooseNextFRFCFS(dccPacketQueue& queue, Tick min_col_at) const override;
+    std::pair<MemPacketQueue::iterator, Tick>
+    chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const override;
 
     /**
      * Actually do the burst - figure out the latency it
@@ -950,7 +950,7 @@ class DRAMDCInterface : public DCMemInterface
      *               tick when next burst can issue
      */
     std::pair<Tick, Tick>
-    doBurstAccess(dccPacket* dcc_pkt, Tick next_burst_at);
+    doBurstAccess(MemPacket* dcc_pkt, Tick next_burst_at);
 
     /**
      * Check if a burst operation can be issued to the DRAM
@@ -960,7 +960,7 @@ class DRAMDCInterface : public DCMemInterface
      *                    REF IDLE state
      */
     bool
-    burstReady(dccPacket* pkt) const override
+    burstReady(MemPacket* pkt) const override
     {
         return ranks[pkt->rank]->inRefIdleState();
     }
@@ -1173,7 +1173,7 @@ class NVMDCInterface : public DCMemInterface
      *                    has been updated to a non-zero value to
      *                    account for race conditions between events
      */
-    bool burstReady(dccPacket* pkt) const override;
+    bool burstReady(MemPacket* pkt) const override;
 
     /**
      * This function checks if ranks are busy.
@@ -1196,8 +1196,8 @@ class NVMDCInterface : public DCMemInterface
      * @return an iterator to the selected packet, else queue.end()
      * @return the tick when the packet selected will issue
      */
-    std::pair<dccPacketQueue::iterator, Tick>
-    chooseNextFRFCFS(dccPacketQueue& queue, Tick min_col_at) const override;
+    std::pair<MemPacketQueue::iterator, Tick>
+    chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const override;
 
     /**
      *  Add rank to rank delay to bus timing to all NVM banks in alli ranks
@@ -1212,9 +1212,9 @@ class NVMDCInterface : public DCMemInterface
     /**
      * Select read command to issue asynchronously
      */
-    void chooseRead(dccPacketQueue& queue);
+    void chooseRead(MemPacketQueue& queue);
 
-    void processReadPkt(dccPacket* pkt);
+    void processReadPkt(MemPacket* pkt);
 
     /*
      * Function to calulate unloaded access latency
@@ -1260,7 +1260,7 @@ class NVMDCInterface : public DCMemInterface
      *               tick when next burst can issue
      */
     std::pair<Tick, Tick>
-    doBurstAccess(dccPacket* pkt, Tick next_burst_at);
+    doBurstAccess(MemPacket* pkt, Tick next_burst_at);
 
     NVMDCInterface(const NVMDCInterfaceParams &_p);
 };

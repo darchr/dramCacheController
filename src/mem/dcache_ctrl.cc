@@ -70,6 +70,7 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
     addrSize(p.addr_size),
     orbMaxSize(p.orb_max_size), orbSize(0),
     crbMaxSize(p.crb_max_size), crbSize(0),
+    memSchedPolicy(p.mem_sched_policy),
     frontendLatency(p.static_frontend_latency),
     backendLatency(p.static_backend_latency),
     commandWindow(p.command_window),
@@ -78,6 +79,8 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
     stats(*this)
 {
     DPRINTF(DcacheCtrl, "Setting up controller\n");
+
+    pktInitRead.resize(1);
 
     // dramCacheSize = dram->dramDeviceCapacity;
     // dramCacheSize = dramCacheSize*1024*1024;
@@ -302,7 +305,7 @@ DcacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
 {
     assert(orbEntry->dirtyLineAddr != -1);
 
-    dccPacket* wbDccPkt = nvm->decodePacket(nullptr,
+    MemPacket* wbDccPkt = nvm->decodePacket(nullptr,
                             orbEntry->dirtyLineAddr,
                             orbEntry->owPkt->getSize(),
                             false, false);
@@ -342,7 +345,7 @@ DcacheCtrl::handleRequestorPkt(PacketPtr pkt)
 {
     // Set is_read and is_dram to
     // "true", to do initial dram Read
-    dccPacket* dcc_pkt = dram->decodePacket(pkt,
+    MemPacket* dcc_pkt = dram->decodePacket(pkt,
                                             pkt->getAddr(),
                                             pkt->getSize(),
                                             true,
@@ -716,6 +719,8 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 
                 addrInitRead.push_back(confAddr);
 
+                pktInitRead[0].push_back(reqBuffer.at(confAddr)->dccPkt);
+
                 if (addrInitRead.size() > maxDrRdEv) {
                     maxDrRdEv = addrInitRead.size();
                     stats.maxDrRdEvQ = addrInitRead.size();
@@ -987,6 +992,7 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     }
 
     addrInitRead.push_back(pkt->getAddr());
+    pktInitRead[0].push_back(reqBuffer.at(pkt->getAddr())->dccPkt);
 
     if (addrInitRead.size() > maxDrRdEv) {
         maxDrRdEv = addrInitRead.size();
@@ -1001,7 +1007,24 @@ DcacheCtrl::processDramReadEvent()
 {
     assert(!addrInitRead.empty());
 
-    reqBufferEntry* orbEntry = reqBuffer.at(addrInitRead.front());
+    MemPacketQueue::iterator to_read;
+    bool read_found = false;
+    for (auto queue = pktInitRead.rbegin();
+                 queue != pktInitRead.rend(); ++queue) {
+        to_read = chooseNext((*queue), 0);
+        if (to_read != queue->end()) {
+            // candidate read found
+            read_found = true;
+            break;
+        }
+    }
+    assert(read_found);
+
+    reqBufferEntry* orbEntry = reqBuffer.at((*to_read)->getAddr());
+
+    std::cout << (*to_read)->getAddr() <<
+    " / " << pktInitRead[0].front()->getAddr() << " / " <<
+    pktInitRead[0].size() << " / " << addrInitRead.size() << "\n";
 
     // sanity check for the packet at the head of the queue
     assert(orbEntry->validEntry);
@@ -1054,6 +1077,8 @@ DcacheCtrl::processDramReadEvent()
     }
 
     addrDramRespReady.push_back(orbEntry->owPkt->getAddr());
+
+    pktInitRead[0].erase(to_read);
 
     if (addrDramRespReady.size() > maxDrRdRespEv) {
         maxDrRdRespEv = addrDramRespReady.size();
@@ -1798,7 +1823,7 @@ DcacheCtrl::inWriteBusState(bool next_state) const
 }
 
 Tick
-DcacheCtrl::doBurstAccess(dccPacket* dcc_pkt)
+DcacheCtrl::doBurstAccess(MemPacket* dcc_pkt)
 {
     // first clean up the burstTick set, removing old entries
     // before adding new entries for next burst
@@ -1861,10 +1886,87 @@ DcacheCtrl::processNextReqEvent()
 }
 
 bool
-DcacheCtrl::packetReady(dccPacket* pkt)
+DcacheCtrl::packetReady(MemPacket* pkt)
 {
     return (pkt->isDram() ?
         dram->burstReady(pkt) : nvm->burstReady(pkt));
+}
+
+MemPacketQueue::iterator
+DcacheCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay)
+{
+    // This method does the arbitration between requests.
+
+    MemPacketQueue::iterator ret = queue.end();
+
+    if (!queue.empty()) {
+        if (queue.size() == 1) {
+            // available rank corresponds to state refresh idle
+            MemPacket* mem_pkt = *(queue.begin());
+            if (packetReady(mem_pkt)) {
+                ret = queue.begin();
+                DPRINTF(DcacheCtrl, "Single request, going to a free rank\n");
+            } else {
+                DPRINTF(DcacheCtrl, "Single request, going to a busy rank\n");
+            }
+        } else if (memSchedPolicy == Enums::fcfs) {
+            // check if there is a packet going to a free rank
+            for (auto i = queue.begin(); i != queue.end(); ++i) {
+                MemPacket* mem_pkt = *i;
+                if (packetReady(mem_pkt)) {
+                    ret = i;
+                    break;
+                }
+            }
+        } else if (memSchedPolicy == Enums::frfcfs) {
+            ret = chooseNextFRFCFS(queue, extra_col_delay);
+        } else {
+            panic("No scheduling policy chosen\n");
+        }
+    }
+    return ret;
+}
+
+MemPacketQueue::iterator
+DcacheCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay)
+{
+    auto selected_pkt_it = queue.end();
+    Tick col_allowed_at = MaxTick;
+
+    // time we need to issue a column command to be seamless
+    const Tick min_col_at = std::max(nextBurstAt + extra_col_delay, curTick());
+
+    // find optimal packet for each interface
+    if (dram && nvm) {
+        // create 2nd set of parameters for NVM
+        auto nvm_pkt_it = queue.end();
+        Tick nvm_col_at = MaxTick;
+
+        // Select packet by default to give priority if both
+        // can issue at the same time or seamlessly
+        std::tie(selected_pkt_it, col_allowed_at) =
+                 dram->chooseNextFRFCFS(queue, min_col_at);
+        std::tie(nvm_pkt_it, nvm_col_at) =
+                 nvm->chooseNextFRFCFS(queue, min_col_at);
+
+        // Compare DRAM and NVM and select NVM if it can issue
+        // earlier than the DRAM packet
+        if (col_allowed_at > nvm_col_at) {
+            selected_pkt_it = nvm_pkt_it;
+        }
+    } else if (dram) {
+        std::tie(selected_pkt_it, col_allowed_at) =
+                 dram->chooseNextFRFCFS(queue, min_col_at);
+    } else if (nvm) {
+        std::tie(selected_pkt_it, col_allowed_at) =
+                 nvm->chooseNextFRFCFS(queue, min_col_at);
+    }
+
+    if (selected_pkt_it == queue.end()) {
+        DPRINTF(DcacheCtrl, "%s no available packets found\n", __func__);
+    }
+
+    return selected_pkt_it;
 }
 
 Addr

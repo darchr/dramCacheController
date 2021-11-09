@@ -48,153 +48,22 @@
 #ifndef __DCACHE_CTRL_HH__
 #define __DCACHE_CTRL_HH__
 
-#include <deque>
 #include <queue>
-#include <string>
-#include <unordered_set>
-#include <utility>
-#include <vector>
 
-#include "base/callback.hh"
-#include "base/statistics.hh"
-#include "enums/MemSched.hh"
-#include "mem/abstract_mem.hh"
-#include "mem/qos/mem_ctrl.hh"
-#include "mem/qport.hh"
+#include "mem/mem_ctrl.hh"
 #include "params/DcacheCtrl.hh"
-#include "sim/eventq.hh"
 
 class DRAMDCInterface;
 class NVMDCInterface;
-
-/**
- * A dram cache controller (dcc) packet stores packets along with
- * the timestamp of when the packet entered the queue, and also
- * the decoded address.
- */
-
-class dccPacket
-{
-  public:
-
-    /** When did request enter the controller */
-    Tick entryTime;
-
-    /** When will request leave the controller */
-    Tick readyTime;
-
-    /** This comes from the outside world */
-    const PacketPtr pkt;
-
-    /** RequestorID associated with the packet */
-    const RequestorID _requestorId;
-
-    const bool read;
-
-    /** Does this packet access DRAM?*/
-    const bool dram;
-
-    /** Will be populated by address decoder */
-    const uint8_t rank;
-    const uint8_t bank;
-    const uint32_t row;
-
-    /**
-     * Bank id is calculated considering banks in all the ranks
-     * eg: 2 ranks each with 8 banks, then bankId = 0 --> rank0, bank0 and
-     * bankId = 8 --> rank1, bank0
-     */
-    const uint16_t bankId;
-
-    /**
-     * The starting address of the packet.
-     * This address could be unaligned to burst size boundaries. The
-     * reason is to keep the address offset so we can accurately check
-     * incoming read packets with packets in the write queue.
-     */
-    Addr addr;
-
-    /**
-     * The size of this dram packet in bytes
-     * It is always equal or smaller than the burst size
-     */
-    unsigned int size;
-
-    /**
-     * QoS value of the encapsulated packet read at queuing time
-     */
-    uint8_t _qosValue;
-
-    /**
-     * Set the packet QoS value
-     * (interface compatibility with Packet)
-     */
-    inline void qosValue(const uint8_t qv) { _qosValue = qv; }
-
-    /**
-     * Get the packet QoS value
-     * (interface compatibility with Packet)
-     */
-    inline uint8_t qosValue() const { return _qosValue; }
-
-    /**
-     * Get the packet RequestorID
-     * (interface compatibility with Packet)
-     */
-    inline RequestorID requestorId() const { return _requestorId; }
-
-    /**
-     * Get the packet size
-     * (interface compatibility with Packet)
-     */
-    inline unsigned int getSize() const { return size; }
-
-    /**
-     * Get the packet address
-     * (interface compatibility with Packet)
-     */
-    inline Addr getAddr() const { return addr; }
-
-    /**
-     * Return true if its a read packet
-     * (interface compatibility with Packet)
-     */
-    inline bool isRead() const { return read; }
-
-    /**
-     * Return true if its a write packet
-     * (interface compatibility with Packet)
-     */
-    inline bool isWrite() const { return !read; }
-
-    /**
-     * Return true if its a DRAM access
-     */
-    inline bool isDram() const { return dram; }
-
-    dccPacket(PacketPtr _pkt, bool is_read, bool is_dram, uint8_t _rank,
-              uint8_t _bank, uint32_t _row, uint16_t bank_id, Addr _addr,
-              unsigned int _size)
-        : entryTime(curTick()), readyTime(curTick()), pkt(_pkt),
-          _requestorId((_pkt!=nullptr)?_pkt->requestorId():-1),
-          read(is_read), dram(is_dram), rank(_rank), bank(_bank), row(_row),
-          bankId(bank_id), addr(_addr), size(_size),
-          _qosValue((_pkt!=nullptr)?_pkt->qosValue():-1)
-    { }
-
-};
-
-
-// The memory packets are store in a multiple dequeue structure,
-// based on their QoS priority
-typedef std::deque<dccPacket*> dccPacketQueue;
 
 class DcacheCtrl : public QoS::MemCtrl
 {
   private:
    unsigned maxConf = 0,
-   maxDrRdEv = 0, maxDrRdRespEv = 0, maxDrWrEv = 0,
-   maxNvRdIssEv = 0, maxNvRdEv = 0, maxNvRdRespEv = 0, maxNvWrEv = 0;
+   maxDrRdEv = 0, maxDrRdRespEv = 0,
+   maxDrWrEv = 0,
+   maxNvRdIssEv = 0, maxNvRdEv = 0, maxNvRdRespEv = 0,
+   maxNvWrEv = 0;
 
    unsigned numDirtyLinesInDrRdRespQ = 0;
 
@@ -321,7 +190,7 @@ class DcacheCtrl : public QoS::MemCtrl
      * @param mem_pkt The memory packet created from the outside world pkt
      * returns cmd_at tick
      */
-    Tick doBurstAccess(dccPacket* mem_pkt);
+    Tick doBurstAccess(MemPacket* mem_pkt);
 
     /**
      * When a packet reaches its "readyTime" in the response Q,
@@ -339,7 +208,33 @@ class DcacheCtrl : public QoS::MemCtrl
      *
      * @param pkt The packet to evaluate
      */
-    bool packetReady(dccPacket* pkt);
+    bool packetReady(MemPacket* pkt);
+
+
+    /**
+     * The memory schduler/arbiter - picks which request needs to
+     * go next, based on the specified policy such as FCFS or FR-FCFS
+     * and moves it to the head of the queue.
+     * Prioritizes accesses to the same rank as previous burst unless
+     * controller is switching command type.
+     *
+     * @param queue Queued requests to consider
+     * @param extra_col_delay Any extra delay due to a read/write switch
+     * @return an iterator to the selected packet, else queue.end()
+     */
+    MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
+        Tick extra_col_delay);
+
+    /**
+     * For FR-FCFS policy reorder the read/write queue depending on row buffer
+     * hits and earliest bursts available in memory
+     *
+     * @param queue Queued requests to consider
+     * @param extra_col_delay Any extra delay due to a read/write switch
+     * @return an iterator to the selected packet, else queue.end()
+     */
+    MemPacketQueue::iterator chooseNextFRFCFS(MemPacketQueue& queue,
+            Tick extra_col_delay);
 
     /**
      * Calculate burst window aligned tick
@@ -407,7 +302,7 @@ class DcacheCtrl : public QoS::MemCtrl
       // pointer to the outside world (ow) packet received from llc
       const PacketPtr owPkt;
       // pointer to the dram cache controller (dcc) packet
-      dccPacket* dccPkt;
+      MemPacket* dccPkt;
 
       reqState state;
       bool isHit;
@@ -437,7 +332,7 @@ class DcacheCtrl : public QoS::MemCtrl
       reqBufferEntry(
         bool _validEntry, Tick _arrivalTick,
         Addr _tagDC, Addr _indexDC,
-        PacketPtr _owPkt, dccPacket* _dccPkt,
+        PacketPtr _owPkt, MemPacket* _dccPkt,
         reqState _state, bool _isHit, bool _conflict,
         Addr _dirtyLineAddr, bool _handleDirtyLine,
         Tick _drRd, Tick _drWr, Tick _nvWait, Tick _nvRd, Tick _nvWr,
@@ -489,6 +384,9 @@ class DcacheCtrl : public QoS::MemCtrl
      * required addresses in a fifo queue.
      */
     std::deque <Addr> addrInitRead;
+    // std::vector <MemPacket*> pktInitRead;
+    // MemPacketQueue pktInitRead;
+    std::vector<MemPacketQueue> pktInitRead;
 
     /**
      * To avoid iterating over the outstanding requests
@@ -536,7 +434,7 @@ class DcacheCtrl : public QoS::MemCtrl
      * buffer for nvmWriteEvent handler, we maintain the
      * required addresses in a fifo queue.
      */
-    typedef std::pair<Tick, dccPacket*> nvmWritePair;
+    typedef std::pair<Tick, MemPacket*> nvmWritePair;
     std::priority_queue<nvmWritePair, std::vector<nvmWritePair>,
                         std::greater<nvmWritePair> > nvmWritebackQueue;
 
@@ -580,6 +478,12 @@ class DcacheCtrl : public QoS::MemCtrl
     unsigned orbSize;
     unsigned crbMaxSize;
     unsigned crbSize;
+
+    /**
+     * Memory controller configuration initialized based on parameter
+     * values.
+     */
+    Enums::MemSched memSchedPolicy;
 
     /**
      * Pipeline latency of the controller frontend. The frontend

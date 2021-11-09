@@ -93,7 +93,7 @@ class MemPacket
   public:
 
     /** When did request enter the controller */
-    const Tick entryTime;
+    Tick entryTime;
 
     /** When will request leave the controller */
     Tick readyTime;
@@ -197,10 +197,10 @@ class MemPacket
                uint8_t _bank, uint32_t _row, uint16_t bank_id, Addr _addr,
                unsigned int _size)
         : entryTime(curTick()), readyTime(curTick()), pkt(_pkt),
-          _requestorId(pkt->requestorId()),
+          _requestorId((_pkt!=nullptr)?_pkt->requestorId():-1),
           read(is_read), dram(is_dram), rank(_rank), bank(_bank), row(_row),
           bankId(bank_id), addr(_addr), size(_size), burstHelper(NULL),
-          _qosValue(_pkt->qosValue())
+          _qosValue((_pkt!=nullptr)?_pkt->qosValue():-1)
     { }
 
 };
