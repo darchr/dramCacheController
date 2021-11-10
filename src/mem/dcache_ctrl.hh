@@ -117,6 +117,11 @@ class DcacheCtrl : public QoS::MemCtrl
     Addr returnTagDC(Addr pkt_addr, unsigned size);
     Addr returnIndexDC(Addr pkt_addr, unsigned size);
 
+    template <class Q>
+    void clearQueue(Q & q) {
+        q = Q();
+    }
+
     /**
      * Bunch of things requires to setup "events" in gem5
      * When event "respondEvent" occurs for example, the method
@@ -223,7 +228,7 @@ class DcacheCtrl : public QoS::MemCtrl
      * @return an iterator to the selected packet, else queue.end()
      */
     MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
-        Tick extra_col_delay);
+        Tick extra_col_delay, bool is_dram);
 
     /**
      * For FR-FCFS policy reorder the read/write queue depending on row buffer
@@ -234,7 +239,7 @@ class DcacheCtrl : public QoS::MemCtrl
      * @return an iterator to the selected packet, else queue.end()
      */
     MemPacketQueue::iterator chooseNextFRFCFS(MemPacketQueue& queue,
-            Tick extra_col_delay);
+            Tick extra_col_delay, bool is_dram);
 
     /**
      * Calculate burst window aligned tick
@@ -386,7 +391,7 @@ class DcacheCtrl : public QoS::MemCtrl
     std::deque <Addr> addrInitRead;
     // std::vector <MemPacket*> pktInitRead;
     // MemPacketQueue pktInitRead;
-    std::vector<MemPacketQueue> pktInitRead;
+    std::vector<MemPacketQueue> pktDramRead;
 
     /**
      * To avoid iterating over the outstanding requests
@@ -399,14 +404,6 @@ class DcacheCtrl : public QoS::MemCtrl
     typedef std::pair<Tick, Addr> addrNvmReadPair;
 
     /**
-     * To avoid iterating over the outstanding requests
-     * buffer for nvmReadEvent handler, we maintain the
-     * required addresses in a priority queue.
-     */
-    std::priority_queue<addrNvmReadPair, std::vector<addrNvmReadPair>,
-            std::greater<addrNvmReadPair> > addrNvmRead;
-
-    /**
      * To maintain the packets missed in DRAM cache and
      * now require to read NVM, this queue holds them in order,
      * incase they can't be issued due to reaching to the maximum
@@ -414,6 +411,15 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     std::priority_queue<addrNvmReadPair, std::vector<addrNvmReadPair>,
             std::greater<addrNvmReadPair> > addrWaitingToIssueNvmRead;
+    std::vector<MemPacketQueue> pktNvmRead;
+
+    /**
+     * To avoid iterating over the outstanding requests
+     * buffer for nvmReadEvent handler, we maintain the
+     * required addresses in a priority queue.
+     */
+    std::priority_queue<addrNvmReadPair, std::vector<addrNvmReadPair>,
+            std::greater<addrNvmReadPair> > addrNvmRead;
 
     /**
      * To avoid iterating over the outstanding requests
@@ -428,6 +434,7 @@ class DcacheCtrl : public QoS::MemCtrl
      * required addresses in a fifo queue.
      */
     std::deque <Addr> addrDramFill;
+    std::vector<MemPacketQueue> pktDramWrite;
 
     /**
      * To avoid iterating over the outstanding requests
@@ -437,6 +444,8 @@ class DcacheCtrl : public QoS::MemCtrl
     typedef std::pair<Tick, MemPacket*> nvmWritePair;
     std::priority_queue<nvmWritePair, std::vector<nvmWritePair>,
                         std::greater<nvmWritePair> > nvmWritebackQueue;
+    std::vector<MemPacketQueue> pktNvmWrite;
+
 
     void handleRequestorPkt(PacketPtr pkt);
     void checkHitOrMiss(reqBufferEntry* orbEntry);
