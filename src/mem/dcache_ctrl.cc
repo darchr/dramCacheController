@@ -2836,10 +2836,11 @@ DcacheCtrl::CtrlStats::regStats()
 void
 DcacheCtrl::recvFunctional(PacketPtr pkt)
 {
-    if (dram && dram->getAddrRange().contains(pkt->getAddr())) {
-        // rely on the abstract memory
-        dram->functionalAccess(pkt);
-    } else if (nvm && nvm->getAddrRange().contains(pkt->getAddr())) {
+    //if (dram && dram->getAddrRange().contains(pkt->getAddr())) {
+    //    // rely on the abstract memory
+    //    dram->functionalAccess(pkt);
+    //} else
+    if (nvm && nvm->getAddrRange().contains(pkt->getAddr())) {
         // rely on the abstract memory
         nvm->functionalAccess(pkt);
    } else {
@@ -2922,10 +2923,10 @@ AddrRangeList
 DcacheCtrl::MemoryPort::getAddrRanges() const
 {
     AddrRangeList ranges;
-    if (ctrl.dram) {
-        DPRINTF(DRAM, "Pushing DRAM ranges to port\n");
-        ranges.push_back(ctrl.dram->getAddrRange());
-    }
+    //if (ctrl.dram) {
+    //    DPRINTF(DRAM, "Pushing DRAM ranges to port\n");
+    //    ranges.push_back(ctrl.dram->getAddrRange());
+    //}
     if (ctrl.nvm) {
         DPRINTF(NVM, "Pushing NVM ranges to port\n");
         ranges.push_back(ctrl.nvm->getAddrRange());
