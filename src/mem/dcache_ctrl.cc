@@ -943,9 +943,13 @@ DcacheCtrl::processDramReadEvent()
 
     bool read_found = false;
 
+    bool switched_cmd_type = (busState == DcacheCtrl::WRITE);
+
     for (auto queue = pktDramRead.rbegin();
                  queue != pktDramRead.rend(); ++queue) {
-        to_read = chooseNext((*queue), 0, true);
+        // to_read = chooseNext((*queue), 0, true);
+        to_read = chooseNext((*queue), switched_cmd_type ?
+                                minWriteToReadDataGap() : 0, true);
         if (to_read != queue->end()) {
             // candidate read found
             read_found = true;
@@ -1256,9 +1260,13 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
 
     bool read_found = false;
 
+    bool switched_cmd_type = (busState == DcacheCtrl::WRITE);
+
     for (auto queue = pktNvmRead.rbegin();
                  queue != pktNvmRead.rend(); ++queue) {
-        to_read = chooseNext((*queue), 0, false);
+        // to_read = chooseNext((*queue), 0, false);
+        to_read = chooseNext((*queue), switched_cmd_type ?
+                                minWriteToReadDataGap() : 0, false);
         if (to_read != queue->end()) {
             // candidate read found
             read_found = true;
@@ -1521,9 +1529,13 @@ DcacheCtrl::processNvmWriteEvent()
 
         bool write_found = false;
 
+        bool switched_cmd_type = (busState == DcacheCtrl::READ);
+
         for (auto queue = pktNvmWrite.rbegin();
                     queue != pktNvmWrite.rend(); ++queue) {
-            to_write = chooseNext((*queue), 0, false);
+            // to_write = chooseNext((*queue), 0, false);
+            to_write = chooseNext((*queue), switched_cmd_type ?
+                                    minReadToWriteDataGap() : 0, false);
             if (to_write != queue->end()) {
                 // candidate write found
                 write_found = true;
@@ -1612,9 +1624,13 @@ DcacheCtrl::processDramWriteEvent()
 
     bool write_found = false;
 
+    bool switched_cmd_type = (busState == DcacheCtrl::READ);
+
     for (auto queue = pktDramWrite.rbegin();
                  queue != pktDramWrite.rend(); ++queue) {
-        to_write = chooseNext((*queue), 0, true);
+        //to_write = chooseNext((*queue), 0, true);
+        to_write = chooseNext((*queue), switched_cmd_type ?
+                                minReadToWriteDataGap() : 0, true);
         if (to_write != queue->end()) {
             // candidate write found
             write_found = true;
@@ -1940,6 +1956,22 @@ DcacheCtrl::packetReady(MemPacket* pkt)
 {
     return (pkt->isDram() ?
         dram->burstReady(pkt) : nvm->burstReady(pkt));
+}
+
+Tick
+DcacheCtrl::minReadToWriteDataGap()
+{
+    Tick dram_min = dram ?  dram->minReadToWriteDataGap() : MaxTick;
+    Tick nvm_min = nvm ?  nvm->minReadToWriteDataGap() : MaxTick;
+    return std::min(dram_min, nvm_min);
+}
+
+Tick
+DcacheCtrl::minWriteToReadDataGap()
+{
+    Tick dram_min = dram ? dram->minWriteToReadDataGap() : MaxTick;
+    Tick nvm_min = nvm ?  nvm->minWriteToReadDataGap() : MaxTick;
+    return std::min(dram_min, nvm_min);
 }
 
 MemPacketQueue::iterator

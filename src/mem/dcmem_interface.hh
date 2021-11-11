@@ -163,7 +163,6 @@ class DCMemInterface : public AbstractMemory
      */
     Tick rankToRankDelay() const { return tBURST + tCS; }
 
-
   public:
 
     /**
@@ -255,6 +254,18 @@ class DCMemInterface : public AbstractMemory
      * @return required rank to rank delay
      */
     Tick rankDelay() const { return tCS; }
+
+    /**
+     *
+     * @return minimum additional bus turnaround required for read-to-write
+     */
+    Tick minReadToWriteDataGap() const { return std::min(tRTW, tCS); }
+
+    /**
+     *
+     * @return minimum additional bus turnaround required for write-to-read
+     */
+    Tick minWriteToReadDataGap() const { return std::min(tWTR, tCS); }
 
     /**
      * Address decoder to figure out physical mapping onto ranks,

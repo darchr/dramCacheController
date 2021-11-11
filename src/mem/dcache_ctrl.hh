@@ -215,6 +215,20 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     bool packetReady(MemPacket* pkt);
 
+    /**
+     * Calculate the minimum delay used when scheduling a read-to-write
+     * transision.
+     * @param return minimum delay
+     */
+    Tick minReadToWriteDataGap();
+
+    /**
+     * Calculate the minimum delay used when scheduling a write-to-read
+     * transision.
+     * @param return minimum delay
+     */
+    Tick minWriteToReadDataGap();
+
 
     /**
      * The memory schduler/arbiter - picks which request needs to
