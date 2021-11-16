@@ -81,6 +81,7 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
     DPRINTF(DcacheCtrl, "Setting up controller\n");
 
     pktDramRead.resize(1);
+    pktNvmReadWaitIssue.resize(1);
     pktNvmRead.resize(1);
     pktDramWrite.resize(1);
     pktNvmWrite.resize(1);
@@ -599,17 +600,6 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
 bool
 DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 {
-    // std::cout << curTick () << ": " << reqBuffer.size() << ", " <<
-    // confReqBuffer.size() << ", " <<
-    // addrInitRead.size() << ", " <<
-    // addrDramRespReady.size() << ", " <<
-    // addrWaitingToIssueNvmRead.size() << ", " <<
-    // addrNvmRead.size() << ", " <<
-    // addrNvmRespReady.size() << ", " <<
-    // addrDramFill.size() << ", " <<
-    // nvmWritebackQueue.size() <<
-    // "\n";
-
     bool conflictFound = false;
 
     if (orbEntry->owPkt->isWrite()) {
@@ -1181,7 +1171,7 @@ DcacheCtrl::processRespDramReadEvent()
         orbEntry->nvWait = curTick();
 
         //if (addrWaitingToIssueNvmRead.empty()) {
-        if (pktNvmRead[0].empty()) {
+        if (pktNvmReadWaitIssue[0].empty()) {
             assert(!waitingToIssueNvmReadEvent.scheduled());
             schedule(waitingToIssueNvmReadEvent, curTick());
         }
@@ -1191,15 +1181,15 @@ DcacheCtrl::processRespDramReadEvent()
 
         // addrWaitingToIssueNvmRead.push(std::make_pair(curTick(),
         // orbEntry->owPkt->getAddr()));
-        pktNvmRead[0].push_back(orbEntry->dccPkt);
+        pktNvmReadWaitIssue[0].push_back(orbEntry->dccPkt);
 
         // if (addrWaitingToIssueNvmRead.size() > maxNvRdIssEv) {
         //     maxNvRdIssEv = addrWaitingToIssueNvmRead.size();
         //     stats.maxNvRdIssEvQ = addrWaitingToIssueNvmRead.size();
         // }
-        if (pktNvmRead[0].size() > maxNvRdIssEv) {
-            maxNvRdIssEv = pktNvmRead[0].size();
-            stats.maxNvRdIssEvQ = pktNvmRead[0].size();
+        if (pktNvmReadWaitIssue[0].size() > maxNvRdIssEv) {
+            maxNvRdIssEv = pktNvmReadWaitIssue[0].size();
+            stats.maxNvRdIssEvQ = pktNvmReadWaitIssue[0].size();
         }
     }
 
@@ -1252,7 +1242,7 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
 {
     if (nvm->readsWaitingToIssue()) {
     //assert(!addrWaitingToIssueNvmRead.empty());
-    assert(!pktNvmRead[0].empty());
+    assert(!pktNvmReadWaitIssue[0].empty());
 
     // auto e = reqBuffer.at(addrWaitingToIssueNvmRead.top().second);
 
@@ -1262,8 +1252,8 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
 
     bool switched_cmd_type = (busState == DcacheCtrl::WRITE);
 
-    for (auto queue = pktNvmRead.rbegin();
-                 queue != pktNvmRead.rend(); ++queue) {
+    for (auto queue = pktNvmReadWaitIssue.rbegin();
+                 queue != pktNvmReadWaitIssue.rend(); ++queue) {
         // to_read = chooseNext((*queue), 0, false);
         to_read = chooseNext((*queue), switched_cmd_type ?
                                 minWriteToReadDataGap() : 0, false);
@@ -1274,7 +1264,7 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
         }
     }
 
-    auto e = reqBuffer.at(pktNvmRead[0].front()->getAddr());
+    auto e = reqBuffer.at(pktNvmReadWaitIssue[0].front()->getAddr());
 
     if (read_found) {
         e = reqBuffer.at((*to_read)->getAddr());
@@ -1295,7 +1285,8 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
         e->state = nvmRead;
         e->nvRd = e->dccPkt->readyTime;
 
-        if (addrNvmRead.empty()) {
+        //if (addrNvmRead.empty()) { pktNvmRead;
+        if (pktNvmRead[0].empty()) {
             assert(!nvmReadEvent.scheduled());
             schedule(nvmReadEvent, std::max(nextReqTime,
                                     e->dccPkt->readyTime+1));
@@ -1307,25 +1298,31 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
             assert(nvmReadEvent.scheduled());
         }
 
-        addrNvmRead.push(std::make_pair(e->dccPkt->readyTime,
-        e->owPkt->getAddr()));
+        //addrNvmRead.push
+        // (std::make_pair(e->dccPkt->readyTime, e->owPkt->getAddr()));
+        pktNvmRead[0].push_back(e->dccPkt);
 
-        if (addrNvmRead.size() > maxNvRdEv) {
-            maxNvRdEv = addrNvmRead.size();
-            stats.maxNvRdEvQ = addrNvmRead.size();
+        // if (addrNvmRead.size() > maxNvRdEv) {
+        //     maxNvRdEv = addrNvmRead.size();
+        //     stats.maxNvRdEvQ = addrNvmRead.size();
+        // }
+        if (pktNvmRead[0].size() > maxNvRdEv) {
+            maxNvRdEv = pktNvmRead[0].size();
+            stats.maxNvRdEvQ = pktNvmRead[0].size();
         }
 
         //addrWaitingToIssueNvmRead.pop();
         if (read_found) {
-            pktNvmRead[0].erase(to_read);
+            pktNvmReadWaitIssue[0].erase(to_read);
         }
         else {
-            pktNvmRead[0].erase(pktNvmRead[0].begin());
+            pktNvmReadWaitIssue[0].erase(pktNvmReadWaitIssue[0].begin());
         }
     }
 
     else {
-        assert(!addrNvmRead.empty());
+        //assert(!addrNvmRead.empty());
+        assert(!pktNvmRead[0].empty());
         schedule(waitingToIssueNvmReadEvent, nvmReadEvent.when()+2);
         return;
     }
@@ -1334,7 +1331,7 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
 
     if (!waitingToIssueNvmReadEvent.scheduled() &&
         // !addrWaitingToIssueNvmRead.empty()) {
-        !pktNvmRead[0].empty()) {
+        !pktNvmReadWaitIssue[0].empty()) {
         schedule(waitingToIssueNvmReadEvent, curTick());
     }
 
@@ -1343,10 +1340,48 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
 void
 DcacheCtrl::processNvmReadEvent()
 {
-    assert(!addrNvmRead.empty());
+    //assert(!addrNvmRead.empty());
+    assert(!pktNvmRead[0].empty());
 
-    auto e = reqBuffer.at(addrNvmRead.top().second);
+    //auto e = reqBuffer.at(addrNvmRead.top().second);
+    MemPacketQueue::iterator to_read;
 
+    bool read_found = false;
+
+    bool switched_cmd_type = (busState == DcacheCtrl::WRITE);
+
+    for (auto queue = pktNvmRead.rbegin();
+                 queue != pktNvmRead.rend(); ++queue) {
+        // to_read = chooseNext((*queue), 0, false);
+        to_read = chooseNext((*queue), switched_cmd_type ?
+                                minWriteToReadDataGap() : 0, false);
+        if (to_read != queue->end()) {
+            // candidate read found
+            read_found = true;
+            break;
+        }
+    }
+
+    reqBufferEntry* e;
+    int index = 0;
+
+    if (read_found) {
+        e = reqBuffer.at((*to_read)->getAddr());
+    }
+    else {
+        auto min = pktNvmRead[0].front();
+        index = 0;
+        for (int i=0; i<pktNvmRead[0].size(); i++) {
+            if (min->readyTime > pktNvmRead[0].at(i)->readyTime &&
+                min->readyTime != pktNvmRead[0].at(i)->readyTime) {
+                min = pktNvmRead[0].at(i);
+                index = i;
+            }
+        }
+        e = reqBuffer.at(min->getAddr());
+    }
+
+///////////////////////////////////////
     assert(e->validEntry);
     assert(!e->isHit);
     assert(!e->dccPkt->isDram());
@@ -1395,12 +1430,31 @@ DcacheCtrl::processNvmReadEvent()
     //** keeping the state as it is, no transition
     e->state = nvmRead;
 
-    addrNvmRead.pop();
+    //addrNvmRead.pop();
+    if (read_found) {
+        pktNvmRead[0].erase(to_read);
+    }
+    else {
+        pktNvmRead[0].erase(pktNvmRead[0].begin()+index);
+    }
 
-    if (!addrNvmRead.empty()) {
+    // if (!addrNvmRead.empty()) {
+    //     assert(!nvmReadEvent.scheduled());
+    //     schedule(nvmReadEvent, std::max(nextReqTime,
+    //     reqBuffer.at(addrNvmRead.top().second)->dccPkt->readyTime+1));
+    // }
+    if (!pktNvmRead[0].empty()) {
         assert(!nvmReadEvent.scheduled());
-        schedule(nvmReadEvent, std::max(nextReqTime,
-        reqBuffer.at(addrNvmRead.top().second)->dccPkt->readyTime+1));
+        auto min = pktNvmRead[0].front();
+        index = 0;
+        for (int i=0; i<pktNvmRead[0].size(); i++) {
+            if (min->readyTime > pktNvmRead[0].at(i)->readyTime &&
+                min->readyTime != pktNvmRead[0].at(i)->readyTime) {
+                min = pktNvmRead[0].at(i);
+                index = i;
+            }
+        }
+        schedule(nvmReadEvent, std::max(nextReqTime, min->readyTime+1));
     }
 }
 

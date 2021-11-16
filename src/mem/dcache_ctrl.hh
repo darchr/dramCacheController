@@ -425,7 +425,7 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     std::priority_queue<addrNvmReadPair, std::vector<addrNvmReadPair>,
             std::greater<addrNvmReadPair> > addrWaitingToIssueNvmRead;
-    std::vector<MemPacketQueue> pktNvmRead;
+    std::vector<MemPacketQueue> pktNvmReadWaitIssue;
 
     /**
      * To avoid iterating over the outstanding requests
@@ -434,6 +434,8 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     std::priority_queue<addrNvmReadPair, std::vector<addrNvmReadPair>,
             std::greater<addrNvmReadPair> > addrNvmRead;
+
+    std::vector<MemPacketQueue> pktNvmRead;
 
     /**
      * To avoid iterating over the outstanding requests
