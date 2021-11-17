@@ -59,6 +59,10 @@ class NVMDCInterface;
 class DcacheCtrl : public QoS::MemCtrl
 {
   private:
+
+   bool stallRds = true;
+   unsigned wrCounterPerSwitch = 0;
+
    unsigned maxConf = 0,
    maxDrRdEv = 0, maxDrRdRespEv = 0,
    maxDrWrEv = 0,
@@ -187,6 +191,9 @@ class DcacheCtrl : public QoS::MemCtrl
     */
     void processNvmWriteEvent();
     EventFunctionWrapper nvmWriteEvent;
+
+    void processOverallWriteEvent();
+    EventFunctionWrapper overallWriteEvent;
 
     /**
      * Actually do the burst based on media specific access function.
@@ -503,6 +510,14 @@ class DcacheCtrl : public QoS::MemCtrl
     unsigned orbSize;
     unsigned crbMaxSize;
     unsigned crbSize;
+
+    unsigned writeHighThreshold;
+    unsigned writeLowThreshold;
+    unsigned minWritesPerSwitch;
+    unsigned minDrWrPerSwitch;
+    unsigned minNvWrPerSwitch;
+    unsigned drWrCounter;
+    unsigned nvWrCounter;
 
     /**
      * Memory controller configuration initialized based on parameter
