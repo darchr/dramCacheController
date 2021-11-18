@@ -1662,10 +1662,11 @@ DcacheCtrl::processOverallWriteEvent()
             port.sendRetryReq();
         }
 
-        if (drWrCounter < minWritesPerSwitch) {
+        if (drWrCounter < minWritesPerSwitch && !pktDramWrite[0].empty()) {
             assert(!overallWriteEvent.scheduled());
 
-            assert(!pktDramWrite[0].empty());
+            //////// here
+            //assert(!pktDramWrite[0].empty());
 
             drainDramWrite = true;
 
@@ -1776,10 +1777,11 @@ DcacheCtrl::processOverallWriteEvent()
                 pktNvmWrite[0].erase(pktNvmWrite[0].begin());
             }
 
-            if (nvWrCounter < minWritesPerSwitch) {
+            if (nvWrCounter < minWritesPerSwitch && !pktNvmWrite[0].empty()) {
                 assert(!overallWriteEvent.scheduled());
 
-                assert(!pktNvmWrite[0].empty());
+                ////// here
+                //assert(!pktNvmWrite[0].empty());
 
                 drainNvmWrite = true;
 
