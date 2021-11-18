@@ -1127,13 +1127,6 @@ class NVMDCInterface : public DCMemInterface
     std::deque<Tick> readReadyQueue;
 
     /**
-     * Check if the write response queue is empty
-     *
-     * @param Return true if empty
-     */
-    bool writeRespQueueEmpty() const { return writeRespQueue.empty(); }
-
-    /**
      * Till when must we wait before issuing next read command?
      */
     Tick nextReadAt;
@@ -1243,6 +1236,13 @@ class NVMDCInterface : public DCMemInterface
         return writeRespQueue.size() == maxPendingWrites;
     }
 
+     /**
+     * Check if the write response queue is empty
+     *
+     * @param Return true if empty
+     */
+    bool writeRespQueueEmpty() const { return writeRespQueue.empty(); }
+
     uint32_t
     getMaxPendingWrites()
     {
@@ -1253,6 +1253,12 @@ class NVMDCInterface : public DCMemInterface
     writeRespQueueFront()
     {
         return writeRespQueue.front();
+    }
+
+    unsigned
+    writeRespQueueSize()
+    {
+        return writeRespQueue.size();
     }
 
     bool

@@ -60,8 +60,10 @@ class DcacheCtrl : public QoS::MemCtrl
 {
   private:
 
-   bool stallRds = true;
-   unsigned wrCounterPerSwitch = 0;
+   bool stallRds = false;
+   bool drainDramWrite = false;
+   bool drainNvmWrite = false;
+
 
    unsigned maxConf = 0,
    maxDrRdEv = 0, maxDrRdRespEv = 0,
@@ -147,13 +149,6 @@ class DcacheCtrl : public QoS::MemCtrl
     EventFunctionWrapper dramReadEvent;
 
     /**
-     * processDramWriteEvent() is an event handler which
-     * handles DRAM write accesses in the DRAM Cache Controller.
-    */
-    void processDramWriteEvent();
-    EventFunctionWrapper dramWriteEvent;
-
-    /**
      * processRespDramReadEvent() is an event handler which
      * handles the responses of the initial DRAM read accesses
      * for the received packets by the DRAM Cache Controller.
@@ -186,11 +181,9 @@ class DcacheCtrl : public QoS::MemCtrl
     EventFunctionWrapper respNvmReadEvent;
 
     /**
-     * processNvmWriteEvent() is an event handler which
-     * handles NVM write accesses in the DRAM Cache Controller.
+     * processOverallWriteEvent() is an event handler which
+     * handles all write accesses to DRAM and NVM.
     */
-    void processNvmWriteEvent();
-    EventFunctionWrapper nvmWriteEvent;
 
     void processOverallWriteEvent();
     EventFunctionWrapper overallWriteEvent;
@@ -478,6 +471,7 @@ class DcacheCtrl : public QoS::MemCtrl
     void checkConflictInCRB(reqBufferEntry* orbEntry);
     bool resumeConflictingReq(reqBufferEntry* orbEntry);
     void logStatsDcache(reqBufferEntry* orbEntry);
+    Tick earliestDirtyLineInDrRdResp();
 
     /**
      * Holds count of commands issued in burst window starting at
@@ -514,6 +508,7 @@ class DcacheCtrl : public QoS::MemCtrl
     unsigned writeHighThreshold;
     unsigned writeLowThreshold;
     unsigned minWritesPerSwitch;
+    float dramWrDrainPerc;
     unsigned minDrWrPerSwitch;
     unsigned minNvWrPerSwitch;
     unsigned drWrCounter;
