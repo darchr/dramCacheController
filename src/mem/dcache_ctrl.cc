@@ -446,8 +446,10 @@ DcacheCtrl::checkConflictInDramCache(PacketPtr pkt)
     unsigned indexDC = returnIndexDC(pkt->getAddr(), pkt->getSize());
 
     for (auto e = reqBuffer.begin(); e != reqBuffer.end(); ++e) {
-        if (indexDC == e->second->indexDC &&
-            confReqBuffer.size() < crbMaxSize) {
+        if (indexDC == e->second->indexDC
+            && e->second->validEntry
+            //&& confReqBuffer.size() < crbMaxSize
+            ) {
 
             e->second->conflict = true;
 
