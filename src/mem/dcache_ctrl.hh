@@ -583,6 +583,8 @@ class DcacheCtrl : public QoS::MemCtrl
         //Stats::Vector wrQLenPdf;
         //Stats::Histogram rdPerTurnAround;
         //Stats::Histogram wrPerTurnAround;
+        Stats::Scalar rdToWrTurnAround;
+        Stats::Scalar wrToRdTurnAround;
 
         Stats::Scalar bytesReadWrQ;
         Stats::Scalar bytesReadSys;
