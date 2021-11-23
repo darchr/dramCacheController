@@ -1708,7 +1708,10 @@ DcacheCtrl::processRespNvmReadEvent()
 void
 DcacheCtrl::processOverallWriteEvent()
 {
-    //std::cout << curTick() << "\n";
+    // if (curTick()>=6076821250) {
+    // std::cout << "--- " << curTick()  << " / "  << pktDramWrite[0].size()
+    // << " / " << pktNvmWrite[0].size() << "\n";
+    // }
 
     assert(stallRds);
 
@@ -2016,7 +2019,10 @@ DcacheCtrl::processOverallWriteEvent()
     }
     else if ((!pktDramWrite[0].empty() && drWrCounter < minDrWrPerSwitch) ||
         (!pktDramWrite[0].empty() && pktNvmWrite[0].empty() &&
-        (drWrCounter+nvWrCounter)<minWritesPerSwitch)) {
+        (drWrCounter+nvWrCounter)<minWritesPerSwitch) ||
+        (pktDramRead[0].empty() && pktNvmReadWaitIssue[0].empty()
+        && pktNvmRead[0].empty()
+        && pktNvmWrite[0].empty() && !pktDramWrite[0].empty())) {
 
         //std::cout << "c\n";
 
@@ -2100,8 +2106,11 @@ DcacheCtrl::processOverallWriteEvent()
 
     else if ((!pktNvmWrite[0].empty() && nvWrCounter < minNvWrPerSwitch) ||
              (!pktNvmWrite[0].empty() && pktDramWrite[0].empty() &&
-             (drWrCounter+nvWrCounter)<minWritesPerSwitch)) {
-        // std::cout << "d\n";
+             (drWrCounter+nvWrCounter)<minWritesPerSwitch) ||
+        (pktDramRead[0].empty() && pktNvmReadWaitIssue[0].empty()
+        && pktNvmRead[0].empty()
+        && pktDramWrite[0].empty() && !pktNvmWrite[0].empty())) {
+        //std::cout << "d\n";
 
         if (!nvm->writeRespQueueFull()) {
 
@@ -2182,10 +2191,10 @@ DcacheCtrl::processOverallWriteEvent()
         }
     }
 
-    // std::cout << "ff: " << curTick() << " / " <<
+    // std::cout << "gg: " << curTick() << " / " <<
     // pktDramRead[0].size() << " / " <<
     // pktNvmReadWaitIssue[0].size() << " / " <<
-    // pktNvmWrite[0].size() << " / " <<
+    // pktNvmRead[0].size() << " / " <<
     // pktDramWrite[0].size() << " / " <<
     // pktNvmWrite[0].size() << " / " <<
     // drWrCounter << " / " <<
@@ -2209,12 +2218,12 @@ DcacheCtrl::processOverallWriteEvent()
                 )
             )
         ) {
-        // std::cout << "e\n";
+        //std::cout << "e\n";
         stallRds = true;
         schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
     }
     else {
-        // std::cout << "f\n";
+        //std::cout << "f\n";
 
         stallRds = false;
 
