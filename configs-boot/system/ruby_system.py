@@ -63,6 +63,9 @@ class MyRubySystem(System):
         # Create the CPUs for our system.
         self.createCPU(cpu_type, num_cpus)
 
+
+        self.intrctrl = IntrControl()
+
         self.createMemoryControllersDDR3()
 
         # Create the cache hierarchy for the system.
@@ -75,7 +78,7 @@ class MyRubySystem(System):
         elif mem_sys == 'MOESI_CMP_directory':
             from .MOESI_CMP_directory import MOESICMPDirCache
             self.caches = MOESICMPDirCache()
-        self.caches.setup(self, self.cpu, self.mem_cntrls,
+        self.caches.setup(self, self.cpu, self.mem_ctrl,
                           [self.pc.south_bridge.ide.dma, self.iobus.mem_side_ports],
                           self.iobus)
 
@@ -128,10 +131,22 @@ class MyRubySystem(System):
         self._createMemoryControllers(1, DDR3_1600_8x8)
 
     def _createMemoryControllers(self, num, cls):
-        self.mem_cntrls = [
-            MemCtrl(dram = cls(range = self.mem_ranges[0]))
-            for i in range(num)
-        ]
+        #self.mem_cntrls = [
+        #    MemCtrl(dram = cls(range = self.mem_ranges[0]))
+        #    for i in range(num)
+        #]
+
+        self.mem_ctrl = DcacheCtrl()
+        #self.mem_ctrl.port = self.membus.mem_side_ports
+        self.mem_ctrl.dram = cls(range=Addr('3GB'),
+                                                in_addr_map=False, null=True,
+                                                kvm_map=False, conf_table_reported=False)
+        self.mem_ctrl.nvm = NVM_2400_1x64(range=self.mem_ranges[0])
+
+        self.mem_ctrl.dram.tREFI = "200"
+        self.mem_ctrl.dram_cache_size = "1024MB"
+        self.mem_ctrl.orb_max_size = "128"
+        self.mem_ctrl.crb_max_size = "32"
 
     def initFS(self, cpus):
         self.pc = Pc()

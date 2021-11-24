@@ -184,6 +184,7 @@ DcacheCtrl::recvAtomic(PacketPtr pkt)
 
     Tick latency = 0;
     // do the actual memory access and turn the packet into a response
+    /*
     if (dram && dram->getAddrRange().contains(pkt->getAddr())) {
         dram->access(pkt);
 
@@ -192,7 +193,9 @@ DcacheCtrl::recvAtomic(PacketPtr pkt)
             // keep things going, mimic a closed page
             latency = dram->accessLatency();
         }
-    } else if (nvm && nvm->getAddrRange().contains(pkt->getAddr())) {
+    } else 
+    */
+    if (nvm && nvm->getAddrRange().contains(pkt->getAddr())) {
         nvm->access(pkt);
 
         if (pkt->hasData()) {
