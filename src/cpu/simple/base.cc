@@ -162,11 +162,17 @@ BaseSimpleCPU::countInst()
     if (!curStaticInst->isMicroop() || curStaticInst->isLastMicroop()) {
         t_info.numInst++;
         t_info.execContextStats.numInsts++;
+        if (TheISA::inUserMode(t_info.tcBase())) {
+            t_info.execContextStats.numUserInsts++;
+        }
 
         t_info.thread->funcExeInst++;
     }
     t_info.numOp++;
     t_info.execContextStats.numOps++;
+    if (TheISA::inUserMode(t_info.tcBase())) {
+        t_info.execContextStats.numUserOps++;
+    }
 }
 
 Counter

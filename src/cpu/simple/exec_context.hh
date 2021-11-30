@@ -88,6 +88,9 @@ class SimpleExecContext : public ExecContext
               ADD_STAT(numInsts, "Number of instructions committed"),
               ADD_STAT(numOps,
                        "Number of ops (including micro ops) committed"),
+              ADD_STAT(numUserInsts,
+                       "Number of user-mode instructions committed"),
+              ADD_STAT(numUserOps, "Number of user-mode ops committed"),
               ADD_STAT(numIntAluAccesses, "Number of integer alu accesses"),
               ADD_STAT(numFpAluAccesses, "Number of float alu accesses"),
               ADD_STAT(numVecAluAccesses, "Number of vector alu accesses"),
@@ -170,6 +173,11 @@ class SimpleExecContext : public ExecContext
         // Number of simulated instructions
         Stats::Scalar numInsts;
         Stats::Scalar numOps;
+
+        // Number of Simualted instructions
+        // in user-mode
+        Stats::Scalar numUserInsts;
+        Stats::Scalar numUserOps;
 
         // Number of integer alu accesses
         Stats::Scalar numIntAluAccesses;
