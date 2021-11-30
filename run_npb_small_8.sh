@@ -1,0 +1,9 @@
+build/X86_MESI_Two_Level/gem5.opt -re --outdir=small-npb/bt.C.8 configs-npb-small/run_npb.py ../vmlinux-4.9.186 ../npb.img timing MESI_Two_Level bt.C.x 8 &
+build/X86_MESI_Two_Level/gem5.opt -re --outdir=small-npb/ep.C.8 configs-npb-small/run_npb.py ../vmlinux-4.9.186 ../npb.img timing MESI_Two_Level ep.C.x 8 &
+build/X86_MESI_Two_Level/gem5.opt -re --outdir=small-npb/ft.C.8 configs-npb-small/run_npb.py ../vmlinux-4.9.186 ../npb.img timing MESI_Two_Level ft.C.x 8 &
+build/X86_MESI_Two_Level/gem5.opt -re --outdir=small-npb/sp.C.8 configs-npb-small/run_npb.py ../vmlinux-4.9.186 ../npb.img timing MESI_Two_Level sp.C.x 8 &
+build/X86_MESI_Two_Level/gem5.opt -re --outdir=small-npb/cg.C.8 configs-npb-small/run_npb.py ../vmlinux-4.9.186 ../npb.img timing MESI_Two_Level cg.C.x 8 &
+build/X86_MESI_Two_Level/gem5.opt -re --outdir=small-npb/is.C.8 configs-npb-small/run_npb.py ../vmlinux-4.9.186 ../npb.img timing MESI_Two_Level is.C.x 8 &
+build/X86_MESI_Two_Level/gem5.opt -re --outdir=small-npb/lu.C.8 configs-npb-small/run_npb.py ../vmlinux-4.9.186 ../npb.img timing MESI_Two_Level lu.C.x 8 &
+build/X86_MESI_Two_Level/gem5.opt -re --outdir=small-npb/ua.C.8 configs-npb-small/run_npb.py ../vmlinux-4.9.186 ../npb.img timing MESI_Two_Level ua.C.x 8 &
+build/X86_MESI_Two_Level/gem5.opt -re --outdir=small-npb/mg.C.8 configs-npb-small/run_npb.py ../vmlinux-4.9.186 ../npb.img timing MESI_Two_Level mg.C.x 8 &

@@ -34,9 +34,9 @@ from .fs_tools import *
 
 class MyRubySystem(System):
 
-    def __init__(self, kernel, disk, mem_sys, num_cpus, opts):
+    def __init__(self, kernel, disk, mem_sys, num_cpus):
         super(MyRubySystem, self).__init__()
-        self._opts = opts
+        #self._opts = opts
 
         self._host_parallel = True
 
@@ -45,7 +45,7 @@ class MyRubySystem(System):
         self.clk_domain.clock = '4GHz'
         self.clk_domain.voltage_domain = VoltageDomain()
 
-        self.mem_ranges = [AddrRange(Addr('20GB')), # All data
+        self.mem_ranges = [AddrRange(Addr('3GB')), # All data
                            AddrRange(0xC0000000, size=0x100000), # For I/0
                            ]
 
@@ -146,7 +146,7 @@ class MyRubySystem(System):
 
         self.mem_ctrl = DcacheCtrl()
         #self.mem_ctrl.port = self.membus.mem_side_ports
-        self.mem_ctrl.dram = cls(range=Addr('20GB'),
+        self.mem_ctrl.dram = cls(range=Addr('3GB'),
                                                 in_addr_map=False, null=True,
                                                 kvm_map=False, conf_table_reported=False)
         self.mem_ctrl.nvm = NVM_2400_1x64(range=self.mem_ranges[0])

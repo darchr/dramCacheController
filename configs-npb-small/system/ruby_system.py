@@ -42,7 +42,7 @@ class MyRubySystem(System):
 
         # Set up the clock domain and the voltage domain
         self.clk_domain = SrcClockDomain()
-        self.clk_domain.clock = '3GHz'
+        self.clk_domain.clock = '4GHz'
         self.clk_domain.voltage_domain = VoltageDomain()
 
         self.mem_ranges = [AddrRange(Addr('3GB')), # All data
@@ -122,7 +122,6 @@ class MyRubySystem(System):
         self.createCPUThreads(self.atomicCpu)
 
         self.timingCpu = [TimingSimpleCPU(cpu_id = i,
-                                     max_insts_any_thread = 500000000,
                                      switched_out = True)
 				   for i in range(num_cpus)]
         self.createCPUThreads(self.timingCpu)
