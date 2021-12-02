@@ -105,24 +105,8 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
         writeHighThreshold = 1;
     }
 
-    // if (orbMaxSize == 1) {
-    //     minWritesPerSwitch = 2;
-    //     minDrWrPerSwitch = 1;
-    //     minNvWrPerSwitch = 1;
-    // }
-    // else {
-    //     minWritesPerSwitch = orbMaxSize * 0.2;
-    //     minDrWrPerSwitch = 0.7 * minWritesPerSwitch;
-    //     minNvWrPerSwitch = minWritesPerSwitch - minDrWrPerSwitch;
-    // }
-
     minDrWrPerSwitch = 0.7 * minWritesPerSwitch;
     minNvWrPerSwitch = minWritesPerSwitch - minDrWrPerSwitch;
-
-    // std::cout << orbMaxSize << " / " << writeHighThreshold << " / "
-    // << writeLowThreshold << " / " << minWritesPerSwitch << " / "
-    // << dramWrDrainPerc*orbMaxSize << " / " << minDrWrPerSwitch << " / "
-    // << minNvWrPerSwitch << "\n";
 
     drWrCounter = 0;
     nvWrCounter = 0;
@@ -131,6 +115,19 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
     // dramCacheSize = dramCacheSize*1024*1024;
 
     tagMetadataStore.resize(dramCacheSize/blockSize);
+
+    for (int i=0; i<tagMetadataStore.size(); i++) {
+        Addr temp = rand();
+        temp = temp*64;
+
+        temp = temp % dramCacheSize;
+
+        tagMetadataStore.at(i).tagDC = returnTagDC(temp, blockSize);
+        tagMetadataStore.at(i).indexDC = returnIndexDC(temp, blockSize);
+        tagMetadataStore.at(i).validLine = true;
+        tagMetadataStore.at(i).dirtyLine = true;
+        tagMetadataStore.at(i).nvmAddr = temp;
+    }
 
     // Hook up interfaces to the controller
     if (dram)
@@ -433,7 +430,6 @@ DcacheCtrl::checkConflictInDramCache(PacketPtr pkt)
     for (auto e = reqBuffer.begin(); e != reqBuffer.end(); ++e) {
         if (indexDC == e->second->indexDC
             && e->second->validEntry
-            //&& confReqBuffer.size() < crbMaxSize
             ) {
 
             e->second->conflict = true;
@@ -878,29 +874,6 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     // process conflicting requests
     // calculate dram address: ignored for now (because Dsize=Nsize)
     if (checkConflictInDramCache(pkt)) {
-
-        // std::cout << curTick() << ": " << pkt->getAddr() << " / " <<
-        // reqBuffer.at(pkt->getAddr())->validEntry << " / " <<
-        // reqBuffer.at(pkt->getAddr())->conflict << " / " <<
-        // reqBuffer.at(pkt->getAddr())->isHit << " / " <<
-        // reqBuffer.at(pkt->getAddr())->state << " / " <<
-        // reqBuffer.at(pkt->getAddr())->dccPkt->isRead() << " / " <<
-        // reqBuffer.at(pkt->getAddr())->dccPkt->isDram() << " //// " <<
-        // dramReadEvent.scheduled()<< " / " <<
-        // respDramReadEvent.scheduled()<< " / " <<
-        // waitingToIssueNvmReadEvent.scheduled()<< " / " <<
-        // nvmReadEvent.scheduled()<< " / " <<
-        // respNvmReadEvent.scheduled()<< " / " <<
-        // overallWriteEvent.scheduled() << " |||||| " <<
-        // pktDramRead[0].size() << " / " <<
-        // pktNvmReadWaitIssue[0].size() << " / " <<
-        // pktNvmRead[0].size() << " / " <<
-        // pktDramWrite[0].size() << " / " <<
-        // pktNvmWrite[0].size() << " / " <<
-        // addrDramRespReady.size() << " / " <<
-        // addrNvmRespReady.size() << " / " <<
-        // "\n";
-
 
         stats.totNumConf++;
 
