@@ -77,7 +77,8 @@ MemTypes = {
     'ddr4_2400' : DDR4_2400_16x4,
     'ddr5_6800' : DDR5_6800_2x8,
     'ddr5_8400' : DDR5_8400_2x8,
-    'hbm_1000': HBM_1000_4H_1x128,
+    'hbm_1000' : HBM_1000_4H_1x128,
+    'hbm_ddr3' : HBM_FROM_DDR3,
     'nvm_2400' : NVM_2400_1x64,
     'nvm_300' : NVM_300_1x64
 }
