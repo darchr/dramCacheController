@@ -67,3 +67,17 @@ class NVM_2400_1x64(NVMDCInterface):
     tRTW = '1.666ns';
     tCS = '1.666ns'
 
+# Hypothetical high latency nvm
+class NVM_Slow(NVM_2400_1x64):
+    tREAD = '300ns'
+    tWRITE = '1000ns';
+    tSEND = '28.32ns';
+    tBURST = '6.664ns';
+
+
+# Hypothetical low latency nvm
+class NVM_Fast(NVM_2400_1x64):
+    tREAD = '75ns'
+    tWRITE = '250ns';
+    tSEND = '7.08ns';
+    tBURST = '1.666ns';
