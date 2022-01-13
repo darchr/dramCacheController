@@ -60,6 +60,8 @@
 #include "mem/abstract_mem.hh"
 #include "mem/dcache_ctrl.hh"
 #include "mem/dramcachepower.hh"
+#include "mem/mem_ctrl.hh"
+#include "mem/qos/mem_ctrl.hh"
 #include "params/DCMemInterface.hh"
 #include "params/DRAMDCInterface.hh"
 #include "params/NVMDCInterface.hh"
@@ -109,7 +111,7 @@ class DCMemInterface : public AbstractMemory
     /**
      * A pointer to the parent DcacheCtrl instance
      */
-    DcacheCtrl* ctrl;
+    QoS::MemCtrl* ctrl;
 
     /**
      * Number of commands that can issue in the defined controller
@@ -182,7 +184,7 @@ class DCMemInterface : public AbstractMemory
      * @param command_window size of command window used to
      *                       check command bandwidth
      */
-    void setCtrl(DcacheCtrl* _ctrl, unsigned int command_window);
+    void setCtrl(QoS::MemCtrl* _ctrl, unsigned int command_window);
 
     /**
      * Get an address in a dense range which starts from 0. The input
