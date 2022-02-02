@@ -194,3 +194,103 @@ class HBM_1000_4H_1x64(HBM_1000_4H_1x128):
 
     # self refresh exit time
     tXS = "65ns"
+
+# This is a hypothetical HBM interface based on DDR3
+# Increases the clock of DDR3 by 10x
+# Decreases burst length (and increaes device
+# bus width) by 2x
+class HBM_FROM_DDR3(DRAMInterface):
+    # size of device in bytes
+    device_size = '512MiB'
+
+    device_bus_width = 16
+
+    # Using a burst length of 4
+    burst_length = 4
+
+    # Each device has a page (row buffer) size of 1 Kbyte (1K columns x8)
+    device_rowbuffer_size = '1KiB'
+
+    # 8x8 configuration, so 8 devices
+    devices_per_rank = 8
+
+    # Use two ranks
+    ranks_per_channel = 2
+
+    # DDR3 has 8 banks in all configurations
+    banks_per_rank = 8
+
+    # 8000 MHz
+    tCK = '0.125ns'
+
+    # 4 beats across an x64 interface translates to 2 clocks @ 8000 MHz
+    tBURST = '0.25ns'
+
+    # Keeping the other times same as DDR3
+    # DDR3-1600 11-11-11
+    tRCD = '13.75ns'
+    tCL = '13.75ns'
+    tRP = '13.75ns'
+    tRAS = '35ns'
+    tRRD = '6ns'
+    tXAW = '30ns'
+    activation_limit = 4
+    tRFC = '260ns'
+
+    tWR = '15ns'
+
+    # Greater of 4 CK or 7.5 ns
+    tWTR = '7.5ns'
+
+    # Greater of 4 CK or 7.5 ns
+    tRTP = '7.5ns'
+
+    # Default same rank rd-to-wr bus turnaround to 2 CK, @800 MHz = 2.5 ns
+    tRTW = '2.5ns'
+
+    # Default different rank bus delay to 2 CK, @800 MHz = 2.5 ns
+    tCS = '2.5ns'
+
+    # <=85C, half for >85C
+    tREFI = '7.8us'
+
+    # active powerdown and precharge powerdown exit time
+    tXP = '6ns'
+
+    # self refresh exit time
+    tXS = '270ns'
+
+    # Current values from datasheet Die Rev E,J
+    IDD0 = '55mA'
+    IDD2N = '32mA'
+    IDD3N = '38mA'
+    IDD4W = '125mA'
+    IDD4R = '157mA'
+    IDD5 = '235mA'
+    IDD3P1 = '38mA'
+    IDD2P1 = '32mA'
+    IDD6 = '20mA'
+    VDD = '1.5V'
+
+    read_buffer_size = 1024
+    write_buffer_size = 1024
+
+class HBM_1000_4H_1x64_pseudo(HBM_1000_4H_1x64):
+    """
+    This is an approximation of HBM_1000_4H_1x64
+    single channel (with two pseudo channels)
+    decreases the burst length by 2x -->
+    increases the bus width to maintain an atom
+    size of 64 bytes
+    increases clock frequency by 2x (is 
+    that needed?)
+    """
+
+    device_bus_width = 128
+    burst_length = 2
+
+    tCK = "1ns"
+    tBURST = "2ns"
+
+
+
