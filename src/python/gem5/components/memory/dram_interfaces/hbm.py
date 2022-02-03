@@ -286,7 +286,7 @@ class HBM_1000_4H_1x64_pseudo(HBM_1000_4H_1x64):
     that needed?)
     """
 
-    device_bus_width = 128
+    device_bus_width = 256
     burst_length = 2
 
     tCK = "1ns"
