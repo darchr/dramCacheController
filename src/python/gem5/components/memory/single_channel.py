@@ -113,7 +113,7 @@ def SingleChannelHBMPseudo(
     size: Optional[str] = None,
 ) -> AbstractMemorySystem:
     if not size:
-        size = "256MiB"
+        size = "512MiB"
     return ChanneledMemory(
         HBM_1000_4H_1x64_pseudo,
         1,
