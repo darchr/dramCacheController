@@ -99,7 +99,7 @@ else:
     fatal("Generator type not supported")
 
 motherboard = TestBoard(
-    clk_freq="4GHz",
+    clk_freq="8GHz",
     processor=generator,
     memory=memory,
     cache_hierarchy=cache_hierarchy,
