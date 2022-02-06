@@ -195,6 +195,9 @@ class HBM_1000_4H_1x64(HBM_1000_4H_1x128):
     # self refresh exit time
     tXS = "65ns"
 
+    read_buffer_size = 64
+    write_buffer_size = 64
+
 # This is a hypothetical HBM interface based on DDR3
 # Increases the clock of DDR3 by 10x
 # Decreases burst length (and increaes device
@@ -275,6 +278,86 @@ class HBM_FROM_DDR3(DRAMInterface):
     read_buffer_size = 1024
     write_buffer_size = 1024
 
+# This is a hypothetical HBM interface based on DDR3
+# Increases the clock of DDR3 by 10x
+# Decreases burst length (and increaes device
+# bus width) by 2x
+class HBM_FROM_DDR3_v2(DRAMInterface):
+    # size of device in bytes
+    device_size = '512MiB'
+
+    device_bus_width = 16
+
+    # Using a burst length of 4
+    burst_length = 4
+
+    # Each device has a page (row buffer) size of 1 Kbyte (1K columns x8)
+    device_rowbuffer_size = '1KiB'
+
+    # 8x8 configuration, so 8 devices
+    devices_per_rank = 8
+
+    # Use two ranks
+    ranks_per_channel = 2
+
+    # DDR3 has 8 banks in all configurations
+    banks_per_rank = 8
+
+    # 8000 MHz
+    tCK = '0.125ns'
+
+    # 4 beats across an x64 interface translates to 2 clocks @ 8000 MHz
+    tBURST = '0.25ns'
+
+    # Keeping the other times same as DDR3
+    # DDR3-1600 11-11-11
+    tRCD = '1.375ns'
+    tCL = '1.375ns'
+    tRP = '1.375ns'
+    tRAS = '3.5ns'
+    tRRD = '0.6ns'
+    tXAW = '3ns'
+    activation_limit = 4
+    tRFC = '26ns'
+
+    tWR = '1.5ns'
+
+    # Greater of 4 CK or 7.5 ns
+    tWTR = '0.75ns'
+
+    # Greater of 4 CK or 7.5 ns
+    tRTP = '0.75ns'
+
+    # Default same rank rd-to-wr bus turnaround to 2 CK, @800 MHz = 2.5 ns
+    tRTW = '0.25ns'
+
+    # Default different rank bus delay to 2 CK, @800 MHz = 2.5 ns
+    tCS = '0.25ns'
+
+    # <=85C, half for >85C
+    tREFI = '0.78us'
+
+    # active powerdown and precharge powerdown exit time
+    tXP = '0.6ns'
+
+    # self refresh exit time
+    tXS = '27ns'
+
+    # Current values from datasheet Die Rev E,J
+    IDD0 = '55mA'
+    IDD2N = '32mA'
+    IDD3N = '38mA'
+    IDD4W = '125mA'
+    IDD4R = '157mA'
+    IDD5 = '235mA'
+    IDD3P1 = '38mA'
+    IDD2P1 = '32mA'
+    IDD6 = '20mA'
+    VDD = '1.5V'
+
+    read_buffer_size = 1024
+    write_buffer_size = 1024
+
 class HBM_1000_4H_1x64_pseudo(HBM_1000_4H_1x64):
     """
     This is an approximation of HBM_1000_4H_1x64
@@ -282,7 +365,7 @@ class HBM_1000_4H_1x64_pseudo(HBM_1000_4H_1x64):
     decreases the burst length by 2x -->
     increases the bus width to maintain an atom
     size of 64 bytes
-    increases clock frequency by 2x (is 
+    increases clock frequency by 2x (is
     that needed?)
     """
 
@@ -292,5 +375,42 @@ class HBM_1000_4H_1x64_pseudo(HBM_1000_4H_1x64):
     tCK = "1ns"
     tBURST = "2ns"
 
+    read_buffer_size = 128
+    write_buffer_size = 128
 
+class HBM_1000_4H_1x64_pseudo_v2(HBM_1000_4H_1x64):
+    """
+    This is an approximation of HBM_1000_4H_1x64
+    single channel (with two pseudo channels)
+    decreases the burst length by 2x -->
+    increases the bus width to maintain an atom
+    size of 64 bytes
+    increases clock frequency by 2x (is
+    that needed?)
+    """
 
+    device_bus_width = 256
+    burst_length = 2
+
+    tCK = "1ns"
+    tBURST = "2ns"
+
+    tRFC = "130ns"
+
+    tXS = "134ns"
+    tCS = "1ns"
+    tREFI = "1.95us"
+    tXP = "5ns"
+    tRP = "7.5ns"
+    tRCD = "7.5ns"
+    tCL = "7.5ns"
+    tRAS = "16.5ns"
+    tWR = "9ns"
+    tRTP = "3.75ns"
+    tWTR = "5ns"
+    tRTW = "2ns"
+    tRRD = "2ns"
+    tXAW = "15ns"
+
+    read_buffer_size = 128
+    write_buffer_size = 128
