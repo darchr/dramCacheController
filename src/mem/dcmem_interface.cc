@@ -75,9 +75,13 @@ DCMemInterface::DCMemInterface(const DCMemInterfaceParams &_p)
 {}
 
 void
-DCMemInterface::setCtrl(DcacheCtrl* _ctrl, unsigned int command_window)
+DCMemInterface::setCtrl(QoS::MemCtrl* _ctrl, unsigned int command_window)
 {
-    ctrl = _ctrl;
+    if (dynamic_cast<DcacheCtrl*>(_ctrl) != nullptr) {
+        ctrl = dynamic_cast<DcacheCtrl*>(_ctrl);
+    } else {
+        ctrl = dynamic_cast<MemCtrl*>(_ctrl);
+    }
     maxCommandsPerWindow = command_window / tCK;
 }
 
@@ -2450,9 +2454,9 @@ NVMDCInterface::doBurstAccess(MemPacket* pkt, Tick next_burst_at)
         bank_ref.actAllowedAt = std::max(pkt->readyTime,
                                 bank_ref.actAllowedAt) + tWRITE;
 
-        if (rand()%14000==0) {
-            bank_ref.actAllowedAt += 60000000;
-        }
+        // if (rand()%14000==0) {
+        //     bank_ref.actAllowedAt += 60000000;
+        // }
 
         // Need to track number of outstanding writes to
         // ensure 'buffer' on media controller does not overflow
