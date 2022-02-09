@@ -2029,7 +2029,7 @@ DRAMInterface::RankStats::regStats()
         .subname(5, "ACT_PDN");
 
     cmdBusUtil.precision(2);
-    cmdBusUtil = cmdIssued/(simSeconds*1e12/rank.getDRAM().tCK);
+    cmdBusUtil = cmdIssued/(simTicks/rank.getDRAM().tCK);
 
 }
 
