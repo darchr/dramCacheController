@@ -460,6 +460,13 @@ class DRAMInterface : public MemInterface
          * Track time spent in each power state.
          */
         statistics::Vector pwrStateTime;
+
+
+        /**
+         * cmds issued to this rank
+         */
+        statistics::Scalar cmdIssued;
+        statistics::Formula cmdBusUtil;
     };
 
     /**
@@ -514,6 +521,10 @@ class DRAMInterface : public MemInterface
         void schedulePowerEvent(PowerState pwr_state, Tick tick);
 
       public:
+
+        DRAMInterface& getDRAM(){
+          return dram;
+        };
 
         /**
          * Current power state.
