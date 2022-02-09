@@ -302,7 +302,12 @@ class MemCtrl : public ClockedObject
 
     virtual bool requestEventScheduled() const {
             panic("QoS::MemCtrl requestEventScheduled wrongly called \n");
-                    return false;
+                return false;
+        };
+
+    virtual bool respondEventScheduled() const {
+            panic("QoS::MemCtrl respondEventScheduled wrongly called \n");
+                return false;
         };
 
     virtual void restartScheduler(Tick tick) {
