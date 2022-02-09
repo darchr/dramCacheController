@@ -52,14 +52,20 @@
 #include <utility>
 #include <vector>
 
+#include "base/compiler.hh"
 #include "base/statistics.hh"
 #include "enums/AddrMap.hh"
 #include "enums/PageManage.hh"
 #include "mem/abstract_mem.hh"
-#include "mem/drampower.hh"
+
+
+#include "mem/dcache_ctrl.hh"
 #include "mem/mem_ctrl.hh"
-#include "params/DRAMInterface.hh"
+#include "mem/drampower.hh"
+#include "mem/qos/mem_ctrl.hh"
+
 #include "params/MemInterface.hh"
+#include "params/DRAMInterface.hh"
 #include "params/NVMInterface.hh"
 #include "sim/eventq.hh"
 
@@ -107,7 +113,7 @@ class MemInterface : public AbstractMemory
     /**
      * A pointer to the parent MemCtrl instance
      */
-    MemCtrl* ctrl;
+    QoS::MemCtrl* ctrl;
 
     /**
      * Number of commands that can issue in the defined controller
@@ -179,7 +185,7 @@ class MemInterface : public AbstractMemory
      * @param command_window size of command window used to
      *                       check command bandwidth
      */
-    void setCtrl(MemCtrl* _ctrl, unsigned int command_window);
+    void setCtrl(QoS::MemCtrl* _ctrl, unsigned int command_window);
 
     /**
      * Get an address in a dense range which starts from 0. The input
@@ -960,6 +966,22 @@ class DRAMInterface : public MemInterface
     doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
                   const std::vector<MemPacketQueue>& queue);
 
+
+    /**
+     * Specifically for dcache_ctrlr only.
+     * Actually do the burst - figure out the latency it
+     * will take to service the req based on bank state, channel state etc
+     * and then update those states to account for this request. Based
+     * on this, update the packet's "readyTime" and move it to the
+     * response q from where it will eventually go back to the outside
+     * world.
+     *
+     * @param dcc_pkt The packet created from the outside world pkt
+     * @param next_burst_at Minimum bus timing requirement from controller
+     */
+    std::pair<Tick, Tick>
+    doBurstAccess(MemPacket* dcc_pkt, Tick next_burst_at);
+
     /**
      * Check if a burst operation can be issued to the DRAM
      *
@@ -1124,13 +1146,6 @@ class NVMInterface : public MemInterface
     std::deque<Tick> readReadyQueue;
 
     /**
-     * Check if the write response queue is empty
-     *
-     * @param Return true if empty
-     */
-    bool writeRespQueueEmpty() const { return writeRespQueue.empty(); }
-
-    /**
      * Till when must we wait before issuing next read command?
      */
     Tick nextReadAt;
@@ -1222,6 +1237,8 @@ class NVMInterface : public MemInterface
      */
     void chooseRead(MemPacketQueue& queue);
 
+    void processReadPkt(MemPacket* pkt);
+
     /*
      * Function to calulate unloaded access latency
      */
@@ -1237,6 +1254,34 @@ class NVMInterface : public MemInterface
     {
         return writeRespQueue.size() == maxPendingWrites;
     }
+
+         /**
+     * Check if the write response queue is empty
+     *
+     * @param Return true if empty
+     */
+    bool writeRespQueueEmpty() const { return writeRespQueue.empty(); }
+
+
+    uint32_t
+    getMaxPendingWrites()
+    {
+        return maxPendingWrites;
+    }
+
+
+    Tick
+    writeRespQueueFront()
+    {
+        return writeRespQueue.front();
+    }
+
+    unsigned
+    writeRespQueueSize()
+    {
+        return writeRespQueue.size();
+    }
+
 
     bool
     readsWaitingToIssue() const

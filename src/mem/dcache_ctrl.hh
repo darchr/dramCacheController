@@ -53,8 +53,8 @@
 #include "mem/mem_ctrl.hh"
 #include "params/DcacheCtrl.hh"
 
-class DRAMDCInterface;
-class NVMDCInterface;
+class DRAMInterface;
+class NVMInterface;
 
 class DcacheCtrl : public QoS::MemCtrl
 {
@@ -483,13 +483,13 @@ class DcacheCtrl : public QoS::MemCtrl
     /**
      * Create pointer to interface of the actual dram media when connected
      */
-    DRAMDCInterface* const dram;
+    DRAMInterface* const dram;
 
     /**
      * Create pointer to interface of the actual nvm media when connected
      */
 
-    NVMDCInterface* const nvm;
+    NVMInterface* const nvm;
 
     /**
      * The following are basic design parameters of the memory

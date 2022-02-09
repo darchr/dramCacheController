@@ -58,10 +58,12 @@
 #include "enums/AddrMap.hh"
 #include "enums/PageManage.hh"
 #include "mem/abstract_mem.hh"
+
 #include "mem/dcache_ctrl.hh"
 #include "mem/dramcachepower.hh"
-//#include "mem/mem_ctrl.hh"
+#include "mem/mem_ctrl.hh"
 #include "mem/qos/mem_ctrl.hh"
+
 #include "params/DCMemInterface.hh"
 #include "params/DRAMDCInterface.hh"
 #include "params/NVMDCInterface.hh"

@@ -47,7 +47,7 @@
 #include "debug/Drain.hh"
 #include "debug/NVM.hh"
 #include "debug/QOS.hh"
-#include "mem/dcmem_interface.hh"
+#include "mem/mem_interface.hh"
 #include "sim/system.hh"
 
 DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
