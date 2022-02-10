@@ -1,6 +1,9 @@
 from m5.objects import *
 import m5
 import argparse
+from m5.objects.DRAMInterface import *
+from m5.objects.NVMInterface import *
+
 
 args = argparse.ArgumentParser()
 
