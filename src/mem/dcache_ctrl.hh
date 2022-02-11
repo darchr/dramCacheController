@@ -77,27 +77,19 @@ class DcacheCtrl : public QoS::MemCtrl
     // flow control for the responses being sent back
     class MemoryPort : public QueuedResponsePort
     {
-
         RespPacketQueue queue;
         DcacheCtrl& ctrl;
-
       public:
-
         MemoryPort(const std::string& name, DcacheCtrl& _ctrl);
-
       protected:
-
         Tick recvAtomic(PacketPtr pkt) override;
         Tick recvAtomicBackdoor(
                 PacketPtr pkt, MemBackdoorPtr &backdoor) override;
-
         void recvFunctional(PacketPtr pkt) override;
-
         bool recvTimingReq(PacketPtr) override;
-
         AddrRangeList getAddrRanges() const override;
-
     };
+
 
     /**
      * Our incoming port, for a multi-ported controller add a crossbar
