@@ -378,7 +378,7 @@ class HBM_1000_4H_1x64_pseudo(HBM_1000_4H_1x64):
     read_buffer_size = 128
     write_buffer_size = 128
 
-class HBM_1000_4H_1x64_pseudo_v2(HBM_1000_4H_1x64):
+class HBM_1000_4H_1x64_pseudo_v2(HBM_1000_4H_1x128):
     """
     This is an approximation of HBM_1000_4H_1x64
     single channel (with two pseudo channels)

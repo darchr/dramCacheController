@@ -83,6 +83,7 @@ MemInterface::setCtrl(MemCtrl* _ctrl, unsigned int command_window)
 {
     ctrl = _ctrl;
     maxCommandsPerWindow = command_window / tCK;
+    //maxCommandsPerWindow = command_window / (2*tCK);
 }
 
 MemPacket*

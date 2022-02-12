@@ -32,6 +32,7 @@ from .dram_interfaces.ddr3 import DDR3_1600_8x8, DDR3_2133_8x8
 from .dram_interfaces.ddr4 import DDR4_2400_8x8
 from .dram_interfaces.lpddr3 import LPDDR3_1600_1x32
 from .dram_interfaces.hbm import HBM_1000_4H_1x64
+from .dram_interfaces.hbm import HBM_1000_4H_1x128
 from .dram_interfaces.hbm import HBM_1000_4H_1x64_pseudo
 from .dram_interfaces.hbm import HBM_1000_4H_1x64_pseudo_v2
 
@@ -90,7 +91,7 @@ def HBM2Stack(
     if not size:
         size = "4GiB"
     return ChanneledMemory(
-        HBM_1000_4H_1x64,
+        HBM_1000_4H_1x128,
         16,
         64,
         size=size,
