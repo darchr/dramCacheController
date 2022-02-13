@@ -57,12 +57,13 @@ class HBM_2000_4H_1x128(DRAMInterface):
     # 128-bit interface legacy mode
     device_bus_width = 128
 
-    # HBM supports BL4 and BL2 (legacy mode only)
+    # HBM supports BL4
     burst_length = 4
 
     # size of channel in bytes, 4H stack of 8Gb dies is 4GiB per stack;
-    # with 8 channels, 1024MiB per channel
-    device_size = "1024MiB"
+    # with 8 channels, 512MiB per channel
+    # since we have two ranks --> device_size/rank = 256MiB
+    device_size = "256MiB"
 
     device_rowbuffer_size = "2KiB"
 
@@ -127,14 +128,35 @@ class HBM_2000_4H_1x128(DRAMInterface):
 
     # tFAW = 16ns (RBus), tFAW = 14ns (FGDRAM paper)
     tXAW = "16ns"
-    # activates in tFAW = 8 (from FGDRAM paper)
-    activation_limit = 8
+    # activates in tFAW = 4
+    activation_limit = 4
 
     # tXP from RBus
     tXP = "8ns"
 
     # tXS from RBus
     tXS = "216ns"
+
+    # this shows much better bw than 'close'
+    page_policy = 'close_adaptive'
+
+    read_buffer_size = 32
+    write_buffer_size = 32
+
+class HBM_2000_4H_1x64(HBM_2000_4H_1x128):
+    """
+    An HBM2 x64 interface to model a single pseudo
+    channel.
+    """
+
+    device_bus_width = 64
+    # size of channel in bytes, 4H stack of 8Gb dies is 4GiB per stack;
+    # with 16 channels, 256MiB per channel
+    # since we have two ranks --> device_size/rank = 128MiB
+    device_size = "128MiB"
+    device_rowbuffer_size = "1KiB"
+
+    activation_limit = 8
 
 class HBM_1000_4H_1x128(DRAMInterface):
     """

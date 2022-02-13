@@ -8,6 +8,8 @@ from gem5.components.memory import SingleChannelHBM_DDR3
 from gem5.components.memory import SingleChannelHBM_DDR3_v2
 from gem5.components.memory import SingleChannelHBMPseudo
 from gem5.components.memory import HBM2Stack
+from gem5.components.memory import HBM2StackLegacy
+from gem5.components.memory import HBM2StackPseudo
 from gem5.components.memory import HBM2Stackv2
 from gem5.components.memory import HBM2Stackv3
 
@@ -25,6 +27,8 @@ MemInfoDict = {
         'hbm_from_ddr3_v2' : SingleChannelHBM_DDR3_v2,
         'hbm_stack' : HBM2Stack,
         'hbm_stack_v2' : HBM2Stackv2,
-        'hbm_stack_v3' : HBM2Stackv3
+        'hbm_stack_v3' : HBM2Stackv3,
+        'hbm2_stack_pseudo' : HBM2StackPseudo,
+        'hbm_2_stack_legacy' : HBM2StackLegacy
     }
 }

@@ -33,6 +33,8 @@ from .dram_interfaces.ddr4 import DDR4_2400_8x8
 from .dram_interfaces.lpddr3 import LPDDR3_1600_1x32
 from .dram_interfaces.hbm import HBM_1000_4H_1x64
 from .dram_interfaces.hbm import HBM_1000_4H_1x128
+from .dram_interfaces.hbm import HBM_2000_4H_1x128
+from .dram_interfaces.hbm import HBM_2000_4H_1x64
 from .dram_interfaces.hbm import HBM_1000_4H_1x64_pseudo
 from .dram_interfaces.hbm import HBM_1000_4H_1x64_pseudo_v2
 
@@ -84,6 +86,31 @@ def DualChannelLPDDR3_1600(
         64,
         size=size,
     )
+
+def HBM2StackPseudo(
+    size: Optional[str] = None,
+) -> AbstractMemorySystem:
+    if not size:
+        size = "4GiB"
+    return ChanneledMemory(
+        HBM_2000_4H_1x64,
+        16,
+        64,
+        size=size,
+    )
+
+def HBM2StackLegacy(
+    size: Optional[str] = None,
+) -> AbstractMemorySystem:
+    if not size:
+        size = "4GiB"
+    return ChanneledMemory(
+        HBM_2000_4H_1x128,
+        8,
+        64,
+        size=size,
+    )
+
 
 def HBM2Stack(
     size: Optional[str] = None,

@@ -28,9 +28,11 @@ from .single_channel import SingleChannelDDR3_1600
 from .single_channel import SingleChannelDDR3_2133
 from .single_channel import SingleChannelDDR4_2400
 from .single_channel import SingleChannelHBM
+from .single_channel import SingleChannelHBM2
 from .single_channel import SingleChannelLPDDR3_1600
 from .single_channel import SingleChannelHBM_DDR3
 from .single_channel import SingleChannelHBMPseudo
+from .single_channel import SingleChannelHBM2Pseudo
 from .single_channel import SingleChannelHBMPseudo_v2
 from .single_channel import SingleChannelHBM_DDR3_v2
 from .multi_channel import DualChannelDDR3_1600
@@ -39,4 +41,6 @@ from .multi_channel import DualChannelDDR4_2400
 from .multi_channel import HBM2Stack
 from .multi_channel import HBM2Stackv2
 from .multi_channel import HBM2Stackv3
+from .multi_channel import HBM2StackLegacy
+from .multi_channel import HBM2StackPseudo
 from .multi_channel import DualChannelLPDDR3_1600

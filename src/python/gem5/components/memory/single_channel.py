@@ -31,6 +31,8 @@ from typing import Optional
 
 from .dram_interfaces.ddr4 import DDR4_2400_8x8
 from .dram_interfaces.hbm import HBM_1000_4H_1x128
+from .dram_interfaces.hbm import HBM_2000_4H_1x128
+from .dram_interfaces.hbm import HBM_2000_4H_1x64
 from .dram_interfaces.lpddr3 import LPDDR3_1600_1x32
 from .dram_interfaces.ddr3 import DDR3_1600_8x8, DDR3_2133_8x8
 from .dram_interfaces.hbm import HBM_FROM_DDR3
@@ -99,6 +101,18 @@ def SingleChannelHBM(
         size=size
     )
 
+def SingleChannelHBM2(
+    size: Optional[str] = None,
+) -> AbstractMemorySystem:
+    if not size:
+        size = "512MiB"
+    return ChanneledMemory(
+        HBM_2000_4H_1x128,
+        1,
+        64,
+        size=size
+    )
+
 def SingleChannelHBM_DDR3(
     size: Optional[str] = None,
 ) -> AbstractMemorySystem:
@@ -134,6 +148,20 @@ def SingleChannelHBMPseudo(
         64,
         size=size
     )
+
+
+def SingleChannelHBM2Pseudo(
+    size: Optional[str] = None,
+) -> AbstractMemorySystem:
+    if not size:
+        size = "256MiB"
+    return ChanneledMemory(
+        HBM_2000_4H_1x64,
+        1,
+        64,
+        size=size
+    )
+
 
 def SingleChannelHBMPseudo_v2(
     size: Optional[str] = None,
