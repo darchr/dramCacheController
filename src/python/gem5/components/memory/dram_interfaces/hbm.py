@@ -49,6 +49,92 @@ interface.
 
 from m5.objects import DRAMInterface
 
+class HBM_2000_4H_1x128(DRAMInterface):
+    """
+    A single HBM2 x128 interface (one command and address bus)
+    """
+
+    # 128-bit interface legacy mode
+    device_bus_width = 128
+
+    # HBM supports BL4 and BL2 (legacy mode only)
+    burst_length = 4
+
+    # size of channel in bytes, 4H stack of 8Gb dies is 4GiB per stack;
+    # with 8 channels, 1024MiB per channel
+    device_size = "1024MiB"
+
+    device_rowbuffer_size = "2KiB"
+
+    # 1x128 configuration
+    devices_per_rank = 1
+
+    ranks_per_channel = 2
+
+    # HBM has 8 or 16 banks depending on capacity
+    # 2Gb dies have 8 banks
+    banks_per_rank = 16
+
+    bank_groups_per_rank = 4
+
+    # 1000 MHz for 2Gbps DDR data rate
+    tCK = "1ns"
+
+    tRP = "14ns"
+
+    # tCCD_L = 3ns (RBus), tCCD_L = 4ns (FGDRAM paper)
+    tCCD_L = "3ns"
+    # tCCD_S = 2ns (RBus), tCCD_S = 2ns (FGDRAM paper)
+    # this is set same as tBURST, no separate param
+
+    #tRCDRD = 12ns, tRCDWR = 6ns (RBus)
+    #tRCD = 16ns (FGDRAM paper)
+    tRCD = "12ns"
+    #tCL from FGDRAM paper
+    tCL = "16ns"
+    #tRAS = 28ns (RBus) / 29ns (FGDRAM paper)
+    tRAS = "28ns"
+
+    # Only BL4 supported
+    # DDR @ 1000 MHz means 4 * 1ns / 2 = 2ns
+    tBURST = "2ns"
+
+    #tRFC from RBus
+    tRFC = "220ns"
+
+    #tREFI from RBus
+    tREFI = "3.9us"
+
+    #tWR = 14ns (RBus) / 16ns (FGDRAM paper)
+    tWR = "14ns"
+    #tRTP = 5ns (RBus)
+    tRTP = "5ns"
+    #tWTR = 9ns, 4ns (RBus) / 8ns, 3ns (FGDRAM paper)
+    tWTR = "9ns"
+
+    #tRTW from RBus
+    tRTW = "18ns"
+
+    # not available anywhere
+    tCS = "0ns"
+
+    # tRRD = 2ns (FGDRAM paper)
+    tRRD = "2ns"
+
+    # tRRDL = 6ns, tRRDS = 4ns (RBus)
+    tRRD_L = "6ns"
+    # no param for tRRD_S
+
+    # tFAW = 16ns (RBus), tFAW = 14ns (FGDRAM paper)
+    tXAW = "16ns"
+    # activates in tFAW = 8 (from FGDRAM paper)
+    activation_limit = 8
+
+    # tXP from RBus
+    tXP = "8ns"
+
+    # tXS from RBus
+    tXS = "216ns"
 
 class HBM_1000_4H_1x128(DRAMInterface):
     """
