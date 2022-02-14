@@ -140,8 +140,8 @@ class HBM_2000_4H_1x128(DRAMInterface):
     # this shows much better bw than 'close'
     page_policy = 'close_adaptive'
 
-    read_buffer_size = 32
-    write_buffer_size = 32
+    read_buffer_size = 64
+    write_buffer_size = 64
 
 class HBM_2000_4H_1x64(HBM_2000_4H_1x128):
     """
