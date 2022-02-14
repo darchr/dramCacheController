@@ -474,7 +474,7 @@ class MemCtrl : public qos::MemCtrl
     /**
      * Create pointer to interface of the actual nvm media when connected
      */
-    NVMInterface* const nvm;
+    DRAMInterface* const nvm;
 
     /**
      * The following are basic design parameters of the memory

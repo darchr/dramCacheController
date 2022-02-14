@@ -271,7 +271,7 @@ MemCtrl::addToReadQueue(PacketPtr pkt, unsigned int pkt_count, bool is_dram)
                 // Increment count to trigger issue of non-deterministic read
                 nvm->setupRank(mem_pkt->rank, true);
                 // Default readyTime to Max; will be reset once read is issued
-                mem_pkt->readyTime = MaxTick;
+                //mem_pkt->readyTime = MaxTick;
             }
             mem_pkt->burstHelper = burst_helper;
 
@@ -508,6 +508,10 @@ MemCtrl::processRespondEvent()
         dram->respondEvent(mem_pkt->rank);
     }
 
+    else {
+        nvm->respondEvent(mem_pkt->rank);
+    }
+
     if (mem_pkt->burstHelper) {
         // it is a split packet
         mem_pkt->burstHelper->burstsServiced++;
@@ -545,7 +549,11 @@ MemCtrl::processRespondEvent()
             // into action again if banks already closed and just waiting
             // for read to complete
             dram->checkRefreshState(mem_pkt->rank);
+        } else {
+            nvm->checkRefreshState(mem_pkt->rank);
         }
+
+
     }
 
     delete mem_pkt;
@@ -835,8 +843,9 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt)
             nvm->addRankToRankDelay(cmd_at);
 
     } else {
+        std::vector<MemPacketQueue>& queue = selQueue(mem_pkt->isRead());
         std::tie(cmd_at, nextBurstAt) =
-                 nvm->doBurstAccess(mem_pkt, nextBurstAt);
+                 nvm->doBurstAccess(mem_pkt, nextBurstAt, queue);
 
         // Update timing for NVM ranks if NVM is configured on this channel
         if (dram)
@@ -907,6 +916,8 @@ MemCtrl::processNextReqEvent()
     // updates current state
     busState = busStateNext;
 
+    // no need to do this for a dram interface
+    /*
     if (nvm) {
         for (auto queue = readQueue.rbegin();
              queue != readQueue.rend(); ++queue) {
@@ -919,18 +930,20 @@ MemCtrl::processNextReqEvent()
              }
         }
     }
+    */
 
     // check ranks for refresh/wakeup - uses busStateNext, so done after
     // turnaround decisions
     // Default to busy status and update based on interface specifics
     bool dram_busy = dram ? dram->isBusy() : true;
-    bool nvm_busy = true;
-    bool all_writes_nvm = false;
-    if (nvm) {
+    bool nvm_busy = nvm ? nvm->isBusy() : true;
+    //bool all_writes_nvm = false;
+
+    /*if (nvm) {
         all_writes_nvm = nvm->numWritesQueued == totalWriteQueueSize;
         bool read_queue_empty = totalReadQueueSize == 0;
         nvm_busy = nvm->isBusy(read_queue_empty, all_writes_nvm);
-    }
+    }*/
     // Default state of unused interface is 'true'
     // Simply AND the busy signals to determine if system is busy
     if (dram_busy && nvm_busy) {
@@ -1042,8 +1055,11 @@ MemCtrl::processNextReqEvent()
             // we have so many writes that we have to transition
             // don't transition if the writeRespQueue is full and
             // there are no other writes that can issue
-            if ((totalWriteQueueSize > writeHighThreshold) &&
-               !(nvm && all_writes_nvm && nvm->writeRespQueueFull())) {
+            //if ((totalWriteQueueSize > writeHighThreshold) &&
+            //   !(nvm && all_writes_nvm && nvm->writeRespQueueFull())) {
+            //    switch_to_writes = true;
+            //}
+            if ((totalWriteQueueSize > writeHighThreshold)) {
                 switch_to_writes = true;
             }
 
@@ -1126,11 +1142,15 @@ MemCtrl::processNextReqEvent()
         bool below_threshold =
             totalWriteQueueSize + minWritesPerSwitch < writeLowThreshold;
 
+        //if (totalWriteQueueSize == 0 ||
+        //    (below_threshold && drainState() != DrainState::Draining) ||
+        //    (totalReadQueueSize && writesThisTime >= minWritesPerSwitch) ||
+        //    (totalReadQueueSize && nvm && nvm->writeRespQueueFull() &&
+        //     all_writes_nvm)) {
+
         if (totalWriteQueueSize == 0 ||
             (below_threshold && drainState() != DrainState::Draining) ||
-            (totalReadQueueSize && writesThisTime >= minWritesPerSwitch) ||
-            (totalReadQueueSize && nvm && nvm->writeRespQueueFull() &&
-             all_writes_nvm)) {
+            (totalReadQueueSize && writesThisTime >= minWritesPerSwitch)) {
 
             // turn the bus back around for reads again
             busStateNext = MemCtrl::READ;
@@ -1437,6 +1457,9 @@ MemCtrl::drain()
         if (dram)
             dram->drainRanks();
 
+        if (nvm)
+            nvm->drainRanks();
+
         return DrainState::Draining;
     } else {
         return DrainState::Drained;
@@ -1451,11 +1474,14 @@ MemCtrl::drainResume()
         // and behave as if we restored from a checkpoint
         startup();
         dram->startup();
+        nvm->startup();
     } else if (isTimingMode && !system()->isTimingMode()) {
         // if we switch from timing mode, stop the refresh events to
         // not cause issues with KVM
         if (dram)
             dram->suspend();
+        if (nvm)
+            nvm->suspend();
     }
 
     // update the mode

@@ -63,7 +63,7 @@ class MemCtrl(QoSMemCtrl):
     dram = Param.DRAMInterface(NULL, "DRAM interface")
 
     # Interface to non-volatile media
-    nvm = Param.NVMInterface(NULL, "NVM interface")
+    nvm = Param.DRAMInterface(NULL, "Another DRAM interface")
 
     # read and write buffer depths are set in the interface
     # the controller will read these values when instantiated

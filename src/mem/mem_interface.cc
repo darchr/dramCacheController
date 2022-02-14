@@ -204,80 +204,81 @@ DRAMInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
         MemPacket* pkt = *i;
 
         // select optimal DRAM packet in Q
-        if (pkt->isDram()) {
-            const Bank& bank = ranks[pkt->rank]->banks[pkt->bank];
-            const Tick col_allowed_at = pkt->isRead() ? bank.rdAllowedAt :
-                                                        bank.wrAllowedAt;
+        // No need to check if this is a Dram packet
+        //if (pkt->isDram()  ) {
+        const Bank& bank = ranks[pkt->rank]->banks[pkt->bank];
+        const Tick col_allowed_at = pkt->isRead() ? bank.rdAllowedAt :
+                                                    bank.wrAllowedAt;
 
-            DPRINTF(DRAM, "%s checking DRAM packet in bank %d, row %d\n",
-                    __func__, pkt->bank, pkt->row);
+        DPRINTF(DRAM, "%s checking DRAM packet in bank %d, row %d\n",
+                __func__, pkt->bank, pkt->row);
 
-            // check if rank is not doing a refresh and thus is available,
-            // if not, jump to the next packet
-            if (burstReady(pkt)) {
+        // check if rank is not doing a refresh and thus is available,
+        // if not, jump to the next packet
+        if (burstReady(pkt)) {
 
-                DPRINTF(DRAM,
-                        "%s bank %d - Rank %d available\n", __func__,
-                        pkt->bank, pkt->rank);
+            DPRINTF(DRAM,
+                    "%s bank %d - Rank %d available\n", __func__,
+                    pkt->bank, pkt->rank);
 
-                // check if it is a row hit
-                if (bank.openRow == pkt->row) {
-                    // no additional rank-to-rank or same bank-group
-                    // delays, or we switched read/write and might as well
-                    // go for the row hit
-                    if (col_allowed_at <= min_col_at) {
-                        // FCFS within the hits, giving priority to
-                        // commands that can issue seamlessly, without
-                        // additional delay, such as same rank accesses
-                        // and/or different bank-group accesses
-                        DPRINTF(DRAM, "%s Seamless buffer hit\n", __func__);
+            // check if it is a row hit
+            if (bank.openRow == pkt->row) {
+                // no additional rank-to-rank or same bank-group
+                // delays, or we switched read/write and might as well
+                // go for the row hit
+                if (col_allowed_at <= min_col_at) {
+                    // FCFS within the hits, giving priority to
+                    // commands that can issue seamlessly, without
+                    // additional delay, such as same rank accesses
+                    // and/or different bank-group accesses
+                    DPRINTF(DRAM, "%s Seamless buffer hit\n", __func__);
+                    selected_pkt_it = i;
+                    selected_col_at = col_allowed_at;
+                    // no need to look through the remaining queue entries
+                    break;
+                } else if (!found_hidden_bank && !found_prepped_pkt) {
+                    // if we did not find a packet to a closed row that can
+                    // issue the bank commands without incurring delay, and
+                    // did not yet find a packet to a prepped row, remember
+                    // the current one
+                    selected_pkt_it = i;
+                    selected_col_at = col_allowed_at;
+                    found_prepped_pkt = true;
+                    DPRINTF(DRAM, "%s Prepped row buffer hit\n", __func__);
+                }
+            } else if (!found_earliest_pkt) {
+                // if we have not initialised the bank status, do it
+                // now, and only once per scheduling decisions
+                if (!filled_earliest_banks) {
+                    // determine entries with earliest bank delay
+                    std::tie(earliest_banks, hidden_bank_prep) =
+                        minBankPrep(queue, min_col_at);
+                    filled_earliest_banks = true;
+                }
+
+                // bank is amongst first available banks
+                // minBankPrep will give priority to packets that can
+                // issue seamlessly
+                if (bits(earliest_banks[pkt->rank],
+                            pkt->bank, pkt->bank)) {
+                    found_earliest_pkt = true;
+                    found_hidden_bank = hidden_bank_prep;
+
+                    // give priority to packets that can issue
+                    // bank commands 'behind the scenes'
+                    // any additional delay if any will be due to
+                    // col-to-col command requirements
+                    if (hidden_bank_prep || !found_prepped_pkt) {
                         selected_pkt_it = i;
                         selected_col_at = col_allowed_at;
-                        // no need to look through the remaining queue entries
-                        break;
-                    } else if (!found_hidden_bank && !found_prepped_pkt) {
-                        // if we did not find a packet to a closed row that can
-                        // issue the bank commands without incurring delay, and
-                        // did not yet find a packet to a prepped row, remember
-                        // the current one
-                        selected_pkt_it = i;
-                        selected_col_at = col_allowed_at;
-                        found_prepped_pkt = true;
-                        DPRINTF(DRAM, "%s Prepped row buffer hit\n", __func__);
-                    }
-                } else if (!found_earliest_pkt) {
-                    // if we have not initialised the bank status, do it
-                    // now, and only once per scheduling decisions
-                    if (!filled_earliest_banks) {
-                        // determine entries with earliest bank delay
-                        std::tie(earliest_banks, hidden_bank_prep) =
-                            minBankPrep(queue, min_col_at);
-                        filled_earliest_banks = true;
-                    }
-
-                    // bank is amongst first available banks
-                    // minBankPrep will give priority to packets that can
-                    // issue seamlessly
-                    if (bits(earliest_banks[pkt->rank],
-                             pkt->bank, pkt->bank)) {
-                        found_earliest_pkt = true;
-                        found_hidden_bank = hidden_bank_prep;
-
-                        // give priority to packets that can issue
-                        // bank commands 'behind the scenes'
-                        // any additional delay if any will be due to
-                        // col-to-col command requirements
-                        if (hidden_bank_prep || !found_prepped_pkt) {
-                            selected_pkt_it = i;
-                            selected_col_at = col_allowed_at;
-                        }
                     }
                 }
-            } else {
-                DPRINTF(DRAM, "%s bank %d - Rank %d not available\n", __func__,
-                        pkt->bank, pkt->rank);
             }
+        } else {
+            DPRINTF(DRAM, "%s bank %d - Rank %d not available\n", __func__,
+                    pkt->bank, pkt->rank);
         }
+        //}
     }
 
     if (selected_pkt_it == queue.end()) {
@@ -1062,7 +1063,7 @@ DRAMInterface::minBankPrep(const MemPacketQueue& queue,
     // bank in question
     std::vector<bool> got_waiting(ranksPerChannel * banksPerRank, false);
     for (const auto& p : queue) {
-        if (p->isDram() && ranks[p->rank]->inRefIdleState())
+        if (ranks[p->rank]->inRefIdleState())
             got_waiting[p->bankId] = true;
     }
 
