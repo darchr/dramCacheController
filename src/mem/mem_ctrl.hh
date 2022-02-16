@@ -47,6 +47,7 @@
 #define __MEM_CTRL_HH__
 
 #include <deque>
+#include <queue>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -457,7 +458,12 @@ class MemCtrl : public qos::MemCtrl
      * as sizing the read queue, this and the main read queue need to
      * be added together.
      */
-    std::deque<MemPacket*> respQueue;
+    //std::deque<MemPacket*> respQueue;
+
+    typedef std::pair<Tick, MemPacket*> entry;
+    // The min heap will be ordered by the first element of the pair
+    std::priority_queue<entry, std::vector<entry>,
+                        std::greater<entry> > respQueue;
 
     /**
      * Holds count of commands issued in burst window starting at
@@ -519,7 +525,8 @@ class MemCtrl : public qos::MemCtrl
     /**
      * Till when must we wait before issuing next RD/WR burst?
      */
-    Tick nextBurstAt;
+    Tick nextBurstAt1;
+    Tick nextBurstAt2;
 
     Tick prevArrival;
 
@@ -529,7 +536,8 @@ class MemCtrl : public qos::MemCtrl
      * nextBurstAt. Assuming you need to precharge, open a new row,
      * and access, it is tRP + tRCD + tCL.
      */
-    Tick nextReqTime;
+    Tick nextReqTime1;
+    Tick nextReqTime2;
 
     struct CtrlStats : public statistics::Group
     {

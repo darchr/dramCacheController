@@ -74,8 +74,10 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     frontendLatency(p.static_frontend_latency),
     backendLatency(p.static_backend_latency),
     commandWindow(p.command_window),
-    nextBurstAt(0), prevArrival(0),
-    nextReqTime(0),
+    nextBurstAt1(0), nextBurstAt2(0),
+    prevArrival(0),
+    nextReqTime1(0),
+    nextReqTime2(0),
     stats(*this)
 {
     DPRINTF(MemCtrl, "Setting up controller\n");
@@ -118,8 +120,9 @@ MemCtrl::startup()
         // have to worry about negative values when computing the time for
         // the next request, this will add an insignificant bubble at the
         // start of simulation
-        nextBurstAt = curTick() + (dram ? dram->commandOffset() :
-                                          nvm->commandOffset());
+        nextBurstAt1 = curTick() + dram->commandOffset();
+
+        nextBurstAt2 = curTick() + nvm->commandOffset();
     }
 }
 
@@ -404,10 +407,10 @@ MemCtrl::printQs() const
         }
     }
 
-    DPRINTF(MemCtrl, "\n===RESP QUEUE===\n\n");
-    for (const auto& packet : respQueue) {
-        DPRINTF(MemCtrl, "Response %#x\n", packet->addr);
-    }
+    //DPRINTF(MemCtrl, "\n===RESP QUEUE===\n\n");
+    //for (const auto& packet : respQueue) {
+    //    DPRINTF(MemCtrl, "Response %#x\n", packet->addr);
+    //}
 
     DPRINTF(MemCtrl, "\n===WRITE QUEUE===\n\n");
     for (const auto& queue : writeQueue) {
@@ -501,7 +504,7 @@ MemCtrl::processRespondEvent()
     DPRINTF(MemCtrl,
             "processRespondEvent(): Some req has reached its readyTime\n");
 
-    MemPacket* mem_pkt = respQueue.front();
+    MemPacket* mem_pkt = respQueue.top().second; //respQueue.top().second();
 
     if (mem_pkt->isDram()) {
         // media specific checks and functions when read response is complete
@@ -530,12 +533,20 @@ MemCtrl::processRespondEvent()
         accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency);
     }
 
-    respQueue.pop_front();
+    respQueue.pop();
 
     if (!respQueue.empty()) {
-        assert(respQueue.front()->readyTime >= curTick());
+        assert(respQueue.top().second->readyTime >= curTick());
         assert(!respondEvent.scheduled());
-        schedule(respondEvent, respQueue.front()->readyTime);
+        schedule(respondEvent, (respQueue.top().second->readyTime);
+
+        //if ((respQueue.top().second->readyTime) < curTick()) {
+        //    schedule(respondEvent, curTick());
+       // }
+       // else {
+       //     schedule(respondEvent, (respQueue.top().second->readyTime));
+       // }
+
     } else {
         // if there is nothing left in any queue, signal a drain
         if (drainState() == DrainState::Draining &&
@@ -608,7 +619,10 @@ MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay)
     Tick col_allowed_at = MaxTick;
 
     // time we need to issue a column command to be seamless
-    const Tick min_col_at = std::max(nextBurstAt + extra_col_delay, curTick());
+    const Tick min_col_at1 = std::max(nextBurstAt1 + extra_col_delay,
+                                                            curTick());
+    const Tick min_col_at2 = std::max(nextBurstAt2 + extra_col_delay,
+                                                            curTick());
 
     // find optimal packet for each interface
     if (dram && nvm) {
@@ -619,9 +633,9 @@ MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay)
         // Select packet by default to give priority if both
         // can issue at the same time or seamlessly
         std::tie(selected_pkt_it, col_allowed_at) =
-                 dram->chooseNextFRFCFS(queue, min_col_at);
+                 dram->chooseNextFRFCFS(queue, min_col_at1);
         std::tie(nvm_pkt_it, nvm_col_at) =
-                 nvm->chooseNextFRFCFS(queue, min_col_at);
+                 nvm->chooseNextFRFCFS(queue, min_col_at2);
 
         // Compare DRAM and NVM and select NVM if it can issue
         // earlier than the DRAM packet
@@ -630,10 +644,10 @@ MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay)
         }
     } else if (dram) {
         std::tie(selected_pkt_it, col_allowed_at) =
-                 dram->chooseNextFRFCFS(queue, min_col_at);
+                 dram->chooseNextFRFCFS(queue, min_col_at1);
     } else if (nvm) {
         std::tie(selected_pkt_it, col_allowed_at) =
-                 nvm->chooseNextFRFCFS(queue, min_col_at);
+                 nvm->chooseNextFRFCFS(queue, min_col_at2);
     }
 
     if (selected_pkt_it == queue.end()) {
@@ -835,34 +849,45 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt)
     // when previous command was issued
     if (mem_pkt->isDram()) {
         std::vector<MemPacketQueue>& queue = selQueue(mem_pkt->isRead());
-        std::tie(cmd_at, nextBurstAt) =
-                 dram->doBurstAccess(mem_pkt, nextBurstAt, queue);
+        std::tie(cmd_at, nextBurstAt1) =
+                 dram->doBurstAccess(mem_pkt, nextBurstAt1, queue);
 
         // Update timing for NVM ranks if NVM is configured on this channel
-        if (nvm)
-            nvm->addRankToRankDelay(cmd_at);
+        //if (nvm)
+        //    nvm->addRankToRankDelay(cmd_at);
+
+        nextReqTime1 = nextBurstAt1 - dram->commandOffset();
 
     } else {
         std::vector<MemPacketQueue>& queue = selQueue(mem_pkt->isRead());
-        std::tie(cmd_at, nextBurstAt) =
-                 nvm->doBurstAccess(mem_pkt, nextBurstAt, queue);
+        std::tie(cmd_at, nextBurstAt2) =
+                 nvm->doBurstAccess(mem_pkt, nextBurstAt2, queue);
+
+        nextReqTime2 = nextBurstAt2 - nvm->commandOffset();
 
         // Update timing for NVM ranks if NVM is configured on this channel
-        if (dram)
-            dram->addRankToRankDelay(cmd_at);
+        //if (dram)
+        //    dram->addRankToRankDelay(cmd_at);
 
     }
 
     DPRINTF(MemCtrl, "Access to %#x, ready at %lld next burst at %lld.\n",
-            mem_pkt->addr, mem_pkt->readyTime, nextBurstAt);
+            mem_pkt->addr, mem_pkt->readyTime, nextBurstAt1);
 
     // Update the minimum timing between the requests, this is a
     // conservative estimate of when we have to schedule the next
     // request to not introduce any unecessary bubbles. In most cases
     // we will wake up sooner than we have to.
-    nextReqTime = nextBurstAt - (dram ? dram->commandOffset() :
-                                        nvm->commandOffset());
 
+
+
+    /*if ((nextReqTime < curTick()) ||
+            (nextReqTime > (nextBurstAt - dram->commandOffset()))) {
+        // only update it if the prev nextReqTime has already
+        // passed and the new nextReqTime is smaller than the
+        // older one
+        nextReqTime = nextBurstAt - dram->commandOffset();
+    }*/
 
     // Update the common bus stats
     if (mem_pkt->isRead()) {
@@ -1046,11 +1071,11 @@ MemCtrl::processNextReqEvent()
                 assert(!respondEvent.scheduled());
                 schedule(respondEvent, mem_pkt->readyTime);
             } else {
-                assert(respQueue.back()->readyTime <= mem_pkt->readyTime);
+                //assert(respQueue.back()->readyTime <= mem_pkt->readyTime);
                 assert(respondEvent.scheduled());
             }
 
-            respQueue.push_back(mem_pkt);
+            respQueue.push(std::make_pair(mem_pkt->readyTime, mem_pkt));
 
             // we have so many writes that we have to transition
             // don't transition if the writeRespQueue is full and
@@ -1163,9 +1188,19 @@ MemCtrl::processNextReqEvent()
     }
     // It is possible that a refresh to another rank kicks things back into
     // action before reaching this point.
-    if (!nextReqEvent.scheduled())
-        schedule(nextReqEvent, std::max(nextReqTime, curTick()));
+    if (!nextReqEvent.scheduled()) {
 
+        if ((nextReqTime1 > curTick()) && (nextReqTime2 > curTick())) {
+            schedule(nextReqEvent, std::max(std::min(nextReqTime1,
+                                nextReqTime2), curTick()));
+        }
+
+        else {
+            schedule(nextReqEvent, std::max(std::max(nextReqTime1,
+                                nextReqTime2), curTick()));
+        }
+
+    }
     // If there is space available and we have writes waiting then let
     // them retry. This is done here to ensure that the retry does not
     // cause a nextReqEvent to be scheduled before we do so as part of
