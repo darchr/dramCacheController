@@ -1198,6 +1198,8 @@ class NVMInterface : public MemInterface
      */
     bool burstReady(MemPacket* pkt) const override;
 
+    bool burstReadyDCache(MemPacket* pkt);
+
     /**
      * This function checks if ranks are busy.
      * This state is true when either:

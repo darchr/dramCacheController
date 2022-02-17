@@ -2609,6 +2609,15 @@ NVMInterface::burstReady(MemPacket* pkt) const {
     return (read_rdy || write_rdy);
 }
 
+bool
+NVMInterface::burstReadyDCache(MemPacket* pkt) {
+    bool read_rdy =  pkt->isRead() && (ctrl->inReadBusState(false)) &&
+               (pkt->readyTime <= curTick()) && (numReadDataReady > 0);
+    bool write_rdy =  !pkt->isRead() && !ctrl->inReadBusState(false) &&
+                !writeRespQueueFull();
+    return (read_rdy || write_rdy);
+}
+
     std::pair<Tick, Tick>
 NVMInterface::doBurstAccess(MemPacket* pkt, Tick next_burst_at)
 {

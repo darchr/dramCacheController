@@ -2500,7 +2500,7 @@ bool
 DcacheCtrl::packetReady(MemPacket* pkt)
 {
     return (pkt->isDram() ?
-        dram->burstReady(pkt) : nvm->burstReady(pkt));
+        dram->burstReady(pkt) : nvm->burstReadyDCache(pkt));
 }
 
 Tick
