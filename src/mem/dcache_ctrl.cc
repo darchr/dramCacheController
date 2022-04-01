@@ -688,7 +688,8 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
                     assert(!dramReadEvent.scheduled());
                     schedule(dramReadEvent, std::max(nextReqTime, curTick()));
                 } else {
-                    assert(dramReadEvent.scheduled() || stallRds);
+                    assert(dramReadEvent.scheduled() || stallRds ||
+                dram->rescheduleRead_udcc || dram->rescheduleWrite_udcc);
                 }
 
                 pktDramRead[0].push_back(reqBuffer.at(confAddr)->dccPkt);
@@ -879,29 +880,6 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     // calculate dram address: ignored for now (because Dsize=Nsize)
     if (checkConflictInDramCache(pkt)) {
 
-        // std::cout << curTick() << ": " << pkt->getAddr() << " / " <<
-        // reqBuffer.at(pkt->getAddr())->validEntry << " / " <<
-        // reqBuffer.at(pkt->getAddr())->conflict << " / " <<
-        // reqBuffer.at(pkt->getAddr())->isHit << " / " <<
-        // reqBuffer.at(pkt->getAddr())->state << " / " <<
-        // reqBuffer.at(pkt->getAddr())->dccPkt->isRead() << " / " <<
-        // reqBuffer.at(pkt->getAddr())->dccPkt->isDram() << " //// " <<
-        // dramReadEvent.scheduled()<< " / " <<
-        // respDramReadEvent.scheduled()<< " / " <<
-        // waitingToIssueNvmReadEvent.scheduled()<< " / " <<
-        // nvmReadEvent.scheduled()<< " / " <<
-        // respNvmReadEvent.scheduled()<< " / " <<
-        // overallWriteEvent.scheduled() << " |||||| " <<
-        // pktDramRead[0].size() << " / " <<
-        // pktNvmReadWaitIssue[0].size() << " / " <<
-        // pktNvmRead[0].size() << " / " <<
-        // pktDramWrite[0].size() << " / " <<
-        // pktNvmWrite[0].size() << " / " <<
-        // addrDramRespReady.size() << " / " <<
-        // addrNvmRespReady.size() << " / " <<
-        // "\n";
-
-
         stats.totNumConf++;
 
         if (confReqBuffer.size()>=crbMaxSize) {
@@ -965,7 +943,8 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
         schedule(dramReadEvent, std::max(nextReqTime, curTick()));
 
     } else {
-        assert(dramReadEvent.scheduled() || stallRds);
+        assert(dramReadEvent.scheduled() || stallRds ||
+                dram->rescheduleRead_udcc || dram->rescheduleWrite_udcc);
     }
 
     pktDramRead[0].push_back(reqBuffer.at(pkt->getAddr())->dccPkt);
@@ -987,6 +966,8 @@ DcacheCtrl::processDramReadEvent()
 
     assert(!pktDramRead[0].empty());
 
+    //assert(!dram->rescheduleRead_udcc);
+
     MemPacketQueue::iterator to_read;
 
     bool read_found = false;
@@ -1007,7 +988,13 @@ DcacheCtrl::processDramReadEvent()
             break;
         }
     }
-    assert(read_found);
+
+    if (!read_found) {
+
+        dram->rescheduleRead_udcc = true;
+
+        return;
+    }
 
     reqBufferEntry* orbEntry = reqBuffer.at((*to_read)->getAddr());
 
@@ -1019,7 +1006,6 @@ DcacheCtrl::processDramReadEvent()
 
     if (orbEntry->handleDirtyLine) {
         if (pktNvmWrite[0].size() >= nvm->getMaxPendingWrites()) {
-            //std::cout << "here1\n";
             stallRds = true;
             drainNvmWrite = true;
             if (!overallWriteEvent.scheduled()) {
@@ -1029,14 +1015,12 @@ DcacheCtrl::processDramReadEvent()
             return;
         }
         if (numDirtyLinesInDrRdRespQ >= nvm->getMaxPendingWrites()) {
-            //std::cout << "here2\n";
             Tick schedTick = earliestDirtyLineInDrRdResp();
             assert(schedTick != MaxTick);
             schedule(dramReadEvent, std::max(nextReqTime, schedTick+1));
             return;
         }
         if (nvm->writeRespQueueFull()) {
-            //std::cout << "here3\n";
             assert(!dramReadEvent.scheduled());
 
             schedule(dramReadEvent, std::max(nextReqTime,
@@ -1276,7 +1260,8 @@ DcacheCtrl::processRespDramReadEvent()
             schedule(waitingToIssueNvmReadEvent, curTick());
         }
         else {
-            assert(waitingToIssueNvmReadEvent.scheduled() || stallRds);
+            assert(waitingToIssueNvmReadEvent.scheduled() || stallRds ||
+                dram->rescheduleRead_udcc || dram->rescheduleWrite_udcc);
         }
 
         pktNvmReadWaitIssue[0].push_back(orbEntry->dccPkt);
@@ -1652,16 +1637,6 @@ DcacheCtrl::processRespNvmReadEvent()
     assert(orbEntry->state==dramWrite);
     pktDramWrite[0].push_back(reqBuffer.at(addrNvmRespReady.front())->dccPkt);
 
-    // std::cout <<
-    // pktDramRead[0].size()<< " / " <<
-    // pktNvmReadWaitIssue[0].size()<< " / " <<
-    // pktNvmRead[0].size()<< " / " <<
-    // pktDramWrite[0].size()<< " / " <<
-    // pktNvmWrite[0].size()<< " / " <<
-    // orbMaxSize<< " /// " <<
-    // dramWrDrainPerc<< " / " <<
-    // writeLowThreshold<< "\n";
-
     if (pktDramWrite[0].size() >= (orbMaxSize*dramWrDrainPerc)) {
 
         stallRds = true;
@@ -1708,33 +1683,13 @@ DcacheCtrl::processRespNvmReadEvent()
 void
 DcacheCtrl::processOverallWriteEvent()
 {
-    // if (curTick()>=6076821250) {
-    // std::cout << "--- " << curTick()  << " / "  << pktDramWrite[0].size()
-    // << " / " << pktNvmWrite[0].size() << "\n";
-    // }
-
     assert(stallRds);
 
     assert(!pktDramWrite[0].empty() || !pktNvmWrite[0].empty());
 
-    // std::cout << "---D\n";
-    // if (!pktDramWrite[0].empty()) {
-    //     for (int i=0;i<pktDramWrite[0].size(); i++) {
-    //         std::cout << pktDramWrite[0].at(i)->getAddr() << ", ";
-    //     }
-    //     std::cout << "\n";
-    // }
-    // std::cout << "---N\n";
-    // if (!pktNvmWrite[0].empty()) {
-    //     for (int i=0;i<pktNvmWrite[0].size(); i++) {
-    //         std::cout << pktNvmWrite[0].at(i)->getAddr() << ", ";
-    //     }
-    //     std::cout << "\n";
-    // }
-    // std::cout << "-------------------\n";
-
     if (drainDramWrite) {
-        //std::cout << "a\n";
+
+        //assert(!dram->rescheduleWrite_udcc);
 
         drWrCounter++;
 
@@ -1757,6 +1712,13 @@ DcacheCtrl::processOverallWriteEvent()
                 write_found = true;
                 break;
             }
+        }
+
+        if (!write_found) {
+
+            dram->rescheduleWrite_udcc = true;
+
+            return;
         }
 
         auto e = reqBuffer.at(pktDramWrite[0].front()->getAddr());
@@ -1882,7 +1844,6 @@ DcacheCtrl::processOverallWriteEvent()
     }
 
     if (drainNvmWrite) {
-        //std::cout << "b\n";
 
         if (!nvm->writeRespQueueFull()) {
 
@@ -2024,7 +1985,7 @@ DcacheCtrl::processOverallWriteEvent()
         && pktNvmRead[0].empty()
         && pktNvmWrite[0].empty() && !pktDramWrite[0].empty())) {
 
-        //std::cout << "c\n";
+        //assert(!dram->rescheduleWrite_udcc);
 
         drWrCounter++;
 
@@ -2047,6 +2008,13 @@ DcacheCtrl::processOverallWriteEvent()
                 write_found = true;
                 break;
             }
+        }
+
+        if (!write_found) {
+
+            dram->rescheduleWrite_udcc = true;
+
+            return;
         }
 
         auto e = reqBuffer.at(pktDramWrite[0].front()->getAddr());
@@ -2110,7 +2078,6 @@ DcacheCtrl::processOverallWriteEvent()
         (pktDramRead[0].empty() && pktNvmReadWaitIssue[0].empty()
         && pktNvmRead[0].empty()
         && pktDramWrite[0].empty() && !pktNvmWrite[0].empty())) {
-        //std::cout << "d\n";
 
         if (!nvm->writeRespQueueFull()) {
 
@@ -2191,17 +2158,6 @@ DcacheCtrl::processOverallWriteEvent()
         }
     }
 
-    // std::cout << "gg: " << curTick() << " / " <<
-    // pktDramRead[0].size() << " / " <<
-    // pktNvmReadWaitIssue[0].size() << " / " <<
-    // pktNvmRead[0].size() << " / " <<
-    // pktDramWrite[0].size() << " / " <<
-    // pktNvmWrite[0].size() << " / " <<
-    // drWrCounter << " / " <<
-    // nvWrCounter << " / " <<
-    // minWritesPerSwitch << " / " <<
-    // "\n";
-
     if (
             !overallWriteEvent.scheduled() &&
             (
@@ -2218,12 +2174,10 @@ DcacheCtrl::processOverallWriteEvent()
                 )
             )
         ) {
-        //std::cout << "e\n";
         stallRds = true;
         schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
     }
     else {
-        //std::cout << "f\n";
 
         stallRds = false;
 

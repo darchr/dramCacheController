@@ -703,6 +703,8 @@ class DRAMInterface : public MemInterface
         void processWakeUpEvent();
         EventFunctionWrapper wakeUpEvent;
 
+        Tick getRefreshEventSchdTick();
+
       protected:
         RankStats stats;
     };
@@ -888,6 +890,7 @@ class DRAMInterface : public MemInterface
     }
 
   public:
+
     /**
      * Initialize the DRAM interface and verify parameters
      */
@@ -995,6 +998,12 @@ class DRAMInterface : public MemInterface
         return ranks[pkt->rank]->inRefIdleState();
     }
 
+    Tick
+    getRankRefEventSchdTick(MemPacket* pkt)
+    {
+      return ranks[pkt->rank]->getRefreshEventSchdTick();
+    }
+
     /**
      * This function checks if ranks are actively refreshing and
      * therefore busy. The function also checks if ranks are in
@@ -1030,6 +1039,11 @@ class DRAMInterface : public MemInterface
      * @param rank Specifies rank associated with read burst
      */
     void checkRefreshState(uint8_t rank);
+
+    bool rescheduleRead_udcc;
+
+    bool rescheduleWrite_udcc;
+
 
     DRAMInterface(const DRAMInterfaceParams &_p);
 };

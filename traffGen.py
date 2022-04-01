@@ -82,7 +82,7 @@ system.mem_ctrl.dram = eval(options.device)(range=AddrRange('8GB'),
                                                 in_addr_map=False)
 system.mem_ctrl.nvm = NVM_2400_1x64(range=AddrRange('8GB'))
 
-system.mem_ctrl.dram.tREFI = "200"
+#system.mem_ctrl.dram.tREFI = "200"
 system.mem_ctrl.dram_cache_size = options.dram_cache_size
 system.mem_ctrl.orb_max_size = options.max_orb
 system.mem_ctrl.crb_max_size = "32"

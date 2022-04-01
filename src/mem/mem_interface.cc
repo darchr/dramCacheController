@@ -278,6 +278,7 @@ DRAMInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
     }
 
     if (selected_pkt_it == queue.end()) {
+        std::cout << " ***** no available DRAM ranks found \n";
         DPRINTF(DRAM, "%s no available DRAM ranks found\n", __func__);
     }
 
@@ -1017,7 +1018,9 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
       timeStampOffset(0), activeRank(0),
       enableDRAMPowerdown(_p.enable_dram_powerdown),
       lastStatsResetTick(0),
-      stats(*this)
+      stats(*this),
+      rescheduleRead_udcc(false),
+      rescheduleWrite_udcc(false)
 {
     DPRINTF(DRAM, "Setting up DRAM Interface\n");
 
@@ -1941,6 +1944,20 @@ DRAMInterface::Rank::processPowerEvent()
                            " rank %d\n", rank);
             dram.ctrl->restartScheduler(curTick());
         }
+
+        if (dram.rescheduleRead_udcc) {
+            DPRINTF(DRAM, "Scheduling next DRAM read after refreshing"
+                           " rank %d\n", rank);
+            dram.ctrl->restartDramReadScheduler(curTick());
+            dram.rescheduleRead_udcc = false;
+        }
+
+        if (dram.rescheduleWrite_udcc) {
+            DPRINTF(DRAM, "Scheduling next DRAM write after refreshing"
+                           " rank %d\n", rank);
+            dram.ctrl->restartDramWriteScheduler(curTick());
+            dram.rescheduleWrite_udcc = false;
+        }
     }
 
     if ((pwrState == PWR_ACT) && (refreshState == REF_PD_EXIT)) {
@@ -2030,6 +2047,14 @@ DRAMInterface::Rank::processPowerEvent()
     }
 
 }
+
+Tick
+DRAMInterface::Rank::getRefreshEventSchdTick()
+{
+    assert(refreshEvent.scheduled());
+    return(refreshEvent.when());
+}
+
 
 void
 DRAMInterface::Rank::updatePowerStats()

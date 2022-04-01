@@ -734,6 +734,11 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     void restartScheduler(Tick tick) { schedule(nextReqEvent, tick); }
 
+    void restartDramReadScheduler(Tick tick) { schedule(dramReadEvent, tick); }
+
+    void restartDramWriteScheduler(Tick tick)
+         { schedule(overallWriteEvent, tick); }
+
     /**
      * Check the current direction of the memory channel
      *

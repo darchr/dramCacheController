@@ -314,6 +314,16 @@ class MemCtrl : public ClockedObject
             panic("QoS::MemCtrl restartScheduler should not be called \n");
         };
 
+    virtual void restartDramReadScheduler(Tick tick) {
+            panic("QoS::MemCtrl restartDramReadScheduler "
+            "should not be called \n");
+        };
+
+    virtual void restartDramWriteScheduler(Tick tick) {
+            panic("QoS::MemCtrl restartDramWriteScheduler "
+            "should not be called \n");
+        };
+
     /**
      * Gets the next bus state
      *
