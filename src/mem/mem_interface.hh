@@ -935,6 +935,8 @@ class DRAMInterface : public MemInterface
      */
     Tick commandOffset() const override { return (tRP + tRCD); }
 
+    Tick getTBurst() { return tBURST; }
+
     /*
      * Function to calulate unloaded, closed bank access latency
      */
@@ -1040,9 +1042,9 @@ class DRAMInterface : public MemInterface
      */
     void checkRefreshState(uint8_t rank);
 
-    bool rescheduleRead_udcc;
+    //bool rescheduleRead_udcc;
 
-    bool rescheduleWrite_udcc;
+    //bool rescheduleWrite_udcc;
 
 
     DRAMInterface(const DRAMInterfaceParams &_p);
@@ -1202,6 +1204,8 @@ class NVMInterface : public MemInterface
      */
     Tick commandOffset() const override { return tBURST; }
 
+    Tick getTBurst() { return tBURST; }
+
     /**
      * Check if a burst operation can be issued to the NVM
      *
@@ -1238,6 +1242,9 @@ class NVMInterface : public MemInterface
     std::pair<MemPacketQueue::iterator, Tick>
     chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const override;
 
+    std::pair<MemPacketQueue::iterator, Tick>
+    chooseNextFRFCFSDCache(MemPacketQueue& queue, Tick min_col_at);
+
     /**
      *  Add rank to rank delay to bus timing to all NVM banks in alli ranks
      *  when access to an alternate interface is issued
@@ -1254,6 +1261,8 @@ class NVMInterface : public MemInterface
     void chooseRead(MemPacketQueue& queue);
 
     void processReadPkt(MemPacket* pkt);
+
+    Tick nextReadReadyEventTick();
 
     /*
      * Function to calulate unloaded access latency

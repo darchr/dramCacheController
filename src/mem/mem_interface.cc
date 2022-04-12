@@ -278,7 +278,6 @@ DRAMInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
     }
 
     if (selected_pkt_it == queue.end()) {
-        std::cout << " ***** no available DRAM ranks found \n";
         DPRINTF(DRAM, "%s no available DRAM ranks found\n", __func__);
     }
 
@@ -1018,9 +1017,9 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
       timeStampOffset(0), activeRank(0),
       enableDRAMPowerdown(_p.enable_dram_powerdown),
       lastStatsResetTick(0),
-      stats(*this),
-      rescheduleRead_udcc(false),
-      rescheduleWrite_udcc(false)
+      stats(*this)
+      //rescheduleRead_udcc(false),
+      //rescheduleWrite_udcc(false)
 {
     DPRINTF(DRAM, "Setting up DRAM Interface\n");
 
@@ -1945,19 +1944,19 @@ DRAMInterface::Rank::processPowerEvent()
             dram.ctrl->restartScheduler(curTick());
         }
 
-        if (dram.rescheduleRead_udcc) {
-            DPRINTF(DRAM, "Scheduling next DRAM read after refreshing"
-                           " rank %d\n", rank);
-            dram.ctrl->restartDramReadScheduler(curTick());
-            dram.rescheduleRead_udcc = false;
-        }
+        // if (dram.rescheduleRead_udcc) {
+        //     DPRINTF(DRAM, "Scheduling next DRAM read after refreshing"
+        //                    " rank %d\n", rank);
+        //     dram.ctrl->restartDramReadScheduler(curTick());
+        //     dram.rescheduleRead_udcc = false;
+        // }
 
-        if (dram.rescheduleWrite_udcc) {
-            DPRINTF(DRAM, "Scheduling next DRAM write after refreshing"
-                           " rank %d\n", rank);
-            dram.ctrl->restartDramWriteScheduler(curTick());
-            dram.rescheduleWrite_udcc = false;
-        }
+        // if (dram.rescheduleWrite_udcc) {
+        //     DPRINTF(DRAM, "Scheduling next DRAM write after refreshing"
+        //                    " rank %d\n", rank);
+        //     dram.ctrl->restartDramWriteScheduler(curTick());
+        //     dram.rescheduleWrite_udcc = false;
+        // }
     }
 
     if ((pwrState == PWR_ACT) && (refreshState == REF_PD_EXIT)) {
@@ -2402,6 +2401,62 @@ NVMInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
     return std::make_pair(selected_pkt_it, selected_col_at);
 }
 
+std::pair<MemPacketQueue::iterator, Tick>
+NVMInterface::chooseNextFRFCFSDCache(MemPacketQueue& queue, Tick min_col_at)
+{
+    // remember if we found a hit, but one that cannit issue seamlessly
+    bool found_prepped_pkt = false;
+
+    auto selected_pkt_it = queue.end();
+    Tick selected_col_at = MaxTick;
+
+    for (auto i = queue.begin(); i != queue.end() ; ++i) {
+        MemPacket* pkt = *i;
+
+        // select optimal NVM packet in Q
+        if (!pkt->isDram()) {
+            const Bank& bank = ranks[pkt->rank]->banks[pkt->bank];
+            const Tick col_allowed_at = pkt->isRead() ? bank.rdAllowedAt :
+                                                        bank.wrAllowedAt;
+
+            // check if rank is not doing a refresh and thus is available,
+            // if not, jump to the next packet
+            if (burstReadyDCache(pkt)) {
+                DPRINTF(NVM, "%s bank %d - Rank %d available\n", __func__,
+                        pkt->bank, pkt->rank);
+
+                // no additional rank-to-rank or media delays
+                if (col_allowed_at <= min_col_at) {
+                    // FCFS within entries that can issue without
+                    // additional delay, such as same rank accesses
+                    // or media delay requirements
+                    selected_pkt_it = i;
+                    selected_col_at = col_allowed_at;
+                    // no need to look through the remaining queue entries
+                    DPRINTF(NVM, "%s Seamless buffer hit\n", __func__);
+                    break;
+                } else if (!found_prepped_pkt) {
+                    // packet is to prepped region but cannnot issue
+                    // seamlessly; remember this one and continue
+                    selected_pkt_it = i;
+                    selected_col_at = col_allowed_at;
+                    DPRINTF(NVM, "%s Prepped packet found \n", __func__);
+                    found_prepped_pkt = true;
+                }
+            } else {
+                DPRINTF(NVM, "%s bank %d - Rank %d not available\n", __func__,
+                        pkt->bank, pkt->rank);
+            }
+        }
+    }
+
+    if (selected_pkt_it == queue.end()) {
+        DPRINTF(NVM, "%s no available NVM ranks found\n", __func__);
+    }
+
+    return std::make_pair(selected_pkt_it, selected_col_at);
+}
+
 void
 NVMInterface::chooseRead(MemPacketQueue& queue)
 {
@@ -2578,6 +2633,13 @@ NVMInterface::processReadPkt(MemPacket* pkt)
     }
     readReadyQueue.push_back(pkt->readyTime);
 
+}
+
+Tick
+NVMInterface::nextReadReadyEventTick()
+{
+    assert(readReadyEvent.scheduled());
+    return readReadyEvent.when();
 }
 
 void
