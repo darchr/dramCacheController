@@ -268,6 +268,12 @@ class MemCtrl : public ClockedObject
 
     virtual ~MemCtrl();
 
+    virtual Tick getNextBurstTick()
+    {
+        panic("QoS::MemCtrl getNextBurstTick should not be called \n");
+        return curTick();
+    };
+
     /**
      * Gets the current bus state
      *
