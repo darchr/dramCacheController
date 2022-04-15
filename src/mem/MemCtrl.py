@@ -59,11 +59,14 @@ class MemCtrl(QoSMemCtrl):
     # bus in front of the controller for multiple ports
     port = ResponsePort("This port responds to memory requests")
 
-    # Interface to volatile, DRAM media
-    dram = Param.DRAMInterface(NULL, "DRAM interface")
+    # # Interface to volatile, DRAM media
+    # dram = Param.DRAMInterface(NULL, "DRAM interface")
 
-    # Interface to non-volatile media
-    nvm = Param.NVMInterface(NULL, "NVM interface")
+    # # Interface to non-volatile media
+    # nvm = Param.NVMInterface(NULL, "NVM interface")
+
+    # Interface to memory media
+    mem = Param.MemInterface(NULL, "Memory interface")
 
     # read and write buffer depths are set in the interface
     # the controller will read these values when instantiated

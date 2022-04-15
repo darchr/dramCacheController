@@ -82,6 +82,7 @@ void
 MemInterface::setCtrl(MemCtrl* _ctrl, unsigned int command_window)
 {
     ctrl = _ctrl;
+    std::cout << "**** " << tCK << "\n";
     maxCommandsPerWindow = command_window / tCK;
 }
 
@@ -2048,7 +2049,7 @@ NVMInterface::NVMInterface(const NVMInterfaceParams &_p)
       writeRespondEvent([this]{ processWriteRespondEvent(); }, name()),
       readReadyEvent([this]{ processReadReadyEvent(); }, name()),
       nextReadAt(0), numPendingReads(0), numReadDataReady(0),
-      numReadsToIssue(0), numWritesQueued(0)
+      numReadsToIssue(0)//, numWritesQueued(0)
 {
     DPRINTF(NVM, "Setting up NVM Interface\n");
 
@@ -2074,6 +2075,7 @@ NVMInterface::NVMInterface(const NVMInterfaceParams &_p)
 
     rowsPerBank = capacity / (rowBufferSize *
                     banksPerRank * ranksPerChannel);
+    numWritesQueued = 0;
 
 }
 

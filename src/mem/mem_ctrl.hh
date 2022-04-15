@@ -68,6 +68,7 @@ namespace memory
 
 class DRAMInterface;
 class NVMInterface;
+class MemInterface;
 
 /**
  * A burst helper helps organize and manage a packet that is larger than
@@ -431,7 +432,8 @@ class MemCtrl : public qos::MemCtrl
      *
      * @return An address aligned to a memory burst
      */
-    Addr burstAlign(Addr addr, bool is_dram) const;
+    //Addr burstAlign(Addr addr, bool is_dram) const;
+    Addr burstAlign(Addr addr) const;
 
     /**
      * The controller's main read and write queues,
@@ -466,15 +468,20 @@ class MemCtrl : public qos::MemCtrl
      */
     std::unordered_multiset<Tick> burstTicks;
 
+    // /**
+    //  * Create pointer to interface of the actual dram media when connected
+    //  */
+    // DRAMInterface* const dram;
+
+    // /**
+    //  * Create pointer to interface of the actual nvm media when connected
+    //  */
+    // NVMInterface* const nvm;
+
     /**
      * Create pointer to interface of the actual dram media when connected
      */
-    DRAMInterface* const dram;
-
-    /**
-     * Create pointer to interface of the actual nvm media when connected
-     */
-    NVMInterface* const nvm;
+    MemInterface* mem;
 
     /**
      * The following are basic design parameters of the memory
@@ -482,13 +489,15 @@ class MemCtrl : public qos::MemCtrl
      * The rowsPerBank is determined based on the capacity, number of
      * ranks and banks, the burst size, and the row buffer size.
      */
-    const uint32_t readBufferSize;
-    const uint32_t writeBufferSize;
+    uint32_t readBufferSize = 0;
+    uint32_t writeBufferSize = 0;
     const uint32_t writeHighThreshold;
     const uint32_t writeLowThreshold;
     const uint32_t minWritesPerSwitch;
     uint32_t writesThisTime;
     uint32_t readsThisTime;
+
+    void setMemInterface(MemInterface* _mem);
 
     /**
      * Memory controller configuration initialized based on parameter
