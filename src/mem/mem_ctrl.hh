@@ -483,6 +483,8 @@ class MemCtrl : public qos::MemCtrl
      */
     MemInterface* mem;
 
+    bool isDramIntr;
+
     /**
      * The following are basic design parameters of the memory
      * controller, and are initialized based on parameter values.

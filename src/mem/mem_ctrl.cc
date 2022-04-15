@@ -83,8 +83,10 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
 
     if (dynamic_cast<DRAMInterface*>(p.mem) != nullptr) {
         mem = dynamic_cast<DRAMInterface*>(p.mem);
+        isDramIntr = true;
     } else if (dynamic_cast<NVMInterface*>(p.mem) != nullptr){
         mem = dynamic_cast<NVMInterface*>(p.mem);
+        isDramIntr = false;
     }
 
     readBufferSize = mem->readBufferSize;
@@ -515,10 +517,10 @@ MemCtrl::recvTimingReq(PacketPtr pkt)
 
     bool is_dram;
     if (mem && mem->getAddrRange().contains(pkt->getAddr()) &&
-        dynamic_cast<DRAMInterface*>(mem) != nullptr) {
+        isDramIntr) {
         is_dram = true;
     } else if (mem && mem->getAddrRange().contains(pkt->getAddr()) &&
-                dynamic_cast<NVMInterface*>(mem) != nullptr) {
+               !isDramIntr) {
         is_dram = false;
     } else {
         panic("Can't handle address range for packet %s\n",
@@ -585,7 +587,7 @@ MemCtrl::processRespondEvent()
 
     if (mem_pkt->isDram()) {
         // media specific checks and functions when read response is complete
-        assert(dynamic_cast<DRAMInterface*>(mem) != nullptr);
+        assert(isDramIntr);
         mem->respondEvent(mem_pkt->rank);
     }
 
@@ -625,7 +627,7 @@ MemCtrl::processRespondEvent()
             // check the refresh state and kick the refresh event loop
             // into action again if banks already closed and just waiting
             // for read to complete
-            assert(dynamic_cast<DRAMInterface*>(mem) != nullptr);
+            assert(isDramIntr);
             mem->checkRefreshState(mem_pkt->rank);
         }
     }
@@ -933,12 +935,12 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt)
 
 
     if (mem_pkt->isDram()) {
-        assert(dynamic_cast<DRAMInterface*>(mem) != nullptr);
+        assert(isDramIntr);
         std::vector<MemPacketQueue>& queue = selQueue(mem_pkt->isRead());
         std::tie(cmd_at, nextBurstAt) =
                  mem->doBurstAccess(mem_pkt, nextBurstAt, queue);
     } else {
-        assert(dynamic_cast<NVMInterface*>(mem) != nullptr);
+        assert(!isDramIntr);
         std::tie(cmd_at, nextBurstAt) =
                  mem->doBurstAccess(mem_pkt, nextBurstAt);
     }
@@ -1021,7 +1023,7 @@ MemCtrl::processNextReqEvent()
     //  }
     // }
 
-    if (dynamic_cast<NVMInterface*>(mem) != nullptr) {
+    if (!isDramIntr) {
         for (auto queue = readQueue.rbegin();
              queue != readQueue.rend(); ++queue) {
              // select non-deterministic NVM read to issue
@@ -1056,9 +1058,9 @@ MemCtrl::processNextReqEvent()
     // }
 
     bool mem_busy = false;
-    if (dynamic_cast<DRAMInterface*>(mem) != nullptr) {
+    if (isDramIntr) {
         mem_busy = mem->isBusy();
-    } else if (dynamic_cast<NVMInterface*>(mem) != nullptr) {
+    } else if (!isDramIntr) {
         bool all_writes_nvm = mem->numWritesQueued == totalWriteQueueSize;
         bool read_queue_empty = totalReadQueueSize == 0;
         mem_busy = mem->isBusy(read_queue_empty, all_writes_nvm);
@@ -1184,7 +1186,7 @@ MemCtrl::processNextReqEvent()
             //     switch_to_writes = true;
             // }
             if ((totalWriteQueueSize > writeHighThreshold) &&
-               !(dynamic_cast<NVMInterface*>(mem) != nullptr &&
+               !(!isDramIntr &&
                  mem->numWritesQueued == totalWriteQueueSize &&
                  mem->writeRespQueueFull())) {
                 switch_to_writes = true;
@@ -1290,7 +1292,7 @@ MemCtrl::processNextReqEvent()
             (below_threshold && drainState() != DrainState::Draining) ||
             (totalReadQueueSize && writesThisTime >= minWritesPerSwitch) ||
             (totalReadQueueSize &&
-             dynamic_cast<NVMInterface*>(mem) != nullptr &&
+             !isDramIntr &&
              mem->writeRespQueueFull() &&
              mem->numWritesQueued == totalWriteQueueSize)) {
 
@@ -1611,7 +1613,7 @@ MemCtrl::drain()
 
         // if (dram)
         //     dram->drainRanks();
-        if (dynamic_cast<DRAMInterface*>(mem) != nullptr)
+        if (isDramIntr)
             mem->drainRanks();
 
         return DrainState::Draining;
@@ -1634,7 +1636,7 @@ MemCtrl::drainResume()
         // not cause issues with KVM
         // if (dram)
         //     dram->suspend();
-        if (dynamic_cast<DRAMInterface*>(mem) != nullptr)
+        if (isDramIntr)
             mem->drainRanks();
     }
 
