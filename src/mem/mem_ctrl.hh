@@ -66,9 +66,9 @@ namespace gem5
 namespace memory
 {
 
+class MemInterface;
 class DRAMInterface;
 class NVMInterface;
-class MemInterface;
 
 /**
  * A burst helper helps organize and manage a packet that is larger than
@@ -496,8 +496,6 @@ class MemCtrl : public qos::MemCtrl
     const uint32_t minWritesPerSwitch;
     uint32_t writesThisTime;
     uint32_t readsThisTime;
-
-    void setMemInterface(MemInterface* _mem);
 
     /**
      * Memory controller configuration initialized based on parameter

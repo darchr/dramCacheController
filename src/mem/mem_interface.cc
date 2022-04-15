@@ -82,7 +82,6 @@ void
 MemInterface::setCtrl(MemCtrl* _ctrl, unsigned int command_window)
 {
     ctrl = _ctrl;
-    std::cout << "**** " << tCK << "\n";
     maxCommandsPerWindow = command_window / tCK;
 }
 

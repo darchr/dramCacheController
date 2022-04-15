@@ -81,13 +81,14 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
 {
     DPRINTF(MemCtrl, "Setting up controller\n");
 
-    setMemInterface(p.mem);
+    if (dynamic_cast<DRAMInterface*>(p.mem) != nullptr) {
+        mem = dynamic_cast<DRAMInterface*>(p.mem);
+    } else if (dynamic_cast<NVMInterface*>(p.mem) != nullptr){
+        mem = dynamic_cast<NVMInterface*>(p.mem);
+    }
 
     readBufferSize = mem->readBufferSize;
     writeBufferSize = mem->writeBufferSize;
-
-    std::cout << "****2 " << mem->readBufferSize <<
-    " / " << (dynamic_cast<DRAMInterface*>(mem) == nullptr) << "\n";
 
     readQueue.resize(p.qos_priorities);
     writeQueue.resize(p.qos_priorities);
@@ -108,16 +109,6 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
         fatal("Write buffer low threshold %d must be smaller than the "
               "high threshold %d\n", p.write_low_thresh_perc,
               p.write_high_thresh_perc);
-}
-
-void
-MemCtrl::setMemInterface(MemInterface* _mem)
-{
-    if (dynamic_cast<DRAMInterface*>(_mem) != nullptr) {
-        mem = dynamic_cast<DRAMInterface*>(_mem);
-    } else if (dynamic_cast<NVMInterface*>(_mem) != nullptr){
-        mem = dynamic_cast<NVMInterface*>(_mem);
-    }
 }
 
 void
