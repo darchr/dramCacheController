@@ -57,6 +57,7 @@
 #include "enums/MemSched.hh"
 #include "mem/qos/mem_ctrl.hh"
 #include "mem/qport.hh"
+#include "params/HetMemCtrl.hh"
 #include "params/MemCtrl.hh"
 #include "sim/eventq.hh"
 
@@ -242,7 +243,7 @@ typedef std::deque<MemPacket*> MemPacketQueue;
  */
 class MemCtrl : public qos::MemCtrl
 {
-  private:
+  protected:
 
     // For now, make use of a queued response port to avoid dealing with
     // flow control for the responses being sent back
@@ -250,11 +251,13 @@ class MemCtrl : public qos::MemCtrl
     {
 
         RespPacketQueue queue;
-        MemCtrl& ctrl;
+        //MemCtrl& ctrl;
 
       public:
 
-        MemoryPort(const std::string& name, MemCtrl& _ctrl);
+        MemoryPort(const std::string& name, MemCtrl* _ctrl);
+
+        MemCtrl* ctrl;
 
       protected:
 
@@ -266,7 +269,7 @@ class MemCtrl : public qos::MemCtrl
 
         bool recvTimingReq(PacketPtr) override;
 
-        AddrRangeList getAddrRanges() const override;
+        virtual AddrRangeList getAddrRanges() const override;
 
     };
 
@@ -293,10 +296,10 @@ class MemCtrl : public qos::MemCtrl
      * processRespondEvent is called; no parameters are allowed
      * in these methods
      */
-    void processNextReqEvent();
+    virtual void processNextReqEvent();
     EventFunctionWrapper nextReqEvent;
 
-    void processRespondEvent();
+    virtual void processRespondEvent();
     EventFunctionWrapper respondEvent;
 
     /**
@@ -330,7 +333,7 @@ class MemCtrl : public qos::MemCtrl
      * translate to. If pkt size is larger then one full burst,
      * then pkt_count is greater than one.
      */
-    void addToReadQueue(PacketPtr pkt, unsigned int pkt_count, bool is_dram);
+    void addToReadQueue(PacketPtr pkt, unsigned int pkt_count);
 
     /**
      * Decode the incoming pkt, create a mem_pkt and push to the
@@ -344,7 +347,7 @@ class MemCtrl : public qos::MemCtrl
      * translate to. If pkt size is larger then one full burst,
      * then pkt_count is greater than one.
      */
-    void addToWriteQueue(PacketPtr pkt, unsigned int pkt_count, bool is_dram);
+    void addToWriteQueue(PacketPtr pkt, unsigned int pkt_count);
 
     /**
      * Actually do the burst based on media specific access function.
@@ -352,7 +355,7 @@ class MemCtrl : public qos::MemCtrl
      *
      * @param mem_pkt The memory packet created from the outside world pkt
      */
-    void doBurstAccess(MemPacket* mem_pkt);
+    virtual void doBurstAccess(MemPacket* mem_pkt);
 
     /**
      * When a packet reaches its "readyTime" in the response Q,
@@ -363,28 +366,28 @@ class MemCtrl : public qos::MemCtrl
      * @param pkt The packet from the outside world
      * @param static_latency Static latency to add before sending the packet
      */
-    void accessAndRespond(PacketPtr pkt, Tick static_latency);
+    virtual void accessAndRespond(PacketPtr pkt, Tick static_latency);
 
     /**
      * Determine if there is a packet that can issue.
      *
      * @param pkt The packet to evaluate
      */
-    bool packetReady(MemPacket* pkt);
+    virtual bool packetReady(MemPacket* pkt);
 
     /**
      * Calculate the minimum delay used when scheduling a read-to-write
      * transision.
      * @param return minimum delay
      */
-    Tick minReadToWriteDataGap();
+    virtual Tick minReadToWriteDataGap();
 
     /**
      * Calculate the minimum delay used when scheduling a write-to-read
      * transision.
      * @param return minimum delay
      */
-    Tick minWriteToReadDataGap();
+    virtual Tick minWriteToReadDataGap();
 
     /**
      * The memory schduler/arbiter - picks which request needs to
@@ -408,7 +411,7 @@ class MemCtrl : public qos::MemCtrl
      * @param extra_col_delay Any extra delay due to a read/write switch
      * @return an iterator to the selected packet, else queue.end()
      */
-    MemPacketQueue::iterator chooseNextFRFCFS(MemPacketQueue& queue,
+    virtual MemPacketQueue::iterator chooseNextFRFCFS(MemPacketQueue& queue,
             Tick extra_col_delay);
 
     /**
@@ -484,6 +487,8 @@ class MemCtrl : public qos::MemCtrl
     MemInterface* mem;
 
     bool isDramIntr;
+
+    std::vector<MemInterface*> listOfInterfaces;
 
     /**
      * The following are basic design parameters of the memory
@@ -624,6 +629,11 @@ class MemCtrl : public qos::MemCtrl
      */
     void pruneBurstTick();
 
+    virtual Tick recvAtomic(PacketPtr pkt);
+    virtual Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor);
+    virtual void recvFunctional(PacketPtr pkt);
+    virtual bool recvTimingReq(PacketPtr pkt);
+
   public:
 
     MemCtrl(const MemCtrlParams &p);
@@ -633,7 +643,7 @@ class MemCtrl : public qos::MemCtrl
      *
      * @return bool flag, set once drain complete
      */
-    bool allIntfDrained() const;
+    virtual bool allIntfDrained() const;
 
     DrainState drain() override;
 
@@ -715,12 +725,43 @@ class MemCtrl : public qos::MemCtrl
     virtual void startup() override;
     virtual void drainResume() override;
 
-  protected:
+};
 
-    Tick recvAtomic(PacketPtr pkt);
-    Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor);
-    void recvFunctional(PacketPtr pkt);
-    bool recvTimingReq(PacketPtr pkt);
+class HetMemCtrl : public MemCtrl
+{
+  private:
+
+    MemInterface* mem2;
+    bool isDramIntr2;
+    Addr burstAlign(Addr addr, bool firstIntr) const;
+    void addToReadQueue(PacketPtr pkt, unsigned int pkt_count,
+                        bool firstIntr);
+    void addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
+                         bool firstIntr);
+    MemPacketQueue::iterator chooseNextFRFCFS(MemPacketQueue& queue,
+            Tick extra_col_delay) override;
+    void accessAndRespond(PacketPtr pkt, Tick static_latency) override;
+    void doBurstAccess(MemPacket* mem_pkt) override;
+    bool packetReady(MemPacket* pkt) override;
+    Tick minReadToWriteDataGap() override;
+    Tick minWriteToReadDataGap() override;
+
+    void processRespondEvent() override;
+    void processNextReqEvent() override;
+
+  public:
+    HetMemCtrl(const HetMemCtrlParams &p);
+
+    void startup() override;
+    bool allIntfDrained() const override;
+    DrainState drain() override;
+    void drainResume() override;
+
+  protected:
+    Tick recvAtomic(PacketPtr pkt) override;
+    Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override;
+    bool recvTimingReq(PacketPtr pkt) override;
+    void recvFunctional(PacketPtr pkt) override;
 
 };
 
