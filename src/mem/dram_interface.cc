@@ -780,7 +780,7 @@ DRAMInterface::startup()
 }
 
 bool
-DRAMInterface::isBusy()
+DRAMInterface::isBusy(bool read_queue_empty, bool all_writes_nvm)
 {
     int busy_ranks = 0;
     for (auto r : ranks) {
@@ -830,6 +830,8 @@ void DRAMInterface::setupRank(const uint8_t rank, const bool is_read)
 void
 DRAMInterface::respondEvent(uint8_t rank)
 {
+    assert(ctrl->isDramIntr);
+
     Rank& rank_ref = *ranks[rank];
 
     // if a read has reached its ready-time, decrement the number of reads
@@ -877,6 +879,8 @@ DRAMInterface::respondEvent(uint8_t rank)
 void
 DRAMInterface::checkRefreshState(uint8_t rank)
 {
+    assert(ctrl->isDramIntr);
+
     Rank& rank_ref = *ranks[rank];
 
     if ((rank_ref.refreshState == REF_PRE) &&
@@ -1922,6 +1926,22 @@ DRAMInterface::RankStats::preDumpStats()
     statistics::Group::preDumpStats();
 
     rank.computeStats();
+}
+
+void
+DRAMInterface::chooseRead(MemPacketQueue& queue)
+{ };
+
+bool
+DRAMInterface::readsWaitingToIssue()
+{
+    return false;
+}
+
+bool
+DRAMInterface::writeRespQueueFull() const
+{
+    return false;
 }
 
 } // namespace memory

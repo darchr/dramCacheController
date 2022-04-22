@@ -314,24 +314,23 @@ class MemInterface : public AbstractMemory
       "should not be executed from here.\n");
     };
 
-    virtual bool isBusy()
-    {
-      panic("MemInterface isBusy (DRAM) should "
-      "not be executed from here.\n");
-    }
-
     virtual void drainRanks()
     {
       panic("MemInterface drainRanks (DRAM) should "
       "not be executed from here.\n");
     }
 
-    virtual std::pair<Tick, Tick>
-    doBurstAccess(MemPacket* pkt, Tick next_burst_at)
+    virtual void suspend()
     {
-      panic("MemInterface doBurstAccess (NVM) "
-      "should not be executed from here.\n");
-    };
+      panic("MemInterface suspend (DRAM) should "
+      "not be executed from here.\n");
+    }
+
+    virtual void startup()
+    {
+      panic("MemInterface startup (DRAM) should "
+      "not be executed from here.\n");
+    }
 
     virtual bool readsWaitingToIssue()
     {

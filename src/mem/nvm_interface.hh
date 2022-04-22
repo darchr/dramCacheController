@@ -259,6 +259,9 @@ class NVMInterface : public MemInterface
      */
     void addRankToRankDelay(Tick cmd_at) override;
 
+    void respondEvent(uint8_t rank) override;
+
+    void checkRefreshState(uint8_t rank);
 
     /**
      * Select read command to issue asynchronously
@@ -297,7 +300,14 @@ class NVMInterface : public MemInterface
      *               tick when next burst can issue
      */
     std::pair<Tick, Tick>
-    doBurstAccess(MemPacket* pkt, Tick next_burst_at) override;
+    doBurstAccess(MemPacket* pkt, Tick next_burst_at,
+                  const std::vector<MemPacketQueue>& queue) override;
+
+    void drainRanks() override;
+
+    void suspend() override;
+
+    void startup() override;
 
     NVMInterface(const NVMInterfaceParams &_p);
 };

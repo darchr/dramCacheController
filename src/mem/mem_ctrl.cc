@@ -65,9 +65,7 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     assert(p.mem!=nullptr);
     assert(p.mem2!=nullptr);
 
-    port.ctrl = dynamic_cast<MemCtrl*>(this);
-
-    listOfInterfaces.clear();
+    //port.ctrl = dynamic_cast<MemCtrl*>(this);
 
     if (dynamic_cast<DRAMInterface*>(p.mem) != nullptr) {
         mem = dynamic_cast<DRAMInterface*>(p.mem);
@@ -77,8 +75,6 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
         isDramIntr = false;
     }
 
-    listOfInterfaces.push_back(mem);
-
     if (dynamic_cast<DRAMInterface*>(p.mem2) != nullptr) {
         mem2 = dynamic_cast<DRAMInterface*>(p.mem2);
         isDramIntr2 = true;
@@ -86,8 +82,6 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
         mem2 = dynamic_cast<NVMInterface*>(p.mem2);
         isDramIntr2 = false;
     }
-
-    listOfInterfaces.push_back(mem2);
 
     readBufferSize = mem->readBufferSize + mem2->readBufferSize;
     writeBufferSize = mem->writeBufferSize + mem2->writeBufferSize;
@@ -652,8 +646,10 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt)
 
     // Issue the next burst and update bus state to reflect
     // when previous command was issued
+
+    std::vector<MemPacketQueue>& queue = selQueue(mem_pkt->isRead());
+
     if (mem && mem->getAddrRange().contains(mem_pkt->getAddr())) {
-        std::vector<MemPacketQueue>& queue = selQueue(mem_pkt->isRead());
         std::tie(cmd_at, nextBurstAt) =
                  mem->doBurstAccess(mem_pkt, nextBurstAt, queue);
 
@@ -662,7 +658,7 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt)
 
     } else if (mem2 && mem2->getAddrRange().contains(mem_pkt->getAddr())) {
         std::tie(cmd_at, nextBurstAt) =
-                 mem2->doBurstAccess(mem_pkt, nextBurstAt);
+                 mem2->doBurstAccess(mem_pkt, nextBurstAt, queue);
 
         // Update timing for NVM ranks if NVM is configured on this channel
         mem->addRankToRankDelay(cmd_at);
@@ -765,14 +761,14 @@ MemCtrl::processNextReqEvent()
     bool mem_busy, mem2_busy = true;
 
     if (isDramIntr) {
-        mem_busy = mem->isBusy();
+        mem_busy = mem->isBusy(false, false);
     } else {
         mem_busy = mem->isBusy(totalReadQueueSize == 0,
                                mem->numWritesQueued == totalWriteQueueSize);
     }
 
     if (isDramIntr2) {
-        mem2_busy = mem2->isBusy();
+        mem2_busy = mem2->isBusy(false, false);
     } else {
         mem2_busy = mem2->isBusy(totalReadQueueSize == 0,
                                  mem2->numWritesQueued == totalWriteQueueSize);
@@ -1109,13 +1105,22 @@ MemCtrl::drainResume()
         // if we switch from timing mode, stop the refresh events to
         // not cause issues with KVM
         if (isDramIntr)
-            mem->drainRanks();
+            mem->suspend();
         if (isDramIntr2)
-            mem2->drainRanks();
+            mem2->suspend();
     }
 
     // update the mode
     isTimingMode = system()->isTimingMode();
+}
+
+std::vector<MemInterface*>
+MemCtrl::getMemInterface()
+{
+    std::vector<MemInterface*> intrfc;
+    intrfc.push_back(mem);
+    intrfc.push_back(mem2);
+    return intrfc;
 }
 
 } // namespace memory

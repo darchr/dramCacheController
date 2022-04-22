@@ -72,11 +72,13 @@ class MemCtrl : public SimpleMemCtrl
     bool packetReady(MemPacket* pkt) override;
     Tick minReadToWriteDataGap() override;
     Tick minWriteToReadDataGap() override;
+    std::vector<MemInterface*> getMemInterface();
 
     void processRespondEvent() override;
     void processNextReqEvent() override;
 
   public:
+
     MemCtrl(const MemCtrlParams &p);
 
     void startup() override;
@@ -85,6 +87,7 @@ class MemCtrl : public SimpleMemCtrl
     void drainResume() override;
 
   protected:
+
     Tick recvAtomic(PacketPtr pkt) override;
     Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override;
     bool recvTimingReq(PacketPtr pkt) override;

@@ -254,9 +254,9 @@ class SimpleMemCtrl : public qos::MemCtrl
 
       public:
 
-        MemoryPort(const std::string& name, SimpleMemCtrl* _ctrl);
+        MemoryPort(const std::string& name, SimpleMemCtrl& _ctrl);
 
-        SimpleMemCtrl* ctrl;
+        SimpleMemCtrl& ctrl;
 
       protected:
 
@@ -470,24 +470,9 @@ class SimpleMemCtrl : public qos::MemCtrl
      */
     std::unordered_multiset<Tick> burstTicks;
 
-    // /**
-    //  * Create pointer to interface of the actual dram media when connected
-    //  */
-    // DRAMInterface* const dram;
-
-    // /**
-    //  * Create pointer to interface of the actual nvm media when connected
-    //  */
-    // NVMInterface* const nvm;
-
-    /**
-     * Create pointer to interface of the actual dram media when connected
-     */
     MemInterface* mem;
 
-    bool isDramIntr;
-
-    std::vector<MemInterface*> listOfInterfaces;
+    virtual std::vector<MemInterface*> getMemInterface();
 
     /**
      * The following are basic design parameters of the memory
@@ -495,8 +480,8 @@ class SimpleMemCtrl : public qos::MemCtrl
      * The rowsPerBank is determined based on the capacity, number of
      * ranks and banks, the burst size, and the row buffer size.
      */
-    uint32_t readBufferSize = 0;
-    uint32_t writeBufferSize = 0;
+    uint32_t readBufferSize;
+    uint32_t writeBufferSize;
     const uint32_t writeHighThreshold;
     const uint32_t writeLowThreshold;
     const uint32_t minWritesPerSwitch;
@@ -636,6 +621,8 @@ class SimpleMemCtrl : public qos::MemCtrl
   public:
 
     SimpleMemCtrl(const SimpleMemCtrlParams &p);
+
+    bool isDramIntr;
 
     /**
      * Ensure that all interfaced have drained commands

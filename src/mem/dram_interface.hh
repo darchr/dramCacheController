@@ -669,6 +669,8 @@ class DRAMInterface : public MemInterface
      */
     void drainRanks() override;
 
+    bool readsWaitingToIssue() override;
+
     /**
      * Return true once refresh is complete for all ranks and there are no
      * additional commands enqueued.  (only evaluated when draining)
@@ -683,7 +685,7 @@ class DRAMInterface : public MemInterface
     /**
      * Iterate through DRAM ranks and suspend them
      */
-    void suspend();
+    void suspend() override;
 
     /*
      * @return time to offset next command
@@ -745,7 +747,7 @@ class DRAMInterface : public MemInterface
      *
      * return boolean if all ranks are in refresh and therefore busy
      */
-    bool isBusy() override;
+    bool isBusy(bool read_queue_empty, bool all_writes_nvm) override;
 
     /**
      *  Add rank to rank delay to bus timing to all DRAM banks in alli ranks
@@ -772,6 +774,10 @@ class DRAMInterface : public MemInterface
      * @param rank Specifies rank associated with read burst
      */
     void checkRefreshState(uint8_t rank);
+
+    void chooseRead(MemPacketQueue& queue) override;
+
+    bool writeRespQueueFull() const override;
 
     DRAMInterface(const DRAMInterfaceParams &_p);
 };

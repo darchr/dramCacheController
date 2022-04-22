@@ -326,7 +326,8 @@ NVMInterface::burstReady(MemPacket* pkt) const {
 }
 
     std::pair<Tick, Tick>
-NVMInterface::doBurstAccess(MemPacket* pkt, Tick next_burst_at)
+NVMInterface::doBurstAccess(MemPacket* pkt, Tick next_burst_at,
+                  const std::vector<MemPacketQueue>& queue)
 {
     DPRINTF(NVM, "NVM Timing access to addr %#x, rank/bank/row %d %d %d\n",
             pkt->addr, pkt->rank, pkt->bank, pkt->row);
@@ -516,6 +517,14 @@ NVMInterface::addRankToRankDelay(Tick cmd_at)
     }
 }
 
+void
+NVMInterface::respondEvent(uint8_t rank)
+{ };
+
+void
+NVMInterface::checkRefreshState(uint8_t rank)
+{ };
+
 bool
 NVMInterface::isBusy(bool read_queue_empty, bool all_writes_nvm)
 {
@@ -534,6 +543,17 @@ NVMInterface::isBusy(bool read_queue_empty, bool all_writes_nvm)
                                          all_writes_nvm);
 }
 
+void
+NVMInterface::drainRanks()
+{ }
+
+void
+NVMInterface::suspend()
+{ }
+
+void
+NVMInterface::startup()
+{ }
 
 NVMInterface::NVMStats::NVMStats(NVMInterface &_nvm)
     : statistics::Group(&_nvm),
