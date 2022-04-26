@@ -75,8 +75,9 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     frontendLatency(p.static_frontend_latency),
     backendLatency(p.static_backend_latency),
     commandWindow(p.command_window),
-    nextBurstAt(0), prevArrival(0),
-    nextReqTime(0),
+    //nextBurstAt(0), 
+    prevArrival(0),
+    //nextReqTime(0),
     stats(*this)
 {
     DPRINTF(MemCtrl, "Setting up controller\n");
@@ -100,7 +101,7 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     //     dram->setCtrl(this, commandWindow);
     // if (nvm)
     //     nvm->setCtrl(this, commandWindow);
-    mem->setCtrl(this, commandWindow);
+    mem->setCtrl(this, commandWindow, 0);
 
 
     //fatal_if(!dram && !nvm, "Memory controller must have an interface");
@@ -136,7 +137,7 @@ MemCtrl::startup()
         // start of simulation
         // nextBurstAt = curTick() + (dram ? dram->commandOffset() :
         //                                   nvm->commandOffset());
-        nextBurstAt = curTick() + mem->commandOffset();
+        mem->nextBurstAt = curTick() + mem->commandOffset();
     }
 }
 
@@ -312,9 +313,9 @@ MemCtrl::addToReadQueue(PacketPtr pkt, unsigned int pkt_count,
             // }
 
             if (dynamic_cast<DRAMInterface*>(mem_int) != nullptr) {
-                mem_pkt = mem_int->decodePacket(pkt, addr, size, true, true);
+                mem_pkt = mem_int->decodePacket(pkt, addr, size, true, true, mem_int->channel_num);
             } else if (dynamic_cast<NVMInterface*>(mem_int) != nullptr){
-                mem_pkt = mem_int->decodePacket(pkt, addr, size, true, false);
+                mem_pkt = mem_int->decodePacket(pkt, addr, size, true, false, mem_int->channel_num);
                 // Default readyTime to Max; will be reset once read is issued
                 mem_pkt->readyTime = MaxTick;
             }
@@ -402,9 +403,9 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
             // }
 
             if (dynamic_cast<DRAMInterface*>(mem_int) != nullptr) {
-                mem_pkt = mem_int->decodePacket(pkt, addr, size, false, true);
+                mem_pkt = mem_int->decodePacket(pkt, addr, size, false, true, mem_int->channel_num);
             } else if (dynamic_cast<NVMInterface*>(mem_int) != nullptr){
-                mem_pkt = mem_int->decodePacket(pkt, addr, size, false, false);
+                mem_pkt = mem_int->decodePacket(pkt, addr, size, false, false, mem_int->channel_num);
                 // Default readyTime to Max; will be reset once read is issued
                 mem_pkt->readyTime = MaxTick;
             }
@@ -697,7 +698,7 @@ MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
     Tick col_allowed_at = MaxTick;
 
     // time we need to issue a column command to be seamless
-    const Tick min_col_at = std::max(nextBurstAt + extra_col_delay, curTick());
+    const Tick min_col_at = std::max(mem_int->nextBurstAt + extra_col_delay, curTick());
 
     // find optimal packet for each interface
     // if (dram && nvm) {
@@ -951,16 +952,16 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int)
     if (mem_pkt->isDram()) {
         assert(isDramIntr);
         std::vector<MemPacketQueue>& queue = selQueue(mem_pkt->isRead());
-        std::tie(cmd_at, nextBurstAt) =
-                 mem_int->doBurstAccess(mem_pkt, nextBurstAt, queue);
+        std::tie(cmd_at, mem_int->nextBurstAt) =
+                 mem_int->doBurstAccess(mem_pkt, mem_int->nextBurstAt, queue);
     } else {
         assert(!isDramIntr);
-        std::tie(cmd_at, nextBurstAt) =
-                 mem_int->doBurstAccess(mem_pkt, nextBurstAt);
+        std::tie(cmd_at, mem_int->nextBurstAt) =
+                 mem_int->doBurstAccess(mem_pkt, mem_int->nextBurstAt);
     }
 
     DPRINTF(MemCtrl, "Access to %#x, ready at %lld next burst at %lld.\n",
-            mem_pkt->addr, mem_pkt->readyTime, nextBurstAt);
+            mem_pkt->addr, mem_pkt->readyTime, mem_int->nextBurstAt);
 
     // Update the minimum timing between the requests, this is a
     // conservative estimate of when we have to schedule the next
@@ -969,7 +970,7 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int)
     // nextReqTime = nextBurstAt - (dram ? dram->commandOffset() :
     //                                     nvm->commandOffset());
 
-    nextReqTime = nextBurstAt - mem->commandOffset();
+    mem_int->nextReqTime = mem_int->nextBurstAt - mem->commandOffset();
 
 
     // Update the common bus stats
@@ -1320,10 +1321,17 @@ MemCtrl::nextReqEventLogic(MemInterface* mem_int) {
             // nothing to do
         }
     }
+}
+
+void
+MemCtrl::processNextReqEvent()
+{
+    nextReqEventLogic(mem);
+
     // It is possible that a refresh to another rank kicks things back into
     // action before reaching this point.
     if (!nextReqEvent.scheduled())
-        schedule(nextReqEvent, std::max(nextReqTime, curTick()));
+        schedule(nextReqEvent, std::max(mem->nextReqTime, curTick()));
 
     // If there is space available and we have writes waiting then let
     // them retry. This is done here to ensure that the retry does not
@@ -1333,12 +1341,6 @@ MemCtrl::nextReqEventLogic(MemInterface* mem_int) {
         retryWrReq = false;
         port.sendRetryReq();
     }
-}
-
-void
-MemCtrl::processNextReqEvent()
-{
-    nextReqEventLogic(mem);
 }
 
 bool
