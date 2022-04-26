@@ -79,15 +79,17 @@ MemInterface::MemInterface(const MemInterfaceParams &_p)
 {}
 
 void
-MemInterface::setCtrl(MemCtrl* _ctrl, unsigned int command_window)
+MemInterface::setCtrl(MemCtrl* _ctrl, unsigned int command_window, uint8_t chan_num)
 {
     ctrl = _ctrl;
     maxCommandsPerWindow = command_window / tCK;
+    // setting the pseudo channel number for this interface
+    channel_num = chan_num;
 }
 
 MemPacket*
 MemInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
-                       unsigned size, bool is_read, bool is_dram)
+                       unsigned size, bool is_read, bool is_dram, uint8_t channel)
 {
     // decode the address based on the address mapping scheme, with
     // Ro, Ra, Co, Ba and Ch denoting row, rank, column, bank and
@@ -99,11 +101,14 @@ MemInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
     uint64_t row;
 
     // Get packed address, starting at 0
-    Addr addr = getCtrlAddr(pkt_addr);
+    //Addr addr = getCtrlAddr(pkt_addr);
+    Addr addr = pkt_addr;
 
     // truncate the address to a memory burst, which makes it unique to
     // a specific buffer, row, bank, rank and channel
     addr = addr / burstSize;
+
+    addr = addr >> 1;
 
     // we have removed the lowest order address bits that denote the
     // position within the column
@@ -167,7 +172,7 @@ MemInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
     // later
     uint16_t bank_id = banksPerRank * rank + bank;
 
-    return new MemPacket(pkt, is_read, is_dram, rank, bank, row, bank_id,
+    return new MemPacket(pkt, is_read, is_dram, channel, rank, bank, row, bank_id,
                    pkt_addr, size);
 }
 
@@ -203,7 +208,7 @@ DRAMInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
         MemPacket* pkt = *i;
 
         // select optimal DRAM packet in Q
-        if (pkt->isDram()) {
+        if (pkt->isDram() && (pkt->channel == this->channel_num)) {
             const Bank& bank = ranks[pkt->rank]->banks[pkt->bank];
             const Tick col_allowed_at = pkt->isRead() ? bank.rdAllowedAt :
                                                         bank.wrAllowedAt;
@@ -628,6 +633,14 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             // 3) make sure we are not considering the packet that we are
             //    currently dealing with
             while (!got_more_hits && p != queue[i].end()) {
+
+                if ((*p)->channel != this->channel_num)
+                    {
+                        // only look at this pkt if it belongs to this interface
+                        ++p;
+                        continue;
+                    }
+
                 if (mem_pkt != (*p)) {
                     bool same_rank_bank = (mem_pkt->rank == (*p)->rank) &&
                                           (mem_pkt->bank == (*p)->bank);
@@ -1061,6 +1074,9 @@ DRAMInterface::minBankPrep(const MemPacketQueue& queue,
     // bank in question
     std::vector<bool> got_waiting(ranksPerChannel * banksPerRank, false);
     for (const auto& p : queue) {
+        if (p->channel != this->channel_num)
+            continue;
+
         if (p->isDram() && ranks[p->rank]->inRefIdleState())
             got_waiting[p->bankId] = true;
     }
@@ -1317,7 +1333,8 @@ DRAMInterface::Rank::processRefreshEvent()
         // if a request is at the moment being handled and this request is
         // accessing the current rank then wait for it to finish
         if ((rank == dram.activeRank)
-            && (dram.ctrl->requestEventScheduled())) {
+            && ((dram.channel_num == 0) ? dram.ctrl->requestEventScheduled() : dynamic_cast<HBMCtrl*>(dram.ctrl)->requestEventCh1Scheduled())) {
+
             // hand control over to the request loop until it is
             // evaluated next
             DPRINTF(DRAM, "Refresh awaiting draining\n");
@@ -1678,10 +1695,15 @@ DRAMInterface::Rank::processPowerEvent()
         }
 
         // completed refresh event, ensure next request is scheduled
-        if (!dram.ctrl->requestEventScheduled()) {
+        if (!dram.ctrl->requestEventScheduled())
+        if (!((dram.channel_num == 0) ? dram.ctrl->requestEventScheduled() : dynamic_cast<HBMCtrl*>(dram.ctrl)->requestEventCh1Scheduled())) {
             DPRINTF(DRAM, "Scheduling next request after refreshing"
                            " rank %d\n", rank);
-            dram.ctrl->restartScheduler(curTick());
+            if (dram.channel_num == 0) {
+                dram.ctrl->restartScheduler(curTick());
+            } else {
+                dynamic_cast<HBMCtrl*>(dram.ctrl)->restartSchedulerCh1(curTick());
+            }
         }
     }
 

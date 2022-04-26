@@ -59,6 +59,7 @@
 #include "mem/abstract_mem.hh"
 #include "mem/drampower.hh"
 #include "mem/mem_ctrl.hh"
+#include "mem/hbm_ctrl.hh"
 #include "params/DRAMInterface.hh"
 #include "params/MemInterface.hh"
 #include "params/NVMInterface.hh"
@@ -182,13 +183,22 @@ class MemInterface : public AbstractMemory
 
     uint32_t numWritesQueued;
 
+    Tick nextBurstAt;
+    Tick nextReqTime;
+
+    /**
+     * pseudo channel number used for HBM modeling
+     */
+    uint8_t channel_num;
+
     /** Set a pointer to the controller and initialize
      * interface based on controller parameters
      * @param _ctrl pointer to the parent controller
      * @param command_window size of command window used to
      *                       check command bandwidth
+     * @param chan_num pseudo channel number
      */
-    void setCtrl(MemCtrl* _ctrl, unsigned int command_window);
+    void setCtrl(MemCtrl* _ctrl, unsigned int command_window, uint8_t chan_num);
 
     /**
      * Get an address in a dense range which starts from 0. The input
@@ -286,7 +296,7 @@ class MemInterface : public AbstractMemory
      * @return A MemPacket pointer with the decoded information
      */
     MemPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,
-                           unsigned int size, bool is_read, bool is_dram);
+                           unsigned int size, bool is_read, bool is_dram, uint8_t channel);
 
     /**
      *  Add rank to rank delay to bus timing to all banks in all ranks
