@@ -179,6 +179,8 @@ class MemInterface : public AbstractMemory
 
     uint32_t numWritesQueued;
 
+    bool isDramIntr;
+
     /** Set a pointer to the controller and initialize
      * interface based on controller parameters
      * @param _ctrl pointer to the parent controller

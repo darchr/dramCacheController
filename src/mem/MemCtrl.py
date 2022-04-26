@@ -48,5 +48,4 @@ class MemCtrl(SimpleMemCtrl):
     cxx_class = 'gem5::memory::MemCtrl'
 
     # Interface to memory media
-    mem2 = Param.MemInterface(NULL, "Memory interface")
-
+    nvm = Param.NVMInterface(NULL, "Memory interface")

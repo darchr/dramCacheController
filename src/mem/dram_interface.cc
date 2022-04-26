@@ -656,6 +656,8 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
     fatal_if(!isPowerOf2(ranksPerChannel), "DRAM rank count of %d is "
              "not allowed, must be a power of two\n", ranksPerChannel);
 
+    isDramIntr = true;
+
     for (int i = 0; i < ranksPerChannel; i++) {
         DPRINTF(DRAM, "Creating DRAM rank %d \n", i);
         Rank* rank = new Rank(_p, i, *this);
@@ -830,8 +832,6 @@ void DRAMInterface::setupRank(const uint8_t rank, const bool is_read)
 void
 DRAMInterface::respondEvent(uint8_t rank)
 {
-    assert(ctrl->isDramIntr);
-
     Rank& rank_ref = *ranks[rank];
 
     // if a read has reached its ready-time, decrement the number of reads
@@ -879,8 +879,6 @@ DRAMInterface::respondEvent(uint8_t rank)
 void
 DRAMInterface::checkRefreshState(uint8_t rank)
 {
-    assert(ctrl->isDramIntr);
-
     Rank& rank_ref = *ranks[rank];
 
     if ((rank_ref.refreshState == REF_PRE) &&

@@ -74,6 +74,8 @@ NVMInterface::NVMInterface(const NVMInterfaceParams &_p)
     fatal_if(!isPowerOf2(ranksPerChannel), "NVM rank count of %d is "
              "not allowed, must be a power of two\n", ranksPerChannel);
 
+    isDramIntr = false;
+
     for (int i =0; i < ranksPerChannel; i++) {
         // Add NVM ranks to the system
         DPRINTF(NVM, "Creating NVM rank %d \n", i);

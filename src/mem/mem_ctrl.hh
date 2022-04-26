@@ -58,18 +58,19 @@ class MemCtrl : public SimpleMemCtrl
 {
   private:
 
-    MemInterface* mem2;
-    bool isDramIntr2;
-    Addr burstAlign(Addr addr, bool firstIntr) const;
-    void addToReadQueue(PacketPtr pkt, unsigned int pkt_count,
-                        bool firstIntr);
-    void addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
-                         bool firstIntr);
+    NVMInterface* nvm;
+    // bool isDramIntr2;
+    // Addr burstAlign(Addr addr, bool firstIntr) const;
+    // void addToReadQueue(PacketPtr pkt, unsigned int pkt_count,
+    //                     bool firstIntr);
+    // void addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
+    //                      bool firstIntr);
+    MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
+        Tick extra_col_delay) override;
     MemPacketQueue::iterator chooseNextFRFCFS(MemPacketQueue& queue,
             Tick extra_col_delay) override;
     void accessAndRespond(PacketPtr pkt, Tick static_latency) override;
     void doBurstAccess(MemPacket* mem_pkt) override;
-    bool packetReady(MemPacket* pkt) override;
     Tick minReadToWriteDataGap() override;
     Tick minWriteToReadDataGap() override;
     std::vector<MemInterface*> getMemInterface();
@@ -89,7 +90,8 @@ class MemCtrl : public SimpleMemCtrl
   protected:
 
     Tick recvAtomic(PacketPtr pkt) override;
-    Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override;
+    // Tick recvAtomicBackdoor(PacketPtr pkt,
+    // MemBackdoorPtr &backdoor) override;
     bool recvTimingReq(PacketPtr pkt) override;
     void recvFunctional(PacketPtr pkt) override;
 

@@ -332,7 +332,8 @@ class SimpleMemCtrl : public qos::MemCtrl
      * translate to. If pkt size is larger then one full burst,
      * then pkt_count is greater than one.
      */
-    void addToReadQueue(PacketPtr pkt, unsigned int pkt_count);
+    void addToReadQueue(PacketPtr pkt, unsigned int pkt_count,
+                        MemInterface* memIntr);
 
     /**
      * Decode the incoming pkt, create a mem_pkt and push to the
@@ -346,7 +347,8 @@ class SimpleMemCtrl : public qos::MemCtrl
      * translate to. If pkt size is larger then one full burst,
      * then pkt_count is greater than one.
      */
-    void addToWriteQueue(PacketPtr pkt, unsigned int pkt_count);
+    void addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
+                          MemInterface* memIntr);
 
     /**
      * Actually do the burst based on media specific access function.
@@ -372,7 +374,7 @@ class SimpleMemCtrl : public qos::MemCtrl
      *
      * @param pkt The packet to evaluate
      */
-    virtual bool packetReady(MemPacket* pkt);
+    virtual bool packetReady(MemPacket* pkt, MemInterface* memIntr);
 
     /**
      * Calculate the minimum delay used when scheduling a read-to-write
@@ -399,7 +401,7 @@ class SimpleMemCtrl : public qos::MemCtrl
      * @param extra_col_delay Any extra delay due to a read/write switch
      * @return an iterator to the selected packet, else queue.end()
      */
-    MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
+    virtual MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
         Tick extra_col_delay);
 
     /**
@@ -435,7 +437,7 @@ class SimpleMemCtrl : public qos::MemCtrl
      * @return An address aligned to a memory burst
      */
     //Addr burstAlign(Addr addr, bool is_dram) const;
-    Addr burstAlign(Addr addr) const;
+    Addr burstAlign(Addr addr, MemInterface* memIntr) const;
 
     /**
      * The controller's main read and write queues,
@@ -470,7 +472,7 @@ class SimpleMemCtrl : public qos::MemCtrl
      */
     std::unordered_multiset<Tick> burstTicks;
 
-    MemInterface* mem;
+    MemInterface* dram;
 
     virtual std::vector<MemInterface*> getMemInterface();
 
@@ -622,7 +624,7 @@ class SimpleMemCtrl : public qos::MemCtrl
 
     SimpleMemCtrl(const SimpleMemCtrlParams &p);
 
-    bool isDramIntr;
+    // bool isDramIntr;
 
     /**
      * Ensure that all interfaced have drained commands

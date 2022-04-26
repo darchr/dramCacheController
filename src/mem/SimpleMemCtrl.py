@@ -66,7 +66,7 @@ class SimpleMemCtrl(QoSMemCtrl):
     # nvm = Param.NVMInterface(NULL, "NVM interface")
 
     # Interface to memory media
-    mem = Param.MemInterface(NULL, "Memory interface")
+    dram = Param.MemInterface(NULL, "Memory interface")
 
     # read and write buffer depths are set in the interface
     # the controller will read these values when instantiated
