@@ -59,12 +59,6 @@ class SimpleMemCtrl(QoSMemCtrl):
     # bus in front of the controller for multiple ports
     port = ResponsePort("This port responds to memory requests")
 
-    # # Interface to volatile, DRAM media
-    # dram = Param.DRAMInterface(NULL, "DRAM interface")
-
-    # # Interface to non-volatile media
-    # nvm = Param.NVMInterface(NULL, "NVM interface")
-
     # Interface to memory media
     dram = Param.MemInterface(NULL, "Memory interface")
 
