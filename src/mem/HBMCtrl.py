@@ -57,7 +57,7 @@ class HBMCtrl(MemCtrl):
 
     # single-ported on the system interface side, instantiate with a
     # bus in front of the controller for multiple ports
-    #port = ResponsePort("This port responds to memory requests")
+    port = ResponsePort("This port responds to memory requests")
 
     # # Interface to volatile, DRAM media
     # dram = Param.DRAMInterface(NULL, "DRAM interface")

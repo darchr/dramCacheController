@@ -79,6 +79,42 @@ class DRAMInterface;
  */
 class HBMCtrl : public MemCtrl
 {
+  
+  protected:
+
+    // For now, make use of a queued response port to avoid dealing with
+    // flow control for the responses being sent back
+    class MemoryPort : public QueuedResponsePort
+    {
+
+        RespPacketQueue queue;
+        HBMCtrl& ctrl;
+
+      public:
+
+        MemoryPort(const std::string& name, HBMCtrl& _ctrl);
+
+      protected:
+
+        Tick recvAtomic(PacketPtr pkt) override;
+        Tick recvAtomicBackdoor(
+                PacketPtr pkt, MemBackdoorPtr &backdoor) override;
+
+        void recvFunctional(PacketPtr pkt) override;
+
+        bool recvTimingReq(PacketPtr) override;
+
+        AddrRangeList getAddrRanges() const override;
+
+    };
+
+    /**
+     * Our incoming port, for a multi-ported controller add a crossbar
+     * in front of it
+     */
+    MemoryPort port;
+
+  
   private:
 
     /**
@@ -237,7 +273,8 @@ class HBMCtrl : public MemCtrl
     /**
      * Till when must we wait before issuing next RD/WR burst?
      */
-    Tick nextBurstAt1;
+    //Tick nextBurstAt1;
+    //Tick nextReqTime1;
 
   public:
 
@@ -272,8 +309,8 @@ class HBMCtrl : public MemCtrl
     virtual void startup() override;
     virtual void drainResume() override;
 
-  protected:
 
+  protected:
     Tick recvAtomic(PacketPtr pkt) override;
     Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override;
     void recvFunctional(PacketPtr pkt) override;
