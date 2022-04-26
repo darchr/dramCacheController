@@ -59,16 +59,10 @@ class MemCtrl : public SimpleMemCtrl
   private:
 
     NVMInterface* nvm;
-    // bool isDramIntr2;
-    // Addr burstAlign(Addr addr, bool firstIntr) const;
-    // void addToReadQueue(PacketPtr pkt, unsigned int pkt_count,
-    //                     bool firstIntr);
-    // void addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
-    //                      bool firstIntr);
     MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
-        Tick extra_col_delay) override;
+                                        Tick extra_col_delay) override;
     MemPacketQueue::iterator chooseNextFRFCFS(MemPacketQueue& queue,
-            Tick extra_col_delay) override;
+                                              Tick extra_col_delay) override;
     void accessAndRespond(PacketPtr pkt, Tick static_latency) override;
     void doBurstAccess(MemPacket* mem_pkt) override;
     Tick minReadToWriteDataGap() override;
@@ -82,7 +76,6 @@ class MemCtrl : public SimpleMemCtrl
 
     MemCtrl(const MemCtrlParams &p);
 
-    void startup() override;
     bool allIntfDrained() const override;
     DrainState drain() override;
     void drainResume() override;
@@ -90,8 +83,6 @@ class MemCtrl : public SimpleMemCtrl
   protected:
 
     Tick recvAtomic(PacketPtr pkt) override;
-    // Tick recvAtomicBackdoor(PacketPtr pkt,
-    // MemBackdoorPtr &backdoor) override;
     bool recvTimingReq(PacketPtr pkt) override;
     void recvFunctional(PacketPtr pkt) override;
 

@@ -250,19 +250,17 @@ class SimpleMemCtrl : public qos::MemCtrl
     {
 
         RespPacketQueue queue;
-        //SimpleMemCtrl& ctrl;
+        SimpleMemCtrl& ctrl;
 
       public:
 
         MemoryPort(const std::string& name, SimpleMemCtrl& _ctrl);
 
-        SimpleMemCtrl& ctrl;
-
       protected:
 
         Tick recvAtomic(PacketPtr pkt) override;
-        Tick recvAtomicBackdoor(
-                PacketPtr pkt, MemBackdoorPtr &backdoor) override;
+        Tick recvAtomicBackdoor(PacketPtr pkt,
+                                MemBackdoorPtr &backdoor) override;
 
         void recvFunctional(PacketPtr pkt) override;
 
@@ -623,8 +621,6 @@ class SimpleMemCtrl : public qos::MemCtrl
   public:
 
     SimpleMemCtrl(const SimpleMemCtrlParams &p);
-
-    // bool isDramIntr;
 
     /**
      * Ensure that all interfaced have drained commands

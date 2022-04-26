@@ -62,28 +62,13 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
 {
     DPRINTF(MemCtrl, "Setting up controller\n");
 
-    assert(p.dram!=nullptr);
-    assert(p.nvm!=nullptr);
-
     nvm = p.nvm;
 
-    //port.ctrl = dynamic_cast<MemCtrl*>(this);
+    fatal_if(!dram || !nvm, "Memory controller must have two interfaces");
 
-    // if (dynamic_cast<DRAMInterface*>(p.mem) != nullptr) {
-    //     mem = dynamic_cast<DRAMInterface*>(p.mem);
-    //     isDramIntr = true;
-    // } else if (dynamic_cast<NVMInterface*>(p.mem) != nullptr){
-    //     mem = dynamic_cast<NVMInterface*>(p.mem);
-    //     isDramIntr = false;
-    // }
-
-    // if (dynamic_cast<DRAMInterface*>(p.mem2) != nullptr) {
-    //     mem2 = dynamic_cast<DRAMInterface*>(p.mem2);
-    //     isDramIntr2 = true;
-    // } else if (dynamic_cast<NVMInterface*>(p.mem2) != nullptr){
-    //     mem2 = dynamic_cast<NVMInterface*>(p.mem2);
-    //     isDramIntr2 = false;
-    // }
+    // hook up interfaces to the controller
+    dram->setCtrl(this, commandWindow);
+    nvm->setCtrl(this, commandWindow);
 
     readBufferSize = dram->readBufferSize + nvm->readBufferSize;
     writeBufferSize = dram->writeBufferSize + nvm->writeBufferSize;
@@ -91,41 +76,11 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     readQueue.resize(p.qos_priorities);
     writeQueue.resize(p.qos_priorities);
 
-    // // Hook up interfaces to the controller
-    // if (dram)
-    //     dram->setCtrl(this, commandWindow);
-    // if (nvm)
-    //     nvm->setCtrl(this, commandWindow);
-    dram->setCtrl(this, commandWindow);
-    nvm->setCtrl(this, commandWindow);
-
-
-    //fatal_if(!dram && !nvm, "Memory controller must have an interface");
-    fatal_if(!dram || !nvm,
-    "Heterogenous memory controller must have exactly two interfaces");
-
     // perform a basic check of the write thresholds
     if (p.write_low_thresh_perc >= p.write_high_thresh_perc)
         fatal("Write buffer low threshold %d must be smaller than the "
               "high threshold %d\n", p.write_low_thresh_perc,
               p.write_high_thresh_perc);
-}
-
-void
-MemCtrl::startup()
-{
-    // remember the memory system mode of operation
-    isTimingMode = system()->isTimingMode();
-
-    if (isTimingMode) {
-        // shift the bus busy time sufficiently far ahead that we never
-        // have to worry about negative values when computing the time for
-        // the next request, this will add an insignificant bubble at the
-        // start of simulation
-        // nextBurstAt = curTick() + (dram ? dram->commandOffset() :
-        //                                   nvm->commandOffset());
-        nextBurstAt = curTick() + dram->commandOffset();
-    }
 }
 
 Tick
@@ -139,7 +94,7 @@ MemCtrl::recvAtomic(PacketPtr pkt)
 
     Tick latency = 0;
     // do the actual memory access and turn the packet into a response
-    if (dram && dram->getAddrRange().contains(pkt->getAddr())) {
+    if (dram->getAddrRange().contains(pkt->getAddr())) {
         dram->access(pkt);
 
         if (pkt->hasData()) {
@@ -147,7 +102,7 @@ MemCtrl::recvAtomic(PacketPtr pkt)
             // keep things going, mimic a closed page
             latency = dram->accessLatency();
         }
-    } else if (nvm && nvm->getAddrRange().contains(pkt->getAddr())) {
+    } else if (nvm->getAddrRange().contains(pkt->getAddr())) {
         nvm->access(pkt);
 
         if (pkt->hasData()) {
@@ -162,231 +117,6 @@ MemCtrl::recvAtomic(PacketPtr pkt)
 
     return latency;
 }
-
-// Addr
-// MemCtrl::burstAlign(Addr addr, bool firstIntr) const
-// {
-//     if (firstIntr) {
-//         return (addr & ~(Addr(mem->bytesPerBurst() - 1)));
-//     } else {
-//         return (addr & ~(Addr(mem2->bytesPerBurst() - 1)));
-//     }
-// }
-
-/*void
-MemCtrl::addToReadQueue(PacketPtr pkt,
-            unsigned int pkt_count, bool firstIntr)
-{
-    // only add to the read queue here. whenever the request is
-    // eventually done, set the readyTime, and call schedule()
-    assert(!pkt->isWrite());
-
-    assert(pkt_count != 0);
-
-    // if the request size is larger than burst size, the pkt is split into
-    // multiple packets
-    // Note if the pkt starting address is not aligened to burst size, the
-    // address of first packet is kept unaliged. Subsequent packets
-    // are aligned to burst size boundaries. This is to ensure we accurately
-    // check read packets against packets in write queue.
-    const Addr base_addr = pkt->getAddr();
-    Addr addr = base_addr;
-    unsigned pktsServicedByWrQ = 0;
-    BurstHelper* burst_helper = NULL;
-
-    uint32_t burst_size = firstIntr ? mem->bytesPerBurst() :
-                                    mem2->bytesPerBurst();
-    for (int cnt = 0; cnt < pkt_count; ++cnt) {
-        unsigned size = std::min((addr | (burst_size - 1)) + 1,
-                        base_addr + pkt->getSize()) - addr;
-        stats.readPktSize[ceilLog2(size)]++;
-        stats.readBursts++;
-        stats.requestorReadAccesses[pkt->requestorId()]++;
-
-        // First check write buffer to see if the data is already at
-        // the controller
-        bool foundInWrQ = false;
-        Addr burst_addr = burstAlign(addr, firstIntr);
-        // if the burst address is not present then there is no need
-        // looking any further
-        if (isInWriteQueue.find(burst_addr) != isInWriteQueue.end()) {
-            for (const auto& vec : writeQueue) {
-                for (const auto& p : vec) {
-                    // check if the read is subsumed in the write queue
-                    // packet we are looking at
-                    if (p->addr <= addr &&
-                       ((addr + size) <= (p->addr + p->size))) {
-
-                        foundInWrQ = true;
-                        stats.servicedByWrQ++;
-                        pktsServicedByWrQ++;
-                        DPRINTF(MemCtrl,
-                                "Read to addr %#x with size %d serviced by "
-                                "write queue\n",
-                                addr, size);
-                        stats.bytesReadWrQ += burst_size;
-                        break;
-                    }
-                }
-            }
-        }
-
-        // If not found in the write q, make a memory packet and
-        // push it onto the read queue
-        if (!foundInWrQ) {
-
-            // Make the burst helper for split packets
-            if (pkt_count > 1 && burst_helper == NULL) {
-                DPRINTF(MemCtrl, "Read to addr %#x translates to %d "
-                        "memory requests\n", pkt->getAddr(), pkt_count);
-                burst_helper = new BurstHelper(pkt_count);
-            }
-
-            MemPacket* mem_pkt;
-            if (firstIntr) {
-                mem_pkt =
-                mem->decodePacket(pkt, addr, size, true, isDramIntr);
-                    // increment read entries of the rank
-                mem->setupRank(mem_pkt->rank, true);
-                if (!isDramIntr) {
-                    mem_pkt->readyTime = MaxTick;
-                }
-            } else {
-                mem_pkt =
-                mem2->decodePacket(pkt, addr, size, true, isDramIntr2);
-                    // increment read entries of the rank
-                mem2->setupRank(mem_pkt->rank, true);
-                if (!isDramIntr2) {
-                    mem_pkt->readyTime = MaxTick;
-                }
-            }
-
-            mem_pkt->burstHelper = burst_helper;
-
-            assert(!readQueueFull(1));
-            stats.rdQLenPdf[totalReadQueueSize + respQueue.size()]++;
-
-            DPRINTF(MemCtrl, "Adding to read queue\n");
-
-            readQueue[mem_pkt->qosValue()].push_back(mem_pkt);
-
-            // log packet
-            logRequest(MemCtrl::READ, pkt->requestorId(), pkt->qosValue(),
-                       mem_pkt->addr, 1);
-
-            // Update stats
-            stats.avgRdQLen = totalReadQueueSize + respQueue.size();
-        }
-
-        // Starting address of next memory pkt (aligned to burst boundary)
-        addr = (addr | (burst_size - 1)) + 1;
-    }
-
-    // If all packets are serviced by write queue, we send the repsonse back
-    if (pktsServicedByWrQ == pkt_count) {
-        accessAndRespond(pkt, frontendLatency);
-        return;
-    }
-
-    // Update how many split packets are serviced by write queue
-    if (burst_helper != NULL)
-        burst_helper->burstsServiced = pktsServicedByWrQ;
-
-    // If we are not already scheduled to get a request out of the
-    // queue, do so now
-    if (!nextReqEvent.scheduled()) {
-        DPRINTF(MemCtrl, "Request scheduled immediately\n");
-        schedule(nextReqEvent, curTick());
-    }
-}*/
-
-/*
-void
-MemCtrl::addToWriteQueue(PacketPtr pkt,
-            unsigned int pkt_count, bool firstIntr)
-{
-    // only add to the write queue here. whenever the request is
-    // eventually done, set the readyTime, and call schedule()
-    assert(pkt->isWrite());
-
-    // if the request size is larger than burst size, the pkt is split into
-    // multiple packets
-    const Addr base_addr = pkt->getAddr();
-    Addr addr = base_addr;
-    uint32_t burst_size = isDramIntr ? mem->bytesPerBurst() :
-                                    mem2->bytesPerBurst();
-    for (int cnt = 0; cnt < pkt_count; ++cnt) {
-        unsigned size = std::min((addr | (burst_size - 1)) + 1,
-                        base_addr + pkt->getSize()) - addr;
-        stats.writePktSize[ceilLog2(size)]++;
-        stats.writeBursts++;
-        stats.requestorWriteAccesses[pkt->requestorId()]++;
-
-        // see if we can merge with an existing item in the write
-        // queue and keep track of whether we have merged or not
-        bool merged = isInWriteQueue.find(burstAlign(addr, firstIntr)) !=
-            isInWriteQueue.end();
-
-        // if the item was not merged we need to create a new write
-        // and enqueue it
-        if (!merged) {
-            MemPacket* mem_pkt;
-            if (firstIntr) {
-                mem_pkt =
-                mem->decodePacket(pkt, addr, size, false, isDramIntr);
-                    // increment read entries of the rank
-                mem->setupRank(mem_pkt->rank, false);
-            } else {
-                mem_pkt =
-                mem2->decodePacket(pkt, addr, size, false, isDramIntr2);
-                    // increment read entries of the rank
-                mem2->setupRank(mem_pkt->rank, false);
-            }
-
-            assert(totalWriteQueueSize < writeBufferSize);
-            stats.wrQLenPdf[totalWriteQueueSize]++;
-
-            DPRINTF(MemCtrl, "Adding to write queue\n");
-
-            writeQueue[mem_pkt->qosValue()].push_back(mem_pkt);
-            isInWriteQueue.insert(burstAlign(addr, firstIntr));
-
-            // log packet
-            logRequest(MemCtrl::WRITE, pkt->requestorId(), pkt->qosValue(),
-                       mem_pkt->addr, 1);
-
-            assert(totalWriteQueueSize == isInWriteQueue.size());
-
-            // Update stats
-            stats.avgWrQLen = totalWriteQueueSize;
-
-        } else {
-            DPRINTF(MemCtrl,
-                    "Merging write burst with existing queue entry\n");
-
-            // keep track of the fact that this burst effectively
-            // disappeared as it was merged with an existing one
-            stats.mergedWrBursts++;
-        }
-
-        // Starting address of next memory pkt (aligned to burst_size boundary)
-        addr = (addr | (burst_size - 1)) + 1;
-    }
-
-    // we do not wait for the writes to be send to the actual memory,
-    // but instead take responsibility for the consistency here and
-    // snoop the write queue for any upcoming reads
-    // @todo, if a pkt size is larger than burst size, we might need a
-    // different front end latency
-    accessAndRespond(pkt, frontendLatency);
-
-    // If we are not already scheduled to get a request out of the
-    // queue, do so now
-    if (!nextReqEvent.scheduled()) {
-        DPRINTF(MemCtrl, "Request scheduled immediately\n");
-        schedule(nextReqEvent, curTick());
-    }
-}*/
 
 bool
 MemCtrl::recvTimingReq(PacketPtr pkt)
@@ -417,7 +147,6 @@ MemCtrl::recvTimingReq(PacketPtr pkt)
         panic("Can't handle address range for packet %s\n",
               pkt->print());
     }
-
 
     // Find out how many memory packets a pkt translates to
     // If the burst size is equal or larger than the pkt size, then a pkt
@@ -1019,12 +748,12 @@ MemCtrl::recvFunctional(PacketPtr pkt)
 bool
 MemCtrl::allIntfDrained() const
 {
-   // ensure dram is in power down and refresh IDLE states
-   // No outstanding NVM writes
-   // All other queues verified as needed with calling logic
-   bool dram_drained = dram->allRanksDrained();
-   bool nvm_drained = nvm->allRanksDrained();
-   return (dram_drained && nvm_drained);
+    // ensure dram is in power down and refresh IDLE states
+    bool dram_drained = dram->allRanksDrained();
+    // No outstanding NVM writes
+    // All other queues verified as needed with calling logic
+    bool nvm_drained = nvm->allRanksDrained();
+    return (dram_drained && nvm_drained);
 }
 
 DrainState
