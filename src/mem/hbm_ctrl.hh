@@ -79,7 +79,7 @@ class DRAMInterface;
  */
 class HBMCtrl : public MemCtrl
 {
-  
+
   protected:
 
     // For now, make use of a queued response port to avoid dealing with
@@ -114,7 +114,12 @@ class HBMCtrl : public MemCtrl
      */
     MemoryPort port;
 
-  
+    bool respQEmpty()
+    { 
+      std::cout << "hbm ctrl resp Q empty " << std::endl;
+      return (respQueue.empty() && respQueue2.empty());
+    };
+
   private:
 
     /**

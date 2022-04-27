@@ -149,7 +149,7 @@ HBMCtrl::recvAtomic(PacketPtr pkt)
 void
 HBMCtrl::recvFunctional(PacketPtr pkt)
 {
-    MemCtrl::recvFunctional(pkt);    
+    MemCtrl::recvFunctional(pkt);
 }
 
 
@@ -370,11 +370,7 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
 void
 HBMCtrl::processNextReqEventCh1()
 {
-    MemCtrl::nextReqEventLogic(ch1_int);
-    // It is possible that a refresh to another rank kicks things back into
-    // action before reaching this point.
-    if (!nextReqEventCh1.scheduled())
-        schedule(nextReqEventCh1, std::max(ch1_int->nextReqTime, curTick()));
+    MemCtrl::nextReqEventLogic(ch1_int, respQueue2, respondEventCh1, nextReqEventCh1);
 
     // If there is space available and we have writes waiting then let
     // them retry. This is done here to ensure that the retry does not
@@ -383,13 +379,15 @@ HBMCtrl::processNextReqEventCh1()
     if (retryWrReq2 && totalWriteQueueSize < writeBufferSize) {
         retryWrReq2 = false;
         port.sendRetryReq();
-    }    
+    }
 }
 
 void
 HBMCtrl::processRespondEventCh1()
 {
-    MemCtrl::respondEventLogic(ch1_int, respQueue2);
+    DPRINTF(MemCtrl,
+            "processRespondEventCh1(): Some req has reached its readyTime\n");    
+    MemCtrl::respondEventLogic(ch1_int, respQueue2, respondEventCh1);
 }
 
 void
