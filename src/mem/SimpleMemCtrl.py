@@ -40,12 +40,51 @@
 
 from m5.params import *
 from m5.proxy import *
-from m5.objects.SimpleMemCtrl import *
+from m5.objects.QoSMemCtrl import *
 
-class MemCtrl(SimpleMemCtrl):
-    type = 'MemCtrl'
-    cxx_header = "mem/mem_ctrl.hh"
-    cxx_class = 'gem5::memory::MemCtrl'
+# Enum for memory scheduling algorithms, currently First-Come
+# First-Served and a First-Row Hit then First-Come First-Served
+class MemSched(Enum): vals = ['fcfs', 'frfcfs']
+
+# SimpleMemCtrl is a single-channel single-ported Memory controller model
+# that aims to model the most important system-level performance
+# effects of a memory controller, interfacing with media specific
+# interfaces
+class SimpleMemCtrl(QoSMemCtrl):
+    type = 'SimpleMemCtrl'
+    cxx_header = "mem/simple_mem_ctrl.hh"
+    cxx_class = 'gem5::memory::SimpleMemCtrl'
+
+    # single-ported on the system interface side, instantiate with a
+    # bus in front of the controller for multiple ports
+    port = ResponsePort("This port responds to memory requests")
 
     # Interface to memory media
-    nvm = Param.NVMInterface(NULL, "Memory interface")
+    dram = Param.MemInterface(NULL, "Memory interface")
+
+    # read and write buffer depths are set in the interface
+    # the controller will read these values when instantiated
+
+    # threshold in percent for when to forcefully trigger writes and
+    # start emptying the write buffer
+    write_high_thresh_perc = Param.Percent(85, "Threshold to force writes")
+
+    # threshold in percentage for when to start writes if the read
+    # queue is empty
+    write_low_thresh_perc = Param.Percent(50, "Threshold to start writes")
+
+    # minimum write bursts to schedule before switching back to reads
+    min_writes_per_switch = Param.Unsigned(16, "Minimum write bursts before "
+                                           "switching to reads")
+
+    # scheduler, address map and page policy
+    mem_sched_policy = Param.MemSched('frfcfs', "Memory scheduling policy")
+
+    # pipeline latency of the controller and PHY, split into a
+    # frontend part and a backend part, with reads and writes serviced
+    # by the queues only seeing the frontend contribution, and reads
+    # serviced by the memory seeing the sum of the two
+    static_frontend_latency = Param.Latency("10ns", "Static frontend latency")
+    static_backend_latency = Param.Latency("10ns", "Static backend latency")
+
+    command_window = Param.Latency("10ns", "Static backend latency")
