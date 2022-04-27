@@ -239,11 +239,10 @@ MemCtrl::processRespondEvent()
 
             DPRINTF(Drain, "Controller done draining\n");
             signalDrainDone();
-        } else {
+        } else if (mem_pkt->isDram()) {
             // check the refresh state and kick the refresh event loop
             // into action again if banks already closed and just waiting
             // for read to complete
-            // DRAM only
             dram->checkRefreshState(mem_pkt->rank);
         }
     }
@@ -383,26 +382,24 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt)
     // When was command issued?
     Tick cmd_at;
 
-    // Issue the next burst and update bus state to reflect
-    // when previous command was issued
-
     std::vector<MemPacketQueue>& queue = selQueue(mem_pkt->isRead());
 
-    if (dram && dram->getAddrRange().contains(mem_pkt->getAddr())) {
+    // Issue the next burst and update bus state to reflect
+    // when previous command was issued
+    if (mem_pkt->isDram()) {
         std::tie(cmd_at, nextBurstAt) =
                  dram->doBurstAccess(mem_pkt, nextBurstAt, queue);
 
         // Update timing for NVM ranks if NVM is configured on this channel
         nvm->addRankToRankDelay(cmd_at);
 
-    } else if (nvm && nvm->getAddrRange().contains(mem_pkt->getAddr())) {
+    } else {
         std::tie(cmd_at, nextBurstAt) =
                  nvm->doBurstAccess(mem_pkt, nextBurstAt, queue);
 
         // Update timing for NVM ranks if NVM is configured on this channel
         dram->addRankToRankDelay(cmd_at);
-    } else {
-        panic("Can't handle address range for packet in doBurstAccess\n");
+
     }
 
     DPRINTF(MemCtrl, "Access to %#x, ready at %lld next burst at %lld.\n",
@@ -482,10 +479,12 @@ MemCtrl::processNextReqEvent()
     // turnaround decisions
     // Default to busy status and update based on interface specifics
     bool dram_busy, nvm_busy = true;
-
+    // DRAM
     dram_busy = dram->isBusy(false, false);
-    nvm_busy = nvm->isBusy(totalReadQueueSize == 0,
-                    nvm->numWritesQueued == totalWriteQueueSize);
+    // NVM
+    bool read_queue_empty = totalReadQueueSize == 0;
+    bool all_writes_nvm = nvm->numWritesQueued == totalWriteQueueSize;
+    nvm_busy = nvm->isBusy(read_queue_empty, all_writes_nvm);
 
     // Default state of unused interface is 'true'
     // Simply AND the busy signals to determine if system is busy
@@ -502,7 +501,7 @@ MemCtrl::processNextReqEvent()
         // track if we should switch or not
         bool switch_to_writes = false;
 
-        if (totalReadQueueSize == 0) {
+        if (read_queue_empty) {
             // In the case there is no read request to go next,
             // trigger writes if we have passed the low threshold (or
             // if we are draining)
@@ -599,8 +598,7 @@ MemCtrl::processNextReqEvent()
             // don't transition if the writeRespQueue is full and
             // there are no other writes that can issue
             if ((totalWriteQueueSize > writeHighThreshold) &&
-               !(nvm->numWritesQueued == totalWriteQueueSize &&
-                 nvm->writeRespQueueFull())) {
+               !(all_writes_nvm && nvm->writeRespQueueFull())) {
                 switch_to_writes = true;
             }
 
@@ -688,7 +686,7 @@ MemCtrl::processNextReqEvent()
             (below_threshold && drainState() != DrainState::Draining) ||
             (totalReadQueueSize && writesThisTime >= minWritesPerSwitch) ||
             (totalReadQueueSize && nvm->writeRespQueueFull() &&
-             nvm->numWritesQueued == totalWriteQueueSize)) {
+             all_writes_nvm)) {
 
             // turn the bus back around for reads again
             busStateNext = MemCtrl::READ;
@@ -717,17 +715,15 @@ MemCtrl::processNextReqEvent()
 Tick
 MemCtrl::minReadToWriteDataGap()
 {
-    Tick dram_min  = dram ? dram->minReadToWriteDataGap()  : MaxTick;
-    Tick nvm_min = nvm ? nvm->minReadToWriteDataGap() : MaxTick;
-    return std::min(dram_min, nvm_min);
+    return std::min(dram->minReadToWriteDataGap(),
+                    nvm->minReadToWriteDataGap());
 }
 
 Tick
 MemCtrl::minWriteToReadDataGap()
 {
-    Tick dram_min  = dram ? dram->minWriteToReadDataGap()  : MaxTick;
-    Tick nvm_min = nvm ? nvm->minWriteToReadDataGap() : MaxTick;
-    return std::min(dram_min, nvm_min);
+    return std::min(dram->minWriteToReadDataGap(),
+                    nvm->minWriteToReadDataGap());
 }
 
 void
@@ -806,6 +802,7 @@ MemCtrl::getMemInterface()
     std::vector<MemInterface*> intrfc;
     intrfc.push_back(dram);
     intrfc.push_back(nvm);
+    std::cout << "*******2 " << intrfc.size() << "\n";
     return intrfc;
 }
 
