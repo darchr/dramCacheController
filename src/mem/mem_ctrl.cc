@@ -75,7 +75,7 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     frontendLatency(p.static_frontend_latency),
     backendLatency(p.static_backend_latency),
     commandWindow(p.command_window),
-    //nextBurstAt(0), 
+    //nextBurstAt(0),
     prevArrival(0),
     //nextReqTime(0),
     stats(*this)
@@ -582,11 +582,9 @@ MemCtrl::recvTimingReq(PacketPtr pkt)
 }
 
 void
-MemCtrl::respondEventLogic(MemInterface* mem_int, MemPacketQueue& queue)
+MemCtrl::respondEventLogic(MemInterface* mem_int, MemPacketQueue& queue, 
+                                        EventFunctionWrapper& resp_event)
 {
-    DPRINTF(MemCtrl,
-            "processRespondEvent(): Some req has reached its readyTime\n");
-
     MemPacket* mem_pkt = queue.front();
 
     if (mem_pkt->isDram()) {
@@ -619,8 +617,8 @@ MemCtrl::respondEventLogic(MemInterface* mem_int, MemPacketQueue& queue)
 
     if (!queue.empty()) {
         assert(queue.front()->readyTime >= curTick());
-        assert(!respondEvent.scheduled());
-        schedule(respondEvent, queue.front()->readyTime);
+        assert(!resp_event.scheduled());
+        schedule(resp_event, queue.front()->readyTime);
     } else {
         // if there is nothing left in any queue, signal a drain
         if (drainState() == DrainState::Draining &&
@@ -651,7 +649,9 @@ MemCtrl::respondEventLogic(MemInterface* mem_int, MemPacketQueue& queue)
 void
 MemCtrl::processRespondEvent()
 {
-    respondEventLogic(mem, respQueue);
+    DPRINTF(MemCtrl,
+            "processRespondEvent(): Some req has reached its readyTime\n");    
+    respondEventLogic(mem, respQueue, respondEvent);
 }
 
 MemPacketQueue::iterator
@@ -666,6 +666,11 @@ MemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
         if (queue.size() == 1) {
             // available rank corresponds to state refresh idle
             MemPacket* mem_pkt = *(queue.begin());
+            
+            if (mem_pkt->channel != mem_int->channel_num) {
+                return ret;
+            }
+
             if (packetReady(mem_pkt, mem_int)) {
                 ret = queue.begin();
                 DPRINTF(MemCtrl, "Single request, going to a free rank\n");
@@ -744,7 +749,8 @@ void
 MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
                                                 MemInterface* mem_int)
 {
-    DPRINTF(MemCtrl, "Responding to Address %#x.. \n", pkt->getAddr());
+    DPRINTF(MemCtrl, "Responding to Address %#x.. channel : %d\n", pkt->getAddr(), mem_int->channel_num);
+    
 
     bool needsResponse = pkt->needsResponse();
     // do the actual memory access which also turns the packet into a
@@ -989,7 +995,9 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int)
 }
 
 void
-MemCtrl::nextReqEventLogic(MemInterface* mem_int) {
+MemCtrl::nextReqEventLogic(MemInterface* mem_int, MemPacketQueue& resp_queue, 
+                        EventFunctionWrapper& resp_event, 
+                        EventFunctionWrapper& next_req_event) {
     // transition is handled by QoS algorithm if enabled
     if (turnPolicy) {
         // select bus state - only done if QoS algorithms are in use
@@ -1113,8 +1121,9 @@ MemCtrl::nextReqEventLogic(MemInterface* mem_int) {
                 // not done draining until in PWR_IDLE state
                 // ensuring all banks are closed and
                 // have exited low power states
+                // AYAZ: we might have other resp queues as well
                 if (drainState() == DrainState::Draining &&
-                    respQueue.empty() && allIntfDrained()) {
+                    respQEmpty() && allIntfDrained()) {
 
                     DPRINTF(Drain, "MemCtrl controller done draining\n");
                     signalDrainDone();
@@ -1182,15 +1191,21 @@ MemCtrl::nextReqEventLogic(MemInterface* mem_int) {
 
             // Insert into response queue. It will be sent back to the
             // requestor at its readyTime
-            if (respQueue.empty()) {
-                assert(!respondEvent.scheduled());
-                schedule(respondEvent, mem_pkt->readyTime);
+            if (resp_queue.empty()) {
+                assert(!resp_event.scheduled());
+                schedule(resp_event, mem_pkt->readyTime);
             } else {
-                assert(respQueue.back()->readyTime <= mem_pkt->readyTime);
-                assert(respondEvent.scheduled());
+                assert(resp_queue.back()->readyTime <= mem_pkt->readyTime);
+                assert(resp_event.scheduled());
             }
 
-            respQueue.push_back(mem_pkt);
+
+            std::cout << "mem_pkt -> addr " << mem_pkt->addr << std::endl;
+            std::cout << "mem_pkt -> channel " << unsigned(mem_pkt->channel) << std::endl;
+            std::cout << "mem_int -> channel " << unsigned(mem_int->channel_num) << std::endl;
+            std::cout << "resp q size " << resp_queue.size() << std::endl;
+
+            resp_queue.push_back(mem_pkt);
 
             // we have so many writes that we have to transition
             // don't transition if the writeRespQueue is full and
@@ -1321,17 +1336,19 @@ MemCtrl::nextReqEventLogic(MemInterface* mem_int) {
             // nothing to do
         }
     }
+
+    // It is possible that a refresh to another rank kicks things back into
+    // action before reaching this point.
+    if (!next_req_event.scheduled())
+        schedule(next_req_event, std::max(mem_int->nextReqTime, curTick()));
+
+
 }
 
 void
 MemCtrl::processNextReqEvent()
 {
-    nextReqEventLogic(mem);
-
-    // It is possible that a refresh to another rank kicks things back into
-    // action before reaching this point.
-    if (!nextReqEvent.scheduled())
-        schedule(nextReqEvent, std::max(mem->nextReqTime, curTick()));
+    nextReqEventLogic(mem, respQueue, respondEvent, nextReqEvent);
 
     // If there is space available and we have writes waiting then let
     // them retry. This is done here to ensure that the retry does not

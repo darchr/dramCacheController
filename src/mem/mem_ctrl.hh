@@ -297,11 +297,14 @@ class MemCtrl : public qos::MemCtrl
      * in these methods
      */
     void processNextReqEvent();
-    void nextReqEventLogic(MemInterface* mem_int);
+    void nextReqEventLogic(MemInterface* mem_int, MemPacketQueue& resp_queue, 
+                          EventFunctionWrapper& resp_event,
+                          EventFunctionWrapper& next_req_event);
     EventFunctionWrapper nextReqEvent;
 
     void processRespondEvent();
-    void respondEventLogic(MemInterface* mem_int, MemPacketQueue& queue);
+    void respondEventLogic(MemInterface* mem_int, MemPacketQueue& queue,
+                          EventFunctionWrapper& resp_event);
     EventFunctionWrapper respondEvent;
 
     /**
@@ -633,6 +636,12 @@ class MemCtrl : public qos::MemCtrl
     std::vector<MemPacketQueue>& selQueue(bool is_read)
     {
         return (is_read ? readQueue : writeQueue);
+    };
+
+    bool respQEmpty()
+    {
+      std::cout << "mem ctrl resp Q empty " << std::endl;
+      return respQueue.empty();
     };
 
     /**
