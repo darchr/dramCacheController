@@ -183,8 +183,8 @@ class MemInterface : public AbstractMemory
 
     uint32_t numWritesQueued;
 
-    Tick nextBurstAt;
-    Tick nextReqTime;
+    Tick nextBurstAt = 0;
+    Tick nextReqTime = 0;
 
     /**
      * pseudo channel number used for HBM modeling
