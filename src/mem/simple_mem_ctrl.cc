@@ -1388,7 +1388,6 @@ SimpleMemCtrl::getMemInterface()
 {
     std::vector<MemInterface*> intrfc;
     intrfc.push_back(dram);
-    std::cout << "*******1 " << intrfc.size() << "\n";
     return intrfc;
 }
 
@@ -1404,7 +1403,6 @@ SimpleMemCtrl::MemoryPort::getAddrRanges() const
     AddrRangeList ranges;
 
     std::vector<MemInterface*> intrfc = ctrl.getMemInterface();
-    std::cout << "*******3 " << intrfc.size() << "\n";
 
     for (int i=0; i < intrfc.size(); i++) {
         ranges.push_back(intrfc.at(i)->getAddrRange());

@@ -73,6 +73,9 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     readBufferSize = dram->readBufferSize + nvm->readBufferSize;
     writeBufferSize = dram->writeBufferSize + nvm->writeBufferSize;
 
+    writeHighThreshold = writeBufferSize * p.write_high_thresh_perc / 100.0;
+    writeLowThreshold = writeBufferSize * p.write_low_thresh_perc / 100.0;
+
     readQueue.resize(p.qos_priorities);
     writeQueue.resize(p.qos_priorities);
 
@@ -802,7 +805,6 @@ MemCtrl::getMemInterface()
     std::vector<MemInterface*> intrfc;
     intrfc.push_back(dram);
     intrfc.push_back(nvm);
-    std::cout << "*******2 " << intrfc.size() << "\n";
     return intrfc;
 }
 

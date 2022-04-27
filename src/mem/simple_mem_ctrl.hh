@@ -482,8 +482,8 @@ class SimpleMemCtrl : public qos::MemCtrl
      */
     uint32_t readBufferSize;
     uint32_t writeBufferSize;
-    const uint32_t writeHighThreshold;
-    const uint32_t writeLowThreshold;
+    uint32_t writeHighThreshold;
+    uint32_t writeLowThreshold;
     const uint32_t minWritesPerSwitch;
     uint32_t writesThisTime;
     uint32_t readsThisTime;
