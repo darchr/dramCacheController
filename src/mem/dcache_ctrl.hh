@@ -59,6 +59,12 @@ class NVMDCInterface;
 class DcacheCtrl : public QoS::MemCtrl
 {
   private:
+
+   bool stallRds = false;
+   bool drainDramWrite = false;
+   bool drainNvmWrite = false;
+
+
    unsigned maxConf = 0,
    maxDrRdEv = 0, maxDrRdRespEv = 0,
    maxDrWrEv = 0,
@@ -143,13 +149,6 @@ class DcacheCtrl : public QoS::MemCtrl
     EventFunctionWrapper dramReadEvent;
 
     /**
-     * processDramWriteEvent() is an event handler which
-     * handles DRAM write accesses in the DRAM Cache Controller.
-    */
-    void processDramWriteEvent();
-    EventFunctionWrapper dramWriteEvent;
-
-    /**
      * processRespDramReadEvent() is an event handler which
      * handles the responses of the initial DRAM read accesses
      * for the received packets by the DRAM Cache Controller.
@@ -182,11 +181,12 @@ class DcacheCtrl : public QoS::MemCtrl
     EventFunctionWrapper respNvmReadEvent;
 
     /**
-     * processNvmWriteEvent() is an event handler which
-     * handles NVM write accesses in the DRAM Cache Controller.
+     * processOverallWriteEvent() is an event handler which
+     * handles all write accesses to DRAM and NVM.
     */
-    void processNvmWriteEvent();
-    EventFunctionWrapper nvmWriteEvent;
+
+    void processOverallWriteEvent();
+    EventFunctionWrapper overallWriteEvent;
 
     /**
      * Actually do the burst based on media specific access function.
@@ -214,6 +214,20 @@ class DcacheCtrl : public QoS::MemCtrl
      * @param pkt The packet to evaluate
      */
     bool packetReady(MemPacket* pkt);
+
+    /**
+     * Calculate the minimum delay used when scheduling a read-to-write
+     * transision.
+     * @param return minimum delay
+     */
+    Tick minReadToWriteDataGap();
+
+    /**
+     * Calculate the minimum delay used when scheduling a write-to-read
+     * transision.
+     * @param return minimum delay
+     */
+    Tick minWriteToReadDataGap();
 
 
     /**
@@ -411,7 +425,7 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     std::priority_queue<addrNvmReadPair, std::vector<addrNvmReadPair>,
             std::greater<addrNvmReadPair> > addrWaitingToIssueNvmRead;
-    std::vector<MemPacketQueue> pktNvmRead;
+    std::vector<MemPacketQueue> pktNvmReadWaitIssue;
 
     /**
      * To avoid iterating over the outstanding requests
@@ -420,6 +434,8 @@ class DcacheCtrl : public QoS::MemCtrl
      */
     std::priority_queue<addrNvmReadPair, std::vector<addrNvmReadPair>,
             std::greater<addrNvmReadPair> > addrNvmRead;
+
+    std::vector<MemPacketQueue> pktNvmRead;
 
     /**
      * To avoid iterating over the outstanding requests
@@ -455,6 +471,7 @@ class DcacheCtrl : public QoS::MemCtrl
     void checkConflictInCRB(reqBufferEntry* orbEntry);
     bool resumeConflictingReq(reqBufferEntry* orbEntry);
     void logStatsDcache(reqBufferEntry* orbEntry);
+    Tick earliestDirtyLineInDrRdResp();
 
     /**
      * Holds count of commands issued in burst window starting at
@@ -487,6 +504,15 @@ class DcacheCtrl : public QoS::MemCtrl
     unsigned orbSize;
     unsigned crbMaxSize;
     unsigned crbSize;
+
+    unsigned writeHighThreshold;
+    unsigned writeLowThreshold;
+    unsigned minWritesPerSwitch;
+    float dramWrDrainPerc;
+    unsigned minDrWrPerSwitch;
+    unsigned minNvWrPerSwitch;
+    unsigned drWrCounter;
+    unsigned nvWrCounter;
 
     /**
      * Memory controller configuration initialized based on parameter
@@ -557,6 +583,8 @@ class DcacheCtrl : public QoS::MemCtrl
         //Stats::Vector wrQLenPdf;
         //Stats::Histogram rdPerTurnAround;
         //Stats::Histogram wrPerTurnAround;
+        Stats::Scalar rdToWrTurnAround;
+        Stats::Scalar wrToRdTurnAround;
 
         Stats::Scalar bytesReadWrQ;
         Stats::Scalar bytesReadSys;

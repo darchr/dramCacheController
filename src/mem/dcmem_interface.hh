@@ -163,7 +163,6 @@ class DCMemInterface : public AbstractMemory
      */
     Tick rankToRankDelay() const { return tBURST + tCS; }
 
-
   public:
 
     /**
@@ -255,6 +254,18 @@ class DCMemInterface : public AbstractMemory
      * @return required rank to rank delay
      */
     Tick rankDelay() const { return tCS; }
+
+    /**
+     *
+     * @return minimum additional bus turnaround required for read-to-write
+     */
+    Tick minReadToWriteDataGap() const { return std::min(tRTW, tCS); }
+
+    /**
+     *
+     * @return minimum additional bus turnaround required for write-to-read
+     */
+    Tick minWriteToReadDataGap() const { return std::min(tWTR, tCS); }
 
     /**
      * Address decoder to figure out physical mapping onto ranks,
@@ -716,12 +727,15 @@ class DRAMDCInterface : public DCMemInterface
     /**
      * DRAM specific timing requirements
      */
-    const Tick tCL;
+    //const Tick tCL;
+    const Tick tRL;
+    const Tick tWL;
     const Tick tBURST_MIN;
     const Tick tBURST_MAX;
     const Tick tCCD_L_WR;
     const Tick tCCD_L;
-    const Tick tRCD;
+    const Tick tRCD_RD;
+    const Tick tRCD_WR;
     const Tick tRP;
     const Tick tRAS;
     const Tick tWR;
@@ -850,7 +864,7 @@ class DRAMDCInterface : public DCMemInterface
     /*
      * @return delay between write and read commands
      */
-    Tick writeToReadDelay() const override { return tBURST + tWTR + tCL; }
+    Tick writeToReadDelay() const override { return tBURST + tWTR + tWL; }
 
     /**
      * Find which are the earliest banks ready to issue an activate
@@ -917,12 +931,12 @@ class DRAMDCInterface : public DCMemInterface
     /*
      * @return time to offset next command
      */
-    Tick commandOffset() const override { return (tRP + tRCD); }
+    Tick commandOffset() const override {return (tRP + std::max(tRCD_RD, tRCD_WR));}
 
     /*
      * Function to calulate unloaded, closed bank access latency
      */
-    Tick accessLatency() const override { return (tRP + tRCD + tCL); }
+    Tick accessLatency() const override { return (tRP + tRCD_RD + tRL); }
 
     /**
      * For FR-FCFS policy, find first DRAM command that can issue
@@ -1116,13 +1130,6 @@ class NVMDCInterface : public DCMemInterface
     std::deque<Tick> readReadyQueue;
 
     /**
-     * Check if the write response queue is empty
-     *
-     * @param Return true if empty
-     */
-    bool writeRespQueueEmpty() const { return writeRespQueue.empty(); }
-
-    /**
      * Till when must we wait before issuing next read command?
      */
     Tick nextReadAt;
@@ -1232,6 +1239,13 @@ class NVMDCInterface : public DCMemInterface
         return writeRespQueue.size() == maxPendingWrites;
     }
 
+     /**
+     * Check if the write response queue is empty
+     *
+     * @param Return true if empty
+     */
+    bool writeRespQueueEmpty() const { return writeRespQueue.empty(); }
+
     uint32_t
     getMaxPendingWrites()
     {
@@ -1242,6 +1256,12 @@ class NVMDCInterface : public DCMemInterface
     writeRespQueueFront()
     {
         return writeRespQueue.front();
+    }
+
+    unsigned
+    writeRespQueueSize()
+    {
+        return writeRespQueue.size();
     }
 
     bool

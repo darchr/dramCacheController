@@ -57,19 +57,21 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
     nextReqEvent([this]{ processNextReqEvent(); }, name()),
     respondEvent([this]{ processRespondEvent(); }, name()),
     dramReadEvent([this]{ processDramReadEvent(); }, name()),
-    dramWriteEvent([this]{ processDramWriteEvent(); }, name()),
     respDramReadEvent([this]{ processRespDramReadEvent(); }, name()),
     waitingToIssueNvmReadEvent([this]
     { processWaitingToIssueNvmReadEvent(); }, name()),
     nvmReadEvent([this]{ processNvmReadEvent(); }, name()),
     respNvmReadEvent([this]{ processRespNvmReadEvent(); }, name()),
-    nvmWriteEvent([this]{ processNvmWriteEvent(); }, name()),
+    overallWriteEvent([this]{ processOverallWriteEvent(); }, name()),
     dram(p.dram), nvm(p.nvm),
     dramCacheSize(p.dram_cache_size),
     blockSize(p.block_size),
     addrSize(p.addr_size),
     orbMaxSize(p.orb_max_size), orbSize(0),
     crbMaxSize(p.crb_max_size), crbSize(0),
+    writeHighThreshold(p.write_high_thresh_perc * p.orb_max_size / 100.0),
+    writeLowThreshold(p.write_low_thresh_perc* p.orb_max_size / 100.0),
+    minWritesPerSwitch(p.min_writes_per_switch),
     memSchedPolicy(p.mem_sched_policy),
     frontendLatency(p.static_frontend_latency),
     backendLatency(p.static_backend_latency),
@@ -81,9 +83,49 @@ DcacheCtrl::DcacheCtrl(const DcacheCtrlParams &p) :
     DPRINTF(DcacheCtrl, "Setting up controller\n");
 
     pktDramRead.resize(1);
+    pktNvmReadWaitIssue.resize(1);
     pktNvmRead.resize(1);
     pktDramWrite.resize(1);
     pktNvmWrite.resize(1);
+
+    stallRds = false;
+    drainDramWrite = false;
+    drainNvmWrite = false;
+
+    if (orbMaxSize>512) {
+        dramWrDrainPerc = 0.25;
+    }
+    else {
+        dramWrDrainPerc = 0.5;
+    }
+    // NVM Write Drain is defined by the write queue size
+    // defined by the NVM interface
+
+    if (orbMaxSize == 1) {
+        writeHighThreshold = 1;
+    }
+
+    // if (orbMaxSize == 1) {
+    //     minWritesPerSwitch = 2;
+    //     minDrWrPerSwitch = 1;
+    //     minNvWrPerSwitch = 1;
+    // }
+    // else {
+    //     minWritesPerSwitch = orbMaxSize * 0.2;
+    //     minDrWrPerSwitch = 0.7 * minWritesPerSwitch;
+    //     minNvWrPerSwitch = minWritesPerSwitch - minDrWrPerSwitch;
+    // }
+
+    minDrWrPerSwitch = 0.7 * minWritesPerSwitch;
+    minNvWrPerSwitch = minWritesPerSwitch - minDrWrPerSwitch;
+
+    // std::cout << orbMaxSize << " / " << writeHighThreshold << " / "
+    // << writeLowThreshold << " / " << minWritesPerSwitch << " / "
+    // << dramWrDrainPerc*orbMaxSize << " / " << minDrWrPerSwitch << " / "
+    // << minNvWrPerSwitch << "\n";
+
+    drWrCounter = 0;
+    nvWrCounter = 0;
 
     // dramCacheSize = dram->dramDeviceCapacity;
     // dramCacheSize = dramCacheSize*1024*1024;
@@ -245,23 +287,29 @@ DcacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
 
     nvm->setupRank(wbDccPkt->rank, false);
 
-    //if (nvmWritebackQueue.empty()) {
-    if (pktNvmWrite[0].empty()) {
-        assert(!nvmWriteEvent.scheduled());
-        if (!nvm->writeRespQueueFull()) {
-            schedule(nvmWriteEvent, std::max(nextReqTime, curTick()));
+    pktNvmWrite[0].push_back(wbDccPkt);
+
+    if (pktNvmWrite[0].size() >= nvm->getMaxPendingWrites()) {
+        stallRds = true;
+        drainNvmWrite = true;
+        if (!overallWriteEvent.scheduled()) {
+            schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
         }
-        else {
-            schedule(nvmWriteEvent, std::max(nextReqTime,
-                            nvm->writeRespQueueFront()+1));
-        }
-    }
-    else {
-        assert(nvmWriteEvent.scheduled());
     }
 
-    // nvmWritebackQueue.push(std::make_pair(curTick(),wbDccPkt));
-    pktNvmWrite[0].push_back(wbDccPkt);
+    unsigned rdsNum = pktDramRead[0].size() +
+                      pktNvmReadWaitIssue[0].size() +
+                      pktNvmRead[0].size();
+    unsigned wrsNum = pktNvmWrite[0].size() +
+                      pktDramWrite[0].size();
+
+    if ((rdsNum == 0 && wrsNum != 0) ||
+        (wrsNum >= writeHighThreshold)) {
+        stallRds = true;
+        if (!overallWriteEvent.scheduled()) {
+            schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
+        }
+    }
 
     if (pktNvmWrite[0].size() > maxNvWrEv) {
         maxNvWrEv = pktNvmWrite[0].size();
@@ -383,8 +431,10 @@ DcacheCtrl::checkConflictInDramCache(PacketPtr pkt)
     unsigned indexDC = returnIndexDC(pkt->getAddr(), pkt->getSize());
 
     for (auto e = reqBuffer.begin(); e != reqBuffer.end(); ++e) {
-        if (indexDC == e->second->indexDC &&
-            confReqBuffer.size() < crbMaxSize) {
+        if (indexDC == e->second->indexDC
+            && e->second->validEntry
+            //&& confReqBuffer.size() < crbMaxSize
+            ) {
 
             e->second->conflict = true;
 
@@ -599,17 +649,6 @@ DcacheCtrl::logStatsDcache(reqBufferEntry* orbEntry)
 bool
 DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 {
-    // std::cout << curTick () << ": " << reqBuffer.size() << ", " <<
-    // confReqBuffer.size() << ", " <<
-    // addrInitRead.size() << ", " <<
-    // addrDramRespReady.size() << ", " <<
-    // addrWaitingToIssueNvmRead.size() << ", " <<
-    // addrNvmRead.size() << ", " <<
-    // addrNvmRespReady.size() << ", " <<
-    // addrDramFill.size() << ", " <<
-    // nvmWritebackQueue.size() <<
-    // "\n";
-
     bool conflictFound = false;
 
     if (orbEntry->owPkt->isWrite()) {
@@ -645,14 +684,12 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 
                 checkConflictInCRB(reqBuffer.at(confAddr));
 
-                if (pktDramRead[0].empty()) {
+                if (pktDramRead[0].empty() && !stallRds) {
                     assert(!dramReadEvent.scheduled());
                     schedule(dramReadEvent, std::max(nextReqTime, curTick()));
                 } else {
-                    assert(dramReadEvent.scheduled());
+                    assert(dramReadEvent.scheduled() || stallRds);
                 }
-
-                //addrInitRead.push_back(confAddr);
 
                 pktDramRead[0].push_back(reqBuffer.at(confAddr)->dccPkt);
 
@@ -667,6 +704,7 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
     }
 
     if (!conflictFound) {
+
         reqBuffer.erase(orbEntry->owPkt->getAddr());
 
         delete orbEntry->owPkt;
@@ -679,14 +717,21 @@ DcacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
     return conflictFound;
 }
 
+Tick
+DcacheCtrl::earliestDirtyLineInDrRdResp()
+{
+    for (int i=0; i<addrDramRespReady.size(); i++) {
+        if (reqBuffer.at(addrDramRespReady.at(i))->handleDirtyLine) {
+            return reqBuffer.at(addrDramRespReady.at(i))->dccPkt->readyTime;
+        }
+    }
+    return MaxTick;
+}
+
 bool
 DcacheCtrl::recvTimingReq(PacketPtr pkt)
 {
     // This is where we enter from the outside world
-
-    // std::cout << "recvTimingReq Tick: " << curTick() <<
-    // " " << pkt->getAddr()
-    // << " " << pkt->cmdString() << " "  << reqBuffer.size() << "\n";
 
     DPRINTF(DcacheCtrl, "recvTimingReq: request %s addr %lld size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getSize());
@@ -739,9 +784,6 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
             stats.mergedWrBursts++;
 
             accessAndRespond(pkt, frontendLatency, false);
-            // std::cout <<
-            // "*** Packet serviced by wr merging, adr: " <<
-            // pkt->getAddr() << "\n";
 
             return true;
         }
@@ -829,11 +871,6 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
 
             accessAndRespond(pkt, frontendLatency, false);
 
-
-            // std::cout <<
-            // "*** Packet serviced by FW, adr: " <<
-            // pkt->getAddr() << "\n";
-
             return true;
         }
     }
@@ -841,6 +878,29 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
     // process conflicting requests
     // calculate dram address: ignored for now (because Dsize=Nsize)
     if (checkConflictInDramCache(pkt)) {
+
+        // std::cout << curTick() << ": " << pkt->getAddr() << " / " <<
+        // reqBuffer.at(pkt->getAddr())->validEntry << " / " <<
+        // reqBuffer.at(pkt->getAddr())->conflict << " / " <<
+        // reqBuffer.at(pkt->getAddr())->isHit << " / " <<
+        // reqBuffer.at(pkt->getAddr())->state << " / " <<
+        // reqBuffer.at(pkt->getAddr())->dccPkt->isRead() << " / " <<
+        // reqBuffer.at(pkt->getAddr())->dccPkt->isDram() << " //// " <<
+        // dramReadEvent.scheduled()<< " / " <<
+        // respDramReadEvent.scheduled()<< " / " <<
+        // waitingToIssueNvmReadEvent.scheduled()<< " / " <<
+        // nvmReadEvent.scheduled()<< " / " <<
+        // respNvmReadEvent.scheduled()<< " / " <<
+        // overallWriteEvent.scheduled() << " |||||| " <<
+        // pktDramRead[0].size() << " / " <<
+        // pktNvmReadWaitIssue[0].size() << " / " <<
+        // pktNvmRead[0].size() << " / " <<
+        // pktDramWrite[0].size() << " / " <<
+        // pktNvmWrite[0].size() << " / " <<
+        // addrDramRespReady.size() << " / " <<
+        // addrNvmRespReady.size() << " / " <<
+        // "\n";
+
 
         stats.totNumConf++;
 
@@ -857,11 +917,6 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
                 stats.numWrRetry++;
             }
 
-            // std::cout <<
-            // "*** Packet caused conflict in DC and CRB Overflow, adr: " <<
-            // pkt->getAddr() << " // " <<
-            // reqBuffer.at(pkt->getAddr())->owPkt->getAddr() << "\n";
-
             return false;
         }
 
@@ -871,16 +926,10 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
             isInWriteQueue.insert(pkt->getAddr());
         }
 
-
         if (confReqBuffer.size() > maxConf) {
             maxConf = confReqBuffer.size();
             stats.maxNumConf = confReqBuffer.size();
         }
-
-        // std::cout <<
-        // "*** Packet caused conflict in DC, adr: " <<
-        // pkt->getAddr() << " // " <<
-        // reqBuffer.at(pkt->getAddr())->owPkt->getAddr() << "\n";
 
         return true;
     }
@@ -897,33 +946,28 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
             stats.numWrRetry++;
         }
 
-        // std::cout <<
-        // "*** Packet caused ORB Overflow, adr: " <<
-        // pkt->getAddr() << "\n";
-
         return false;
     }
 
     // if none of the above cases happens,
     // then add the pkt to the outstanding requests buffer
+
     handleRequestorPkt(pkt);
 
     if (pkt->isWrite()) {
         isInWriteQueue.insert(pkt->getAddr());
     }
 
-    if (pktDramRead[0].empty()) {
+    if (pktDramRead[0].empty() && !stallRds) {
 
         assert(!dramReadEvent.scheduled());
 
         schedule(dramReadEvent, std::max(nextReqTime, curTick()));
 
     } else {
-
-        assert(dramReadEvent.scheduled());
+        assert(dramReadEvent.scheduled() || stallRds);
     }
 
-    //addrInitRead.push_back(pkt->getAddr());
     pktDramRead[0].push_back(reqBuffer.at(pkt->getAddr())->dccPkt);
 
     if (pktDramRead[0].size() > maxDrRdEv) {
@@ -937,15 +981,26 @@ DcacheCtrl::recvTimingReq(PacketPtr pkt)
 void
 DcacheCtrl::processDramReadEvent()
 {
+    if (stallRds) {
+        return;
+    }
+
     assert(!pktDramRead[0].empty());
 
     MemPacketQueue::iterator to_read;
 
     bool read_found = false;
 
+    bool switched_cmd_type = (busState == DcacheCtrl::WRITE);
+
+    if (switched_cmd_type) {
+        stats.wrToRdTurnAround++;
+    }
+
     for (auto queue = pktDramRead.rbegin();
                  queue != pktDramRead.rend(); ++queue) {
-        to_read = chooseNext((*queue), 0, true);
+        to_read = chooseNext((*queue), switched_cmd_type ?
+                                minWriteToReadDataGap() : 0, true);
         if (to_read != queue->end()) {
             // candidate read found
             read_found = true;
@@ -962,16 +1017,32 @@ DcacheCtrl::processDramReadEvent()
     assert(orbEntry->dccPkt->isRead());
     assert(orbEntry->state == dramRead);
 
-    if (orbEntry->handleDirtyLine &&
-        //(nvmWritebackQueue.size() >= nvm->getMaxPendingWrites() ||
-        (pktNvmWrite[0].size() >= nvm->getMaxPendingWrites() ||
-         numDirtyLinesInDrRdRespQ >= nvm->getMaxPendingWrites() ||
-         nvm->writeRespQueueFull())) {
+    if (orbEntry->handleDirtyLine) {
+        if (pktNvmWrite[0].size() >= nvm->getMaxPendingWrites()) {
+            //std::cout << "here1\n";
+            stallRds = true;
+            drainNvmWrite = true;
+            if (!overallWriteEvent.scheduled()) {
+                    schedule(overallWriteEvent,
+                             std::max(nextReqTime, curTick()));
+            }
+            return;
+        }
+        if (numDirtyLinesInDrRdRespQ >= nvm->getMaxPendingWrites()) {
+            //std::cout << "here2\n";
+            Tick schedTick = earliestDirtyLineInDrRdResp();
+            assert(schedTick != MaxTick);
+            schedule(dramReadEvent, std::max(nextReqTime, schedTick+1));
+            return;
+        }
+        if (nvm->writeRespQueueFull()) {
+            //std::cout << "here3\n";
+            assert(!dramReadEvent.scheduled());
 
-        assert(!dramReadEvent.scheduled());
-        schedule(dramReadEvent, std::max(nextReqTime,
-                                        nvm->writeRespQueueFront()+2));
-        return;
+            schedule(dramReadEvent, std::max(nextReqTime,
+                                    nvm->writeRespQueueFront()+2));
+            return;
+        }
     }
 
     busState = DcacheCtrl::READ;
@@ -1021,7 +1092,6 @@ DcacheCtrl::processDramReadEvent()
     //** keep the state as it is, no transition
     orbEntry->state = dramRead;
 
-    //addrInitRead.pop_front();
     pktDramRead[0].erase(to_read);
 
     if (!pktDramRead[0].empty()) {
@@ -1029,6 +1099,22 @@ DcacheCtrl::processDramReadEvent()
         assert(!dramReadEvent.scheduled());
 
         schedule(dramReadEvent, std::max(nextReqTime, curTick()));
+    }
+
+    unsigned rdsNum = pktDramRead[0].size() +
+                      pktNvmReadWaitIssue[0].size() +
+                      pktNvmRead[0].size();
+    unsigned wrsNum = pktNvmWrite[0].size() +
+                      pktDramWrite[0].size();
+
+    if ((rdsNum == 0 && wrsNum != 0) ||
+        (wrsNum >= writeHighThreshold)) {
+
+        stallRds = true;
+
+        if (!overallWriteEvent.scheduled()) {
+            schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
+        }
     }
 }
 
@@ -1117,25 +1203,34 @@ DcacheCtrl::processRespDramReadEvent()
             orbEntry->state = dramWrite;
             orbEntry->drWr = curTick();
 
-            //if (addrDramFill.empty()) {
-            if (pktDramWrite[0].empty()) {
-                assert(!dramWriteEvent.scheduled());
-                schedule(dramWriteEvent, std::max(nextReqTime, curTick()));
-            }
-            else {
-                assert(dramWriteEvent.scheduled());
-            }
-
-            //addrDramFill.push_back(orbEntry->owPkt->getAddr());
-            assert(orbEntry->dccPkt->isDram());
-            assert(orbEntry->dccPkt->isWrite());
-            assert(orbEntry->state==dramWrite);
             pktDramWrite[0].push_back(orbEntry->dccPkt);
 
-            // if (addrDramFill.size() > maxDrWrEv) {
-            //     maxDrWrEv = addrDramFill.size();
-            //     stats.maxDrWrEvQ = addrDramFill.size();
-            // }
+            if (pktDramWrite[0].size() >= (orbMaxSize*dramWrDrainPerc)) {
+                stallRds = true;
+                drainDramWrite = true;
+                if (!overallWriteEvent.scheduled()) {
+                    schedule(overallWriteEvent,
+                    std::max(nextReqTime, curTick()));
+                }
+            }
+
+            unsigned rdsNum = pktDramRead[0].size() +
+                              pktNvmReadWaitIssue[0].size() +
+                              pktNvmRead[0].size();
+            unsigned wrsNum = pktNvmWrite[0].size() +
+                              pktDramWrite[0].size();
+
+            if ((rdsNum == 0 && wrsNum != 0) ||
+                (wrsNum >= writeHighThreshold)) {
+
+                stallRds = true;
+
+                if (!overallWriteEvent.scheduled()) {
+                    schedule(overallWriteEvent,
+                             std::max(nextReqTime, curTick()));
+                }
+
+            }
 
             if (pktDramWrite[0].size() > maxDrWrEv) {
                 maxDrWrEv = pktDramWrite[0].size();
@@ -1176,26 +1271,19 @@ DcacheCtrl::processRespDramReadEvent()
         orbEntry->state = waitingToIssueNvmRead;
         orbEntry->nvWait = curTick();
 
-        //if (addrWaitingToIssueNvmRead.empty()) {
-        if (pktNvmRead[0].empty()) {
+        if (pktNvmReadWaitIssue[0].empty() && !stallRds) {
             assert(!waitingToIssueNvmReadEvent.scheduled());
             schedule(waitingToIssueNvmReadEvent, curTick());
         }
         else {
-            assert(waitingToIssueNvmReadEvent.scheduled());
+            assert(waitingToIssueNvmReadEvent.scheduled() || stallRds);
         }
 
-        // addrWaitingToIssueNvmRead.push(std::make_pair(curTick(),
-        // orbEntry->owPkt->getAddr()));
-        pktNvmRead[0].push_back(orbEntry->dccPkt);
+        pktNvmReadWaitIssue[0].push_back(orbEntry->dccPkt);
 
-        // if (addrWaitingToIssueNvmRead.size() > maxNvRdIssEv) {
-        //     maxNvRdIssEv = addrWaitingToIssueNvmRead.size();
-        //     stats.maxNvRdIssEvQ = addrWaitingToIssueNvmRead.size();
-        // }
-        if (pktNvmRead[0].size() > maxNvRdIssEv) {
-            maxNvRdIssEv = pktNvmRead[0].size();
-            stats.maxNvRdIssEvQ = pktNvmRead[0].size();
+        if (pktNvmReadWaitIssue[0].size() > maxNvRdIssEv) {
+            maxNvRdIssEv = pktNvmReadWaitIssue[0].size();
+            stats.maxNvRdIssEvQ = pktNvmReadWaitIssue[0].size();
         }
     }
 
@@ -1246,38 +1334,44 @@ DcacheCtrl::processRespDramReadEvent()
 void
 DcacheCtrl::processWaitingToIssueNvmReadEvent()
 {
+    if (stallRds) {
+        return;
+    }
+
     if (nvm->readsWaitingToIssue()) {
-    //assert(!addrWaitingToIssueNvmRead.empty());
-    assert(!pktNvmRead[0].empty());
+        assert(!pktNvmReadWaitIssue[0].empty());
 
-    // auto e = reqBuffer.at(addrWaitingToIssueNvmRead.top().second);
+        MemPacketQueue::iterator to_read;
 
-    MemPacketQueue::iterator to_read;
+        bool read_found = false;
 
-    bool read_found = false;
+        bool switched_cmd_type = (busState == DcacheCtrl::WRITE);
 
-    for (auto queue = pktNvmRead.rbegin();
-                 queue != pktNvmRead.rend(); ++queue) {
-        to_read = chooseNext((*queue), 0, false);
-        if (to_read != queue->end()) {
-            // candidate read found
-            read_found = true;
-            break;
+        if (switched_cmd_type) {
+            stats.wrToRdTurnAround++;
         }
-    }
 
-    auto e = reqBuffer.at(pktNvmRead[0].front()->getAddr());
+        for (auto queue = pktNvmReadWaitIssue.rbegin();
+                    queue != pktNvmReadWaitIssue.rend(); ++queue) {
+            to_read = chooseNext((*queue), switched_cmd_type ?
+                                    minWriteToReadDataGap() : 0, false);
+            if (to_read != queue->end()) {
+                // candidate read found
+                read_found = true;
+                break;
+            }
+        }
 
-    if (read_found) {
-        e = reqBuffer.at((*to_read)->getAddr());
-    }
+        auto e = reqBuffer.at(pktNvmReadWaitIssue[0].front()->getAddr());
 
-    assert(e->validEntry);
-    assert(e->state == waitingToIssueNvmRead);
-    assert(!e->dccPkt->isDram());
-    assert(!e->isHit);
+        if (read_found) {
+            e = reqBuffer.at((*to_read)->getAddr());
+        }
 
-    //if (nvm->readsWaitingToIssue()) {
+        assert(e->validEntry);
+        assert(e->state == waitingToIssueNvmRead);
+        assert(!e->dccPkt->isDram());
+        assert(!e->isHit);
 
         nvm->processReadPkt(e->dccPkt);
 
@@ -1287,7 +1381,7 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
         e->state = nvmRead;
         e->nvRd = e->dccPkt->readyTime;
 
-        if (addrNvmRead.empty()) {
+        if (pktNvmRead[0].empty()) {
             assert(!nvmReadEvent.scheduled());
             schedule(nvmReadEvent, std::max(nextReqTime,
                                     e->dccPkt->readyTime+1));
@@ -1299,34 +1393,45 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
             assert(nvmReadEvent.scheduled());
         }
 
-        addrNvmRead.push(std::make_pair(e->dccPkt->readyTime,
-        e->owPkt->getAddr()));
+        pktNvmRead[0].push_back(e->dccPkt);
 
-        if (addrNvmRead.size() > maxNvRdEv) {
-            maxNvRdEv = addrNvmRead.size();
-            stats.maxNvRdEvQ = addrNvmRead.size();
+        if (pktNvmRead[0].size() > maxNvRdEv) {
+            maxNvRdEv = pktNvmRead[0].size();
+            stats.maxNvRdEvQ = pktNvmRead[0].size();
         }
 
-        //addrWaitingToIssueNvmRead.pop();
         if (read_found) {
-            pktNvmRead[0].erase(to_read);
+            pktNvmReadWaitIssue[0].erase(to_read);
         }
         else {
-            pktNvmRead[0].erase(pktNvmRead[0].begin());
+            pktNvmReadWaitIssue[0].erase(pktNvmReadWaitIssue[0].begin());
+        }
+
+        unsigned rdsNum = pktDramRead[0].size() +
+                        pktNvmReadWaitIssue[0].size() +
+                        pktNvmRead[0].size();
+        unsigned wrsNum = pktNvmWrite[0].size() +
+                        pktDramWrite[0].size();
+
+        if ((rdsNum == 0 && wrsNum != 0) ||
+            (wrsNum >= writeHighThreshold)) {
+
+            stallRds = true;
+
+            if (!overallWriteEvent.scheduled()) {
+                schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
+            }
         }
     }
 
     else {
-        assert(!addrNvmRead.empty());
+        assert(!pktNvmRead[0].empty());
         schedule(waitingToIssueNvmReadEvent, nvmReadEvent.when()+2);
         return;
     }
 
-    //addrWaitingToIssueNvmRead.pop();
-
     if (!waitingToIssueNvmReadEvent.scheduled() &&
-        // !addrWaitingToIssueNvmRead.empty()) {
-        !pktNvmRead[0].empty()) {
+        !pktNvmReadWaitIssue[0].empty()) {
         schedule(waitingToIssueNvmReadEvent, curTick());
     }
 
@@ -1335,9 +1440,52 @@ DcacheCtrl::processWaitingToIssueNvmReadEvent()
 void
 DcacheCtrl::processNvmReadEvent()
 {
-    assert(!addrNvmRead.empty());
+    if (stallRds) {
+        return;
+    }
 
-    auto e = reqBuffer.at(addrNvmRead.top().second);
+    assert(!pktNvmRead[0].empty());
+
+    MemPacketQueue::iterator to_read;
+
+    bool read_found = false;
+
+    bool switched_cmd_type = (busState == DcacheCtrl::WRITE);
+
+    if (switched_cmd_type) {
+        stats.wrToRdTurnAround++;
+    }
+
+    for (auto queue = pktNvmRead.rbegin();
+                 queue != pktNvmRead.rend(); ++queue) {
+        to_read = chooseNext((*queue), switched_cmd_type ?
+                                minWriteToReadDataGap() : 0, false);
+        if (to_read != queue->end()) {
+            // candidate read found
+            read_found = true;
+            break;
+        }
+    }
+
+    reqBufferEntry* e;
+
+    int index = 0;
+
+    if (read_found) {
+        e = reqBuffer.at((*to_read)->getAddr());
+    }
+    else {
+        auto min = pktNvmRead[0].front();
+        index = 0;
+        for (int i=0; i<pktNvmRead[0].size(); i++) {
+            if (min->readyTime > pktNvmRead[0].at(i)->readyTime &&
+                min->readyTime != pktNvmRead[0].at(i)->readyTime) {
+                min = pktNvmRead[0].at(i);
+                index = i;
+            }
+        }
+        e = reqBuffer.at(min->getAddr());
+    }
 
     assert(e->validEntry);
     assert(!e->isHit);
@@ -1387,12 +1535,43 @@ DcacheCtrl::processNvmReadEvent()
     //** keeping the state as it is, no transition
     e->state = nvmRead;
 
-    addrNvmRead.pop();
+    if (read_found) {
+        pktNvmRead[0].erase(to_read);
+    }
+    else {
+        pktNvmRead[0].erase(pktNvmRead[0].begin()+index);
+    }
 
-    if (!addrNvmRead.empty()) {
+    if (!pktNvmRead[0].empty()) {
         assert(!nvmReadEvent.scheduled());
-        schedule(nvmReadEvent, std::max(nextReqTime,
-        reqBuffer.at(addrNvmRead.top().second)->dccPkt->readyTime+1));
+        auto min = pktNvmRead[0].front();
+        index = 0;
+        for (int i=0; i<pktNvmRead[0].size(); i++) {
+            if (min->readyTime > pktNvmRead[0].at(i)->readyTime &&
+                min->readyTime != pktNvmRead[0].at(i)->readyTime) {
+                min = pktNvmRead[0].at(i);
+                index = i;
+            }
+        }
+        Tick maxTick = std::max(nextReqTime, curTick());
+        schedule(nvmReadEvent, std::max(maxTick, min->readyTime+1));
+    }
+
+    unsigned rdsNum = pktDramRead[0].size() +
+                      pktNvmReadWaitIssue[0].size() +
+                      pktNvmRead[0].size();
+    unsigned wrsNum = pktNvmWrite[0].size() +
+                      pktDramWrite[0].size();
+
+    if (//(rdsNum == 0 && wrsNum != 0 && wrsNum >= writeLowThreshold) ||
+        (rdsNum == 0 && wrsNum != 0) ||
+        (wrsNum >= writeHighThreshold)) {
+
+        stallRds = true;
+
+        if (!overallWriteEvent.scheduled()) {
+            schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
+        }
     }
 }
 
@@ -1468,27 +1647,48 @@ DcacheCtrl::processRespNvmReadEvent()
     orbEntry->state = dramWrite;
     orbEntry->drWr = curTick();
 
-    //if (addrDramFill.empty()) {
-        if (pktDramWrite[0].empty()) {
-        assert(!dramWriteEvent.scheduled());
-        schedule(dramWriteEvent, std::max(nextReqTime, curTick()));
-    }
-    else {
-        assert(dramWriteEvent.scheduled());
-    }
-
-    // to keep track of writes, we maintain the addresses
-    // in a FIFO queue
-    //addrDramFill.push_back(addrNvmRespReady.front());
     assert(orbEntry->dccPkt->isDram());
     assert(orbEntry->dccPkt->isWrite());
     assert(orbEntry->state==dramWrite);
     pktDramWrite[0].push_back(reqBuffer.at(addrNvmRespReady.front())->dccPkt);
 
-    // if (addrDramFill.size() > maxDrWrEv) {
-    //     maxDrWrEv = addrDramFill.size();
-    //     stats.maxDrWrEvQ = addrDramFill.size();
-    // }
+    // std::cout <<
+    // pktDramRead[0].size()<< " / " <<
+    // pktNvmReadWaitIssue[0].size()<< " / " <<
+    // pktNvmRead[0].size()<< " / " <<
+    // pktDramWrite[0].size()<< " / " <<
+    // pktNvmWrite[0].size()<< " / " <<
+    // orbMaxSize<< " /// " <<
+    // dramWrDrainPerc<< " / " <<
+    // writeLowThreshold<< "\n";
+
+    if (pktDramWrite[0].size() >= (orbMaxSize*dramWrDrainPerc)) {
+
+        stallRds = true;
+
+        drainDramWrite = true;
+
+        if (!overallWriteEvent.scheduled()) {
+            schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
+        }
+    }
+
+    unsigned rdsNum = pktDramRead[0].size() +
+                      pktNvmReadWaitIssue[0].size() +
+                      pktNvmRead[0].size();
+    unsigned wrsNum = pktNvmWrite[0].size() +
+                      pktDramWrite[0].size();
+
+    if ((rdsNum == 0 && wrsNum != 0) ||
+        (wrsNum >= writeHighThreshold)) {
+
+        stallRds = true;
+
+        if (!overallWriteEvent.scheduled()) {
+            schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
+        }
+    }
+
     if (pktDramWrite[0].size() > maxDrWrEv) {
         maxDrWrEv = pktDramWrite[0].size();
         stats.maxDrWrEvQ = pktDramWrite[0].size();
@@ -1506,24 +1706,52 @@ DcacheCtrl::processRespNvmReadEvent()
 }
 
 void
-DcacheCtrl::processNvmWriteEvent()
+DcacheCtrl::processOverallWriteEvent()
 {
-    //std::cout << curTick() << " nwe " << nvmWritebackQueue.size() <<"\n";
+    // if (curTick()>=6076821250) {
+    // std::cout << "--- " << curTick()  << " / "  << pktDramWrite[0].size()
+    // << " / " << pktNvmWrite[0].size() << "\n";
+    // }
 
-    //assert(!nvmWritebackQueue.empty());
-    assert(!pktNvmWrite[0].empty());
+    assert(stallRds);
 
-    if (!nvm->writeRespQueueFull()) {
+    assert(!pktDramWrite[0].empty() || !pktNvmWrite[0].empty());
 
-        //auto e = nvmWritebackQueue.top().second;
+    // std::cout << "---D\n";
+    // if (!pktDramWrite[0].empty()) {
+    //     for (int i=0;i<pktDramWrite[0].size(); i++) {
+    //         std::cout << pktDramWrite[0].at(i)->getAddr() << ", ";
+    //     }
+    //     std::cout << "\n";
+    // }
+    // std::cout << "---N\n";
+    // if (!pktNvmWrite[0].empty()) {
+    //     for (int i=0;i<pktNvmWrite[0].size(); i++) {
+    //         std::cout << pktNvmWrite[0].at(i)->getAddr() << ", ";
+    //     }
+    //     std::cout << "\n";
+    // }
+    // std::cout << "-------------------\n";
+
+    if (drainDramWrite) {
+        //std::cout << "a\n";
+
+        drWrCounter++;
 
         MemPacketQueue::iterator to_write;
 
         bool write_found = false;
 
-        for (auto queue = pktNvmWrite.rbegin();
-                    queue != pktNvmWrite.rend(); ++queue) {
-            to_write = chooseNext((*queue), 0, false);
+        bool switched_cmd_type = (busState == DcacheCtrl::READ);
+
+        if (switched_cmd_type) {
+            stats.rdToWrTurnAround++;
+        }
+
+        for (auto queue = pktDramWrite.rbegin();
+                    queue != pktDramWrite.rend(); ++queue) {
+            to_write = chooseNext((*queue), switched_cmd_type ?
+                                    minReadToWriteDataGap() : 0, true);
             if (to_write != queue->end()) {
                 // candidate write found
                 write_found = true;
@@ -1531,159 +1759,492 @@ DcacheCtrl::processNvmWriteEvent()
             }
         }
 
-        //assert(write_found);
-        auto e = pktNvmWrite[0].front();
+        auto e = reqBuffer.at(pktDramWrite[0].front()->getAddr());
 
         if (write_found) {
-            e = (*to_write);
+            e = reqBuffer.at((*to_write)->getAddr());
         }
 
-        // a series of sanity checks
-        assert(!e->isDram());
-        assert(e->isWrite());
-        assert(e->size <= nvm->bytesPerBurst());
+        bool canRetry = false;
+
+        assert(e->validEntry);
+        if (e->owPkt->isRead()) {
+            assert(!e->isHit);
+        }
+        assert(e->dccPkt->isDram());
+        assert(e->state == dramWrite);
+        assert(e->dccPkt->size <=
+                                (e->dccPkt->isDram() ?
+                                dram->bytesPerBurst() :
+                                nvm->bytesPerBurst()) );
 
         busState = DcacheCtrl::WRITE;
 
-        assert(packetReady(e));
+        assert(packetReady(e->dccPkt));
 
-        Tick cmd_at = doBurstAccess(e);
+        Tick cmd_at = doBurstAccess(e->dccPkt);
 
-        long long int stateTick =
-            //(e->readyTime - nvmWritebackQueue.top().first);
-            (e->readyTime - e->entryTime);
+        e->dramWrDevTime = e->dccPkt->readyTime - cmd_at;
 
-        assert(stateTick > 0);
+        if (e->owPkt->isWrite()) {
+            // log the response
+            logResponse(DcacheCtrl::WRITE,
+                        e->dccPkt->requestorId(),
+                        e->dccPkt->qosValue(),
+                        e->owPkt->getAddr(), 1,
+                        e->dccPkt->readyTime -
+                        e->dccPkt->entryTime);
+        }
 
-        stats.timeInNvmWrite += stateTick;
-
-        stats.totNumPktsNvmWr++;
-
-        stats.nvWrDevTime += (e->readyTime - cmd_at);
-
-        long long int  stateQT =
-                // (cmd_at - nvmWritebackQueue.top().first);
-                (cmd_at - e->entryTime);
-
-        assert(stateQT >= 0);
-
-        stats.nvmWrQingTime += stateQT;
-
-        //delete nvmWritebackQueue.top().second;
-        delete e;
-
-        //nvmWritebackQueue.pop();
+        // Remove the request from the ORB and
+        // bring in a conflicting req waiting
+        // in the CRB, if any.
+        canRetry = !resumeConflictingReq(e);
 
         if (write_found) {
-            pktNvmWrite[0].erase(to_write);
+            pktDramWrite[0].erase(to_write);
         }
         else {
-            pktNvmWrite[0].erase(pktNvmWrite[0].begin());
+            pktDramWrite[0].erase(pktDramWrite[0].begin());
         }
 
-        //if (!nvmWritebackQueue.empty()) {
-        if (!pktNvmWrite[0].empty()) {
-            assert(!nvmWriteEvent.scheduled());
-            schedule(nvmWriteEvent, std::max(nextReqTime, curTick()));
+        if (retry && canRetry) {
+            retry = false;
+            port.sendRetryReq();
+        }
+
+        if (drWrCounter < minWritesPerSwitch && !pktDramWrite[0].empty()) {
+
+            assert(!overallWriteEvent.scheduled());
+
+            drainDramWrite = true;
+
+            stallRds = true;
+
+            schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
+
+            return;
+        }
+        else if (drainNvmWrite) {
+
+            assert(!pktNvmWrite[0].empty());
+
+            assert(!overallWriteEvent.scheduled());
+
+            drainDramWrite = false;
+
+            stallRds = true;
+
+            schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
+
+            return;
+        }
+        else if ((pktDramRead[0].empty() && pktNvmReadWaitIssue[0].empty()
+                    && pktNvmRead[0].empty()) &&
+                 (!pktDramWrite[0].empty() || !pktNvmWrite[0].empty())) {
+
+            assert(!overallWriteEvent.scheduled());
+
+            drainDramWrite = false;
+
+            drainNvmWrite = false;
+
+            stallRds = true;
+
+            drWrCounter = 0;
+
+            nvWrCounter = 0;
+
+            schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
+
+            return;
+
+        }
+        else {
+            drainDramWrite = false;
+            stallRds = false;
+            drWrCounter = 0;
+            nvWrCounter = 0;
+
+            if (!pktDramRead[0].empty() && !dramReadEvent.scheduled()) {
+                schedule(dramReadEvent, std::max(nextReqTime, curTick()));
+            }
+            if (!pktNvmReadWaitIssue[0].empty() &&
+                !waitingToIssueNvmReadEvent.scheduled()) {
+                schedule(waitingToIssueNvmReadEvent,
+                std::max(nextReqTime, curTick()));
+            }
+            if (!pktNvmRead[0].empty() && !nvmReadEvent.scheduled()) {
+                schedule(nvmReadEvent, std::max(nextReqTime, curTick()));
+            }
+            return;
         }
     }
 
-    if (!nvmWriteEvent.scheduled() &&
-        //!nvmWritebackQueue.empty() &&
-        !pktNvmWrite[0].empty() &&
-         nvm->writeRespQueueFull()) {
-            schedule(nvmWriteEvent, std::max(nextReqTime,
-                        nvm->writeRespQueueFront()+1));
+    if (drainNvmWrite) {
+        //std::cout << "b\n";
+
+        if (!nvm->writeRespQueueFull()) {
+
+            nvWrCounter++;
+
+            MemPacketQueue::iterator to_write;
+
+            bool write_found = false;
+
+            bool switched_cmd_type = (busState == DcacheCtrl::READ);
+
+            if (switched_cmd_type) {
+                stats.rdToWrTurnAround++;
+            }
+
+            for (auto queue = pktNvmWrite.rbegin();
+                        queue != pktNvmWrite.rend(); ++queue) {
+                to_write = chooseNext((*queue), switched_cmd_type ?
+                                        minReadToWriteDataGap() : 0, false);
+                if (to_write != queue->end()) {
+                    // candidate write found
+                    write_found = true;
+                    break;
+                }
+            }
+
+            auto e = pktNvmWrite[0].front();
+
+            if (write_found) {
+                e = (*to_write);
+            }
+
+            // a series of sanity checks
+            assert(!e->isDram());
+            assert(e->isWrite());
+            assert(e->size <= nvm->bytesPerBurst());
+
+            busState = DcacheCtrl::WRITE;
+
+            assert(packetReady(e));
+
+            Tick cmd_at = doBurstAccess(e);
+
+            long long int stateTick =
+                (e->readyTime - e->entryTime);
+
+            assert(stateTick > 0);
+
+            stats.timeInNvmWrite += stateTick;
+
+            stats.totNumPktsNvmWr++;
+
+            stats.nvWrDevTime += (e->readyTime - cmd_at);
+
+            long long int  stateQT =
+                    (cmd_at - e->entryTime);
+
+            assert(stateQT >= 0);
+
+            stats.nvmWrQingTime += stateQT;
+
+            delete e;
+
+            if (write_found) {
+                pktNvmWrite[0].erase(to_write);
+            }
+            else {
+                pktNvmWrite[0].erase(pktNvmWrite[0].begin());
+            }
+
+            if (nvWrCounter < minWritesPerSwitch && !pktNvmWrite[0].empty()) {
+                assert(!overallWriteEvent.scheduled());
+
+                ////// here
+                //assert(!pktNvmWrite[0].empty());
+
+                drainNvmWrite = true;
+
+                stallRds = true;
+
+                schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
+
+                return;
+            }
+            else if ((pktDramRead[0].empty() && pktNvmReadWaitIssue[0].empty()
+                        && pktNvmRead[0].empty()) &&
+                    (!pktDramWrite[0].empty() || !pktNvmWrite[0].empty())) {
+
+                assert(!overallWriteEvent.scheduled());
+
+                drainDramWrite = false;
+
+                drainNvmWrite = false;
+
+                stallRds = true;
+
+                drWrCounter = 0;
+
+                nvWrCounter = 0;
+
+                schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
+
+                return;
+
+            }
+            else {
+                drainNvmWrite = false;
+                stallRds = false;
+                drWrCounter = 0;
+                nvWrCounter = 0;
+
+                if (!pktDramRead[0].empty() && !dramReadEvent.scheduled()) {
+                    schedule(dramReadEvent, std::max(nextReqTime, curTick()));
+                }
+                if (!pktNvmReadWaitIssue[0].empty() &&
+                    !waitingToIssueNvmReadEvent.scheduled()) {
+                    schedule(waitingToIssueNvmReadEvent,
+                    std::max(nextReqTime, curTick()));
+                }
+                if (!pktNvmRead[0].empty() && !nvmReadEvent.scheduled()) {
+                    schedule(nvmReadEvent, std::max(nextReqTime, curTick()));
+                }
+                return;
+            }
+        }
+
+        if (!overallWriteEvent.scheduled() &&
+            !pktNvmWrite[0].empty() &&
+            nvm->writeRespQueueFull()) {
+                schedule(overallWriteEvent, std::max(nextReqTime,
+                            nvm->writeRespQueueFront()+1));
+                return;
+        }
     }
-}
+    else if ((!pktDramWrite[0].empty() && drWrCounter < minDrWrPerSwitch) ||
+        (!pktDramWrite[0].empty() && pktNvmWrite[0].empty() &&
+        (drWrCounter+nvWrCounter)<minWritesPerSwitch) ||
+        (pktDramRead[0].empty() && pktNvmReadWaitIssue[0].empty()
+        && pktNvmRead[0].empty()
+        && pktNvmWrite[0].empty() && !pktDramWrite[0].empty())) {
 
-void
-DcacheCtrl::processDramWriteEvent()
-{
-    // std::cout << curTick() << " " <<
-    // addrDramFill.size() << " processDramWriteEvent\n";
+        //std::cout << "c\n";
 
-    //assert(!addrDramFill.empty());
-    assert(!pktDramWrite[0].empty());
+        drWrCounter++;
 
-    // auto e = reqBuffer.at(addrDramFill.front());
+        MemPacketQueue::iterator to_write;
 
-    MemPacketQueue::iterator to_write;
+        bool write_found = false;
 
-    bool write_found = false;
+        bool switched_cmd_type = (busState == DcacheCtrl::READ);
 
-    for (auto queue = pktDramWrite.rbegin();
-                 queue != pktDramWrite.rend(); ++queue) {
-        to_write = chooseNext((*queue), 0, true);
-        if (to_write != queue->end()) {
-            // candidate write found
-            write_found = true;
-            break;
+        if (switched_cmd_type) {
+            stats.rdToWrTurnAround++;
+        }
+
+        for (auto queue = pktDramWrite.rbegin();
+                    queue != pktDramWrite.rend(); ++queue) {
+            to_write = chooseNext((*queue), switched_cmd_type ?
+                                    minReadToWriteDataGap() : 0, true);
+            if (to_write != queue->end()) {
+                // candidate write found
+                write_found = true;
+                break;
+            }
+        }
+
+        auto e = reqBuffer.at(pktDramWrite[0].front()->getAddr());
+
+        if (write_found) {
+            e = reqBuffer.at((*to_write)->getAddr());
+        }
+
+        bool canRetry = false;
+
+        assert(e->validEntry);
+        if (e->owPkt->isRead()) {
+            assert(!e->isHit);
+        }
+        assert(e->dccPkt->isDram());
+        assert(e->state == dramWrite);
+        assert(e->dccPkt->size <=
+                                (e->dccPkt->isDram() ?
+                                dram->bytesPerBurst() :
+                                nvm->bytesPerBurst()) );
+
+        busState = DcacheCtrl::WRITE;
+
+        assert(packetReady(e->dccPkt));
+
+        Tick cmd_at = doBurstAccess(e->dccPkt);
+
+        e->dramWrDevTime = e->dccPkt->readyTime - cmd_at;
+
+        if (e->owPkt->isWrite()) {
+            // log the response
+            logResponse(DcacheCtrl::WRITE,
+                        e->dccPkt->requestorId(),
+                        e->dccPkt->qosValue(),
+                        e->owPkt->getAddr(), 1,
+                        e->dccPkt->readyTime -
+                        e->dccPkt->entryTime);
+        }
+
+        // Remove the request from the ORB and
+        // bring in a conflicting req waiting
+        // in the CRB, if any.
+        canRetry = !resumeConflictingReq(e);
+
+        if (write_found) {
+            pktDramWrite[0].erase(to_write);
+        }
+        else {
+            pktDramWrite[0].erase(pktDramWrite[0].begin());
+        }
+
+        if (retry && canRetry) {
+            retry = false;
+            port.sendRetryReq();
         }
     }
 
-    //assert(write_found);
-    auto e = reqBuffer.at(pktDramWrite[0].front()->getAddr());
+    else if ((!pktNvmWrite[0].empty() && nvWrCounter < minNvWrPerSwitch) ||
+             (!pktNvmWrite[0].empty() && pktDramWrite[0].empty() &&
+             (drWrCounter+nvWrCounter)<minWritesPerSwitch) ||
+        (pktDramRead[0].empty() && pktNvmReadWaitIssue[0].empty()
+        && pktNvmRead[0].empty()
+        && pktDramWrite[0].empty() && !pktNvmWrite[0].empty())) {
+        //std::cout << "d\n";
 
-    if (write_found) {
-        e = reqBuffer.at((*to_write)->getAddr());
+        if (!nvm->writeRespQueueFull()) {
+
+            nvWrCounter++;
+
+            MemPacketQueue::iterator to_write;
+
+            bool write_found = false;
+
+            bool switched_cmd_type = (busState == DcacheCtrl::READ);
+
+            if (switched_cmd_type) {
+                stats.rdToWrTurnAround++;
+            }
+
+            for (auto queue = pktNvmWrite.rbegin();
+                        queue != pktNvmWrite.rend(); ++queue) {
+                to_write = chooseNext((*queue), switched_cmd_type ?
+                                        minReadToWriteDataGap() : 0, false);
+                if (to_write != queue->end()) {
+                    // candidate write found
+                    write_found = true;
+                    break;
+                }
+            }
+
+            auto e = pktNvmWrite[0].front();
+
+            if (write_found) {
+                e = (*to_write);
+            }
+
+            // a series of sanity checks
+            assert(!e->isDram());
+            assert(e->isWrite());
+            assert(e->size <= nvm->bytesPerBurst());
+
+            busState = DcacheCtrl::WRITE;
+
+            assert(packetReady(e));
+
+            Tick cmd_at = doBurstAccess(e);
+
+            long long int stateTick =
+                (e->readyTime - e->entryTime);
+
+            assert(stateTick > 0);
+
+            stats.timeInNvmWrite += stateTick;
+
+            stats.totNumPktsNvmWr++;
+
+            stats.nvWrDevTime += (e->readyTime - cmd_at);
+
+            long long int  stateQT =
+                    (cmd_at - e->entryTime);
+
+            assert(stateQT >= 0);
+
+            stats.nvmWrQingTime += stateQT;
+
+            delete e;
+
+            if (write_found) {
+                pktNvmWrite[0].erase(to_write);
+            }
+            else {
+                pktNvmWrite[0].erase(pktNvmWrite[0].begin());
+            }
+        }
+
+        if (!overallWriteEvent.scheduled() &&
+            !pktNvmWrite[0].empty() &&
+            nvm->writeRespQueueFull()) {
+                schedule(overallWriteEvent, std::max(nextReqTime,
+                            nvm->writeRespQueueFront()+1));
+                return;
+        }
     }
 
-    bool canRetry = false;
+    // std::cout << "gg: " << curTick() << " / " <<
+    // pktDramRead[0].size() << " / " <<
+    // pktNvmReadWaitIssue[0].size() << " / " <<
+    // pktNvmRead[0].size() << " / " <<
+    // pktDramWrite[0].size() << " / " <<
+    // pktNvmWrite[0].size() << " / " <<
+    // drWrCounter << " / " <<
+    // nvWrCounter << " / " <<
+    // minWritesPerSwitch << " / " <<
+    // "\n";
 
-    assert(e->validEntry);
-    if (e->owPkt->isRead()) {
-        assert(!e->isHit);
-    }
-    assert(e->dccPkt->isDram());
-    assert(e->state == dramWrite);
-    assert(e->dccPkt->size <=
-                            (e->dccPkt->isDram() ?
-                            dram->bytesPerBurst() :
-                            nvm->bytesPerBurst()) );
-
-    busState = DcacheCtrl::WRITE;
-
-    assert(packetReady(e->dccPkt));
-
-    Tick cmd_at = doBurstAccess(e->dccPkt);
-
-    e->dramWrDevTime = e->dccPkt->readyTime - cmd_at;
-
-    if (e->owPkt->isWrite()) {
-        // log the response
-        logResponse(DcacheCtrl::WRITE,
-                    e->dccPkt->requestorId(),
-                    e->dccPkt->qosValue(),
-                    e->owPkt->getAddr(), 1,
-                    e->dccPkt->readyTime -
-                    e->dccPkt->entryTime);
-    }
-
-    // Remove the request from the ORB and
-    // bring in a conflicting req waiting
-    // in the CRB, if any.
-    canRetry = !resumeConflictingReq(e);
-
-    //addrDramFill.pop_front();
-    if (write_found) {
-        pktDramWrite[0].erase(to_write);
+    if (
+            !overallWriteEvent.scheduled() &&
+            (
+                (
+                    (!pktDramRead[0].empty() || !pktNvmReadWaitIssue[0].empty()
+                        || !pktNvmRead[0].empty()) &&
+                    (!pktDramWrite[0].empty() || !pktNvmWrite[0].empty()) &&
+                    (drWrCounter + nvWrCounter < minWritesPerSwitch)
+                ) ||
+                (
+                    (pktDramRead[0].empty() && pktNvmReadWaitIssue[0].empty()
+                        && pktNvmRead[0].empty()) &&
+                    (!pktDramWrite[0].empty() || !pktNvmWrite[0].empty())
+                )
+            )
+        ) {
+        //std::cout << "e\n";
+        stallRds = true;
+        schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
     }
     else {
-        pktDramWrite[0].erase(pktDramWrite[0].begin());
-    }
+        //std::cout << "f\n";
 
-    //if (!addrDramFill.empty()) {
-    if (!pktDramWrite[0].empty()) {
-        assert(!dramWriteEvent.scheduled());
-        schedule(dramWriteEvent, std::max(nextReqTime, curTick()));
-    }
+        stallRds = false;
 
-    if (retry && canRetry) {
-        retry = false;
-        port.sendRetryReq();
+        drWrCounter = 0;
+
+        nvWrCounter = 0;
+
+        if (!pktDramRead[0].empty() && !dramReadEvent.scheduled()) {
+            schedule(dramReadEvent, std::max(nextReqTime, curTick()));
+        }
+        if (!pktNvmReadWaitIssue[0].empty() &&
+            !waitingToIssueNvmReadEvent.scheduled()) {
+            schedule(waitingToIssueNvmReadEvent,
+            std::max(nextReqTime, curTick()));
+        }
+        if (!pktNvmRead[0].empty() && !nvmReadEvent.scheduled()) {
+            schedule(nvmReadEvent, std::max(nextReqTime, curTick()));
+        }
     }
 }
+
 
 void
 DcacheCtrl::processRespondEvent()
@@ -1942,6 +2503,22 @@ DcacheCtrl::packetReady(MemPacket* pkt)
         dram->burstReady(pkt) : nvm->burstReady(pkt));
 }
 
+Tick
+DcacheCtrl::minReadToWriteDataGap()
+{
+    Tick dram_min = dram ?  dram->minReadToWriteDataGap() : MaxTick;
+    Tick nvm_min = nvm ?  nvm->minReadToWriteDataGap() : MaxTick;
+    return std::min(dram_min, nvm_min);
+}
+
+Tick
+DcacheCtrl::minWriteToReadDataGap()
+{
+    Tick dram_min = dram ? dram->minWriteToReadDataGap() : MaxTick;
+    Tick nvm_min = nvm ?  nvm->minWriteToReadDataGap() : MaxTick;
+    return std::min(dram_min, nvm_min);
+}
+
 MemPacketQueue::iterator
 DcacheCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
                         bool is_dram)
@@ -2041,6 +2618,9 @@ DcacheCtrl::CtrlStats::CtrlStats(DcacheCtrl &_ctrl)
 
     ADD_STAT(readPktSize, "Read request sizes (log2)"),
     ADD_STAT(writePktSize, "Write request sizes (log2)"),
+
+    ADD_STAT(rdToWrTurnAround, "Read to write switch"),
+    ADD_STAT(wrToRdTurnAround, "Write to read switch)"),
 
     //ADD_STAT(rdQLenPdf, "What read queue length does an incoming req see"),
     //ADD_STAT(wrQLenPdf, "What write queue length does an incoming req see"),
@@ -2304,10 +2884,6 @@ DcacheCtrl::drain()
 
         // the only queue that is not drained automatically over time
         // is the write queue, thus kick things into action if needed
-
-        // if (!totalWriteQueueSize && !nextReqEvent.scheduled()) {
-        //     schedule(dramWriteEvent, curTick());
-        // }
 
         if (dram)
             dram->drainRanks();

@@ -40,9 +40,11 @@ class DRAMDCInterface(DCMemInterface):
     # the amount of time in nanoseconds from issuing an activate command
     # to the data being available in the row buffer for a read/write
     tRCD = Param.Latency("RAS to CAS delay")
+    tRCD_WR = Param.Latency(Self.tRCD, "RAS to Write CAS delay")
 
     # the time from issuing a read/write command to seeing the actual data
     tCL = Param.Latency("CAS latency")
+    tCWL = Param.Latency(Self.tCL, "Write CAS latency")
 
     # minimum time between a precharge and subsequent activate
     tRP = Param.Latency("Row precharge time")
@@ -246,6 +248,80 @@ class DDR3_1600_8x8(DRAMDCInterface):
     # 8 beats across an x64 interface translates to 4 clocks @ 800 MHz
     tBURST = '5ns'
 
+    # DDR3-1600 11-11-11
+    tRCD = '13.75ns'
+    tCL = '13.75ns'
+    tRP = '13.75ns'
+    tRAS = '35ns'
+    tRRD = '6ns'
+    tXAW = '30ns'
+    activation_limit = 4
+    tRFC = '260ns'
+
+    tWR = '15ns'
+
+    # Greater of 4 CK or 7.5 ns
+    tWTR = '7.5ns'
+
+    # Greater of 4 CK or 7.5 ns
+    tRTP = '7.5ns'
+
+    # Default same rank rd-to-wr bus turnaround to 2 CK, @800 MHz = 2.5 ns
+    tRTW = '2.5ns'
+
+    # Default different rank bus delay to 2 CK, @800 MHz = 2.5 ns
+    tCS = '2.5ns'
+
+    # <=85C, half for >85C
+    tREFI = '7.8us'
+
+    # active powerdown and precharge powerdown exit time
+    tXP = '6ns'
+
+    # self refresh exit time
+    tXS = '270ns'
+
+    # Current values from datasheet Die Rev E,J
+    IDD0 = '55mA'
+    IDD2N = '32mA'
+    IDD3N = '38mA'
+    IDD4W = '125mA'
+    IDD4R = '157mA'
+    IDD5 = '235mA'
+    IDD3P1 = '38mA'
+    IDD2P1 = '32mA'
+    IDD6 = '20mA'
+    VDD = '1.5V'
+
+# This is a hypothetical HBM interface based on DDR3
+class HBM_FROM_DDR3(DRAMDCInterface):
+    # size of device in bytes
+    device_size = '512MiB'
+
+    device_bus_width = 16
+
+    # Using a burst length of 4
+    burst_length = 4
+
+    # Each device has a page (row buffer) size of 1 Kbyte (1K columns x8)
+    device_rowbuffer_size = '1KiB'
+
+    # 8x8 configuration, so 8 devices
+    devices_per_rank = 8
+
+    # Use two ranks
+    ranks_per_channel = 2
+
+    # DDR3 has 8 banks in all configurations
+    banks_per_rank = 8
+
+    # 8000 MHz
+    tCK = '0.125ns'
+
+    # 4 beats across an x64 interface translates to 2 clocks @ 8000 MHz
+    tBURST = '0.25ns'
+
+    # Keeping the other times same as DDR3
     # DDR3-1600 11-11-11
     tRCD = '13.75ns'
     tCL = '13.75ns'
