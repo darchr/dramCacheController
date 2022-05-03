@@ -82,41 +82,8 @@ class HBMCtrl : public MemCtrl
 
   protected:
 
-    // For now, make use of a queued response port to avoid dealing with
-    // flow control for the responses being sent back
-    class MemoryPort : public QueuedResponsePort
-    {
-
-        RespPacketQueue queue;
-        HBMCtrl& ctrl;
-
-      public:
-
-        MemoryPort(const std::string& name, HBMCtrl& _ctrl);
-
-      protected:
-
-        Tick recvAtomic(PacketPtr pkt) override;
-        Tick recvAtomicBackdoor(
-                PacketPtr pkt, MemBackdoorPtr &backdoor) override;
-
-        void recvFunctional(PacketPtr pkt) override;
-
-        bool recvTimingReq(PacketPtr) override;
-
-        AddrRangeList getAddrRanges() const override;
-
-    };
-
-    /**
-     * Our incoming port, for a multi-ported controller add a crossbar
-     * in front of it
-     */
-    MemoryPort port;
-
     bool respQEmpty()
-    { 
-      std::cout << "hbm ctrl resp Q empty " << std::endl;
+    {
       return (respQueue.empty() && respQueue2.empty());
     };
 
@@ -131,6 +98,41 @@ class HBMCtrl : public MemCtrl
   public:
     HBMCtrl(const HBMCtrlParams &p);
 
+
+    void pruneRowBurstTick();
+    void pruneColBurstTick();
+
+    /**
+     * Check for command bus contention for single cycle command.
+     * If there is contention, shift command to next burst.
+     * Check verifies that the commands issued per burst is less
+     * than a defined max number, maxCommandsPerWindow.
+     * Therefore, contention per cycle is not verified and instead
+     * is done based on a burst window.
+     *
+     * @param cmd_tick Initial tick of command, to be verified
+     * @param max_cmds_per_burst Number of commands that can issue
+     *                           in a burst window
+     * @return tick for command issue without contention
+     */
+    Tick verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst, bool row_cmd);
+
+    /**
+     * Check for command bus contention for multi-cycle (2 currently)
+     * command. If there is contention, shift command(s) to next burst.
+     * Check verifies that the commands issued per burst is less
+     * than a defined max number, maxCommandsPerWindow.
+     * Therefore, contention per cycle is not verified and instead
+     * is done based on a burst window.
+     *
+     * @param cmd_tick Initial tick of command, to be verified
+     * @param max_multi_cmd_split Maximum delay between commands
+     * @param max_cmds_per_burst Number of commands that can issue
+     *                           in a burst window
+     * @return tick for command issue without contention
+     */
+    Tick verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
+                        Tick max_multi_cmd_split = 0);
 
     /**
      * NextReq and Respond events for second pseudo channel
@@ -152,6 +154,7 @@ class HBMCtrl : public MemCtrl
      */
     bool readQueueFullCh0(unsigned int pkt_count) const;
     bool readQueueFullCh1(unsigned int pkt_count) const;
+    bool readQueueFull(unsigned int pkt_count);
 
     /**
      * Check if the write queue partition of both pseudo
@@ -254,8 +257,15 @@ class HBMCtrl : public MemCtrl
      * Holds count of commands issued in burst window starting at
      * defined Tick. This is used to ensure that the command bandwidth
      * does not exceed the allowable media constraints.
+     * This is specific to row commands
      */
-    std::unordered_multiset<Tick> burstTicks;
+    std::unordered_multiset<Tick> rowBurstTicks;
+
+    /**
+     * This is specific to col commands
+     */
+    std::unordered_multiset<Tick> colBurstTicks;
+
 
     // /**
     //  * Create pointer to interface of the actual dram media when connected
