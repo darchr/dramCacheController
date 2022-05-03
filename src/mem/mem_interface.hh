@@ -115,7 +115,7 @@ class MemInterface : public AbstractMemory
     /**
      * A pointer to the parent MemCtrl instance
      */
-    MemCtrl* ctrl;
+    HBMCtrl* ctrl;
 
     /**
      * Number of commands that can issue in the defined controller
@@ -198,7 +198,7 @@ class MemInterface : public AbstractMemory
      *                       check command bandwidth
      * @param chan_num pseudo channel number
      */
-    void setCtrl(MemCtrl* _ctrl, unsigned int command_window, uint8_t chan_num);
+    void setCtrl(HBMCtrl* _ctrl, unsigned int command_window, uint8_t chan_num);
 
     /**
      * Get an address in a dense range which starts from 0. The input

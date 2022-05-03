@@ -79,7 +79,7 @@ MemInterface::MemInterface(const MemInterfaceParams &_p)
 {}
 
 void
-MemInterface::setCtrl(MemCtrl* _ctrl, unsigned int command_window, uint8_t chan_num)
+MemInterface::setCtrl(HBMCtrl* _ctrl, unsigned int command_window, uint8_t chan_num)
 {
     ctrl = _ctrl;
     maxCommandsPerWindow = command_window / tCK;
@@ -303,7 +303,7 @@ DRAMInterface::activateBank(Rank& rank_ref, Bank& bank_ref,
     if (twoCycleActivate)
         act_at = ctrl->verifyMultiCmd(act_tick, maxCommandsPerWindow, tAAD);
     else
-        act_at = ctrl->verifySingleCmd(act_tick, maxCommandsPerWindow);
+        act_at = ctrl->verifySingleCmd(act_tick, maxCommandsPerWindow, true);
 
     DPRINTF(DRAM, "Activate at tick %d\n", act_at);
 
@@ -421,7 +421,7 @@ DRAMInterface::prechargeBank(Rank& rank_ref, Bank& bank, Tick pre_tick,
         // Issuing an explicit PRE command
         // Verify that we have command bandwidth to issue the precharge
         // if not, shift to next burst window
-        pre_at = ctrl->verifySingleCmd(pre_tick, maxCommandsPerWindow);
+        pre_at = ctrl->verifySingleCmd(pre_tick, maxCommandsPerWindow, true);
         // enforce tPPD
         for (int i = 0; i < banksPerRank; i++) {
             rank_ref.banks[i].preAllowedAt = std::max(pre_at + tPPD,
@@ -522,7 +522,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     if (dataClockSync && ((cmd_at - rank_ref.lastBurstTick) > clkResyncDelay))
         cmd_at = ctrl->verifyMultiCmd(cmd_at, maxCommandsPerWindow, tCK);
     else
-        cmd_at = ctrl->verifySingleCmd(cmd_at, maxCommandsPerWindow);
+        cmd_at = ctrl->verifySingleCmd(cmd_at, maxCommandsPerWindow, false);
 
     // if we are interleaving bursts, ensure that
     // 1) we don't double interleave on next burst issue
@@ -1695,7 +1695,7 @@ DRAMInterface::Rank::processPowerEvent()
         }
 
         // completed refresh event, ensure next request is scheduled
-        if (!dram.ctrl->requestEventScheduled())
+        //if (!dram.ctrl->requestEventScheduled())
         if (!((dram.channel_num == 0) ? dram.ctrl->requestEventScheduled() : dynamic_cast<HBMCtrl*>(dram.ctrl)->requestEventCh1Scheduled())) {
             DPRINTF(DRAM, "Scheduling next request after refreshing"
                            " rank %d\n", rank);
@@ -2223,7 +2223,7 @@ NVMInterface::chooseRead(MemPacketQueue& queue)
                                               maxCommandsPerWindow, tCK);
             } else {
                 cmd_at = ctrl->verifySingleCmd(cmd_at,
-                                               maxCommandsPerWindow);
+                                               maxCommandsPerWindow, false);
             }
 
             // Update delay to next read
@@ -2359,7 +2359,7 @@ NVMInterface::doBurstAccess(MemPacket* pkt, Tick next_burst_at)
     // one command cycle
     // Write command may require multiple cycles to enable larger address space
     if (pkt->isRead() || !twoCycleRdWr) {
-        cmd_at = ctrl->verifySingleCmd(cmd_at, maxCommandsPerWindow);
+        cmd_at = ctrl->verifySingleCmd(cmd_at, maxCommandsPerWindow, false);
     } else {
         cmd_at = ctrl->verifyMultiCmd(cmd_at, maxCommandsPerWindow, tCK);
     }
