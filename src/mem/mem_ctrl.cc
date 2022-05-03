@@ -70,6 +70,7 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     writeHighThreshold(writeBufferSize * p.write_high_thresh_perc / 100.0),
     writeLowThreshold(writeBufferSize * p.write_low_thresh_perc / 100.0),
     minWritesPerSwitch(p.min_writes_per_switch),
+    minReadsPerSwitch(p.min_reads_per_switch),
     writesThisTime(0), readsThisTime(0),
     memSchedPolicy(p.mem_sched_policy),
     frontendLatency(p.static_frontend_latency),
@@ -1209,6 +1210,7 @@ MemCtrl::nextReqEventLogic(MemInterface* mem_int, MemPacketQueue& resp_queue,
             //     switch_to_writes = true;
             // }
             if ((totalWriteQueueSize > writeHighThreshold) &&
+            (readsThisTime >= minReadsPerSwitch || totalReadQueueSize == 0) &&
                !(!isDramIntr &&
                  mem_int->numWritesQueued == totalWriteQueueSize &&
                  mem_int->writeRespQueueFull())) {
