@@ -89,6 +89,9 @@ HBMCtrl::HBMCtrl(const HBMCtrlParams &p) :
 
     port.ctrl = this;
 
+    writeHighThreshold = (writeBufferSize * p.write_high_thresh_perc / 100.0);
+    writeLowThreshold = (writeBufferSize * p.write_low_thresh_perc / 100.0);
+
 }
 
 void
