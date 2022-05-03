@@ -57,7 +57,7 @@ namespace memory
 
 MemCtrl::MemCtrl(const MemCtrlParams &p) :
     qos::MemCtrl(p),
-    port(name() + ".port", *this), isTimingMode(false),
+    port(name() + ".port", this), isTimingMode(false),
     retryRdReq(false), retryWrReq(false),
     nextReqEvent([this]{ processNextReqEvent(); }, name()),
     respondEvent([this]{ processRespondEvent(); }, name()),
@@ -101,7 +101,7 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     //     dram->setCtrl(this, commandWindow);
     // if (nvm)
     //     nvm->setCtrl(this, commandWindow);
-    mem->setCtrl(this, commandWindow, 0);
+    //mem->setCtrl(this, commandWindow, 0);
 
 
     //fatal_if(!dram && !nvm, "Memory controller must have an interface");
@@ -203,7 +203,7 @@ MemCtrl::recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor)
 }
 
 bool
-MemCtrl::readQueueFull(unsigned int neededEntries) const
+MemCtrl::readQueueFull(unsigned int neededEntries)
 {
     DPRINTF(MemCtrl,
             "Read queue limit %d, current size %d, entries needed %d\n",
@@ -582,7 +582,7 @@ MemCtrl::recvTimingReq(PacketPtr pkt)
 }
 
 void
-MemCtrl::respondEventLogic(MemInterface* mem_int, MemPacketQueue& queue, 
+MemCtrl::respondEventLogic(MemInterface* mem_int, MemPacketQueue& queue,
                                         EventFunctionWrapper& resp_event)
 {
     MemPacket* mem_pkt = queue.front();
@@ -637,21 +637,20 @@ MemCtrl::respondEventLogic(MemInterface* mem_int, MemPacketQueue& queue,
     }
 
     delete mem_pkt;
-
-    // We have made a location in the queue available at this point,
-    // so if there is a read that was forced to wait, retry now
-    if (retryRdReq) {
-        retryRdReq = false;
-        port.sendRetryReq();
-    }
 }
 
 void
 MemCtrl::processRespondEvent()
 {
     DPRINTF(MemCtrl,
-            "processRespondEvent(): Some req has reached its readyTime\n");    
+            "processRespondEvent(): Some req has reached its readyTime\n");
     respondEventLogic(mem, respQueue, respondEvent);
+    // We have made a location in the queue available at this point,
+    // so if there is a read that was forced to wait, retry now
+    if (retryRdReq) {
+        retryRdReq = false;
+        port.sendRetryReq();
+    }
 }
 
 MemPacketQueue::iterator
@@ -666,7 +665,7 @@ MemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
         if (queue.size() == 1) {
             // available rank corresponds to state refresh idle
             MemPacket* mem_pkt = *(queue.begin());
-            
+
             if (mem_pkt->channel != mem_int->channel_num) {
                 return ret;
             }
@@ -750,7 +749,7 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
                                                 MemInterface* mem_int)
 {
     DPRINTF(MemCtrl, "Responding to Address %#x.. channel : %d\n", pkt->getAddr(), mem_int->channel_num);
-    
+
 
     bool needsResponse = pkt->needsResponse();
     // do the actual memory access which also turns the packet into a
@@ -811,7 +810,7 @@ MemCtrl::getBurstWindow(Tick cmd_tick)
 }
 
 Tick
-MemCtrl::verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst)
+MemCtrl::verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst, bool row_cmd)
 {
     // start with assumption that there is no contention on command bus
     Tick cmd_at = cmd_tick;
@@ -995,8 +994,8 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int)
 }
 
 void
-MemCtrl::nextReqEventLogic(MemInterface* mem_int, MemPacketQueue& resp_queue, 
-                        EventFunctionWrapper& resp_event, 
+MemCtrl::nextReqEventLogic(MemInterface* mem_int, MemPacketQueue& resp_queue,
+                        EventFunctionWrapper& resp_event,
                         EventFunctionWrapper& next_req_event) {
     // transition is handled by QoS algorithm if enabled
     if (turnPolicy) {
@@ -1198,12 +1197,6 @@ MemCtrl::nextReqEventLogic(MemInterface* mem_int, MemPacketQueue& resp_queue,
                 assert(resp_queue.back()->readyTime <= mem_pkt->readyTime);
                 assert(resp_event.scheduled());
             }
-
-
-            std::cout << "mem_pkt -> addr " << mem_pkt->addr << std::endl;
-            std::cout << "mem_pkt -> channel " << unsigned(mem_pkt->channel) << std::endl;
-            std::cout << "mem_int -> channel " << unsigned(mem_int->channel_num) << std::endl;
-            std::cout << "resp q size " << resp_queue.size() << std::endl;
 
             resp_queue.push_back(mem_pkt);
 
@@ -1684,8 +1677,8 @@ MemCtrl::drainResume()
     isTimingMode = system()->isTimingMode();
 }
 
-MemCtrl::MemoryPort::MemoryPort(const std::string& name, MemCtrl& _ctrl)
-    : QueuedResponsePort(name, &_ctrl, queue), queue(_ctrl, *this, true),
+MemCtrl::MemoryPort::MemoryPort(const std::string& name, MemCtrl* _ctrl)
+    : QueuedResponsePort(name, _ctrl, queue), queue(*_ctrl, *this, true),
       ctrl(_ctrl)
 { }
 
@@ -1701,8 +1694,8 @@ MemCtrl::MemoryPort::getAddrRanges() const
     //     DPRINTF(NVM, "Pushing NVM ranges to port\n");
     //     ranges.push_back(ctrl.nvm->getAddrRange());
     // }
-    if (ctrl.mem) {
-        ranges.push_back(ctrl.mem->getAddrRange());
+    if (ctrl->mem) {
+        ranges.push_back(ctrl->mem->getAddrRange());
     }
     return ranges;
 }
@@ -1710,13 +1703,13 @@ MemCtrl::MemoryPort::getAddrRanges() const
 void
 MemCtrl::MemoryPort::recvFunctional(PacketPtr pkt)
 {
-    pkt->pushLabel(ctrl.name());
+    pkt->pushLabel(ctrl->name());
 
     if (!queue.trySatisfyFunctional(pkt)) {
         // Default implementation of SimpleTimingPort::recvFunctional()
         // calls recvAtomic() and throws away the latency; we can save a
         // little here by just not calculating the latency.
-        ctrl.recvFunctional(pkt);
+        ctrl->recvFunctional(pkt);
     }
 
     pkt->popLabel();
@@ -1725,21 +1718,21 @@ MemCtrl::MemoryPort::recvFunctional(PacketPtr pkt)
 Tick
 MemCtrl::MemoryPort::recvAtomic(PacketPtr pkt)
 {
-    return ctrl.recvAtomic(pkt);
+    return ctrl->recvAtomic(pkt);
 }
 
 Tick
 MemCtrl::MemoryPort::recvAtomicBackdoor(
         PacketPtr pkt, MemBackdoorPtr &backdoor)
 {
-    return ctrl.recvAtomicBackdoor(pkt, backdoor);
+    return ctrl->recvAtomicBackdoor(pkt, backdoor);
 }
 
 bool
 MemCtrl::MemoryPort::recvTimingReq(PacketPtr pkt)
 {
     // pass it to the memory controller
-    return ctrl.recvTimingReq(pkt);
+    return ctrl->recvTimingReq(pkt);
 }
 
 } // namespace memory

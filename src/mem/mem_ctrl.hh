@@ -252,12 +252,13 @@ class MemCtrl : public qos::MemCtrl
     class MemoryPort : public QueuedResponsePort
     {
 
+      public:
         RespPacketQueue queue;
-        MemCtrl& ctrl;
+        MemCtrl* ctrl;
 
       public:
 
-        MemoryPort(const std::string& name, MemCtrl& _ctrl);
+        MemoryPort(const std::string& name, MemCtrl* _ctrl);
 
       protected:
 
@@ -297,7 +298,7 @@ class MemCtrl : public qos::MemCtrl
      * in these methods
      */
     void processNextReqEvent();
-    void nextReqEventLogic(MemInterface* mem_int, MemPacketQueue& resp_queue, 
+    void nextReqEventLogic(MemInterface* mem_int, MemPacketQueue& resp_queue,
                           EventFunctionWrapper& resp_event,
                           EventFunctionWrapper& next_req_event);
     EventFunctionWrapper nextReqEvent;
@@ -313,7 +314,7 @@ class MemCtrl : public qos::MemCtrl
      * @param pkt_count The number of entries needed in the read queue
      * @return true if read queue is full, false otherwise
      */
-    bool readQueueFull(unsigned int pkt_count) const;
+    bool readQueueFull(unsigned int pkt_count);
 
     /**
      * Check if the write queue has room for more entries
@@ -640,7 +641,6 @@ class MemCtrl : public qos::MemCtrl
 
     bool respQEmpty()
     {
-      std::cout << "mem ctrl resp Q empty " << std::endl;
       return respQueue.empty();
     };
 
@@ -675,7 +675,7 @@ class MemCtrl : public qos::MemCtrl
      *                           in a burst window
      * @return tick for command issue without contention
      */
-    Tick verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst);
+    Tick verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst, bool row_cmd);
 
     /**
      * Check for command bus contention for multi-cycle (2 currently)
