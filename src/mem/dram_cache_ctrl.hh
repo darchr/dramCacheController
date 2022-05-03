@@ -57,24 +57,31 @@ namespace memory
 class DCacheCtrl : public SimpleMemCtrl
 {
   private:
-    class DCacheRespPort : public ResponsePort
-    {
 
+    class DCacheReqPort : public RequestPort
+    {
       public:
 
-        DCacheRespPort(const std::string& name, SimpleMemCtrl& _ctrl);
+        DCacheReqPort(const std::string& _name, DCacheCtrl& _ctrl)
+            : RequestPort(_name, &_ctrl), ctrl(_ctrl)
+        { }
 
       protected:
 
-        Tick recvAtomic(PacketPtr pkt) override;
-        Tick recvAtomicBackdoor(PacketPtr pkt,
-                                MemBackdoorPtr &backdoor) override;
+        void recvReqRetry()
+        { ctrl.recvReqRetry(); }
 
-        void recvFunctional(PacketPtr pkt) override;
+        bool recvTimingResp(PacketPtr pkt)
+        { return ctrl.recvTimingResp(pkt); }
 
-        bool recvTimingReq(PacketPtr) override;
+        void recvTimingSnoopReq(PacketPtr pkt)
+        { panic("Not supported\n"); }
 
-        AddrRangeList getAddrRanges() const override;
+        void recvFunctionalSnoop(PacketPtr pkt)
+        { panic("Not supported\n"); }
+
+        Tick recvAtomicSnoop(PacketPtr pkt)
+        { return 0; }
 
       private:
 
@@ -82,24 +89,34 @@ class DCacheCtrl : public SimpleMemCtrl
 
     };
 
-    class DCacheReqPort : public RequestPort
+    class DCacheRespPort : public ResponsePort
     {
       public:
-
-        DCacheReqPort(const std::string& name, SimpleMemCtrl& _ctrl);
+        DCacheRespPort(const std::string& _name, DCacheCtrl& _ctrl)
+            : ResponsePort(_name, &_ctrl), ctrl(_ctrl)
+        { }
 
       protected:
 
-        void recvReqRetry() { ctrl.recvReqRetry(); }
+        bool recvTimingReq(PacketPtr pkt) override
+        { return ctrl.recvTimingReq(pkt); }
 
-        bool recvTimingResp(PacketPtr pkt)
-        { return ctrl.recvTimingResp(pkt); }
+        bool recvTimingSnoopResp(PacketPtr pkt) override
+        { return false; }
 
-        void recvTimingSnoopReq(PacketPtr pkt) { }
+        void recvRespRetry() override
+        { panic("Not supported\n"); }
 
-        void recvFunctionalSnoop(PacketPtr pkt) { }
+        AddrRangeList getAddrRanges() const override;
 
-        Tick recvAtomicSnoop(PacketPtr pkt) { return 0; }
+        bool tryTiming(PacketPtr pkt) override
+        { return false; }
+
+        void recvFunctional(PacketPtr pkt) override
+        { panic("Not supported\n"); }
+
+        Tick recvAtomic(PacketPtr pkt) override
+        { panic("Not supported\n"); }
 
       private:
 
@@ -119,14 +136,156 @@ class DCacheCtrl : public SimpleMemCtrl
      */
     DCacheReqPort reqPort;
 
+    /**
+     * Remember if we have to retry a request when available.
+     * This is a unified retry flag for both reads and writes.
+     */
+    bool retry;
+
+    /**
+     * The following are basic design parameters of the unified
+     * DRAM cache controller, and are initialized based on parameter values.
+     * The rowsPerBank is determined based on the capacity, number of
+     * ranks and banks, the burst size, and the row buffer size.
+     */
+    unsigned long long dramCacheSize;
+    unsigned blockSize;
+    unsigned addrSize;
+    unsigned orbMaxSize;
+    unsigned orbSize;
+    unsigned crbMaxSize;
+    unsigned crbSize;
+
+    // new functions for reqPort interactions with backing memory
     void recvReqRetry();
     bool recvTimingResp(PacketPtr pkt);
 
+    struct tagMetaStoreEntry
+    {
+      // DRAM cache related metadata
+      Addr tagDC;
+      Addr indexDC;
+      // constant to indicate that the cache line is valid
+      bool validLine = false;
+      // constant to indicate that the cache line is dirty
+      bool dirtyLine = false;
+      Addr backingMemAddr;
+    };
+
+    /** A storage to keep the tag and metadata for the
+     * DRAM Cache entries.
+     */
+    std::vector<tagMetaStoreEntry> tagMetadataStore;
+
+    /** Different states a packet can transition from one
+     * to the other while it's process in the DRAM Cache
+     * Controller.
+     */
+    enum reqState
+    {
+      dCacheRead, dCacheWrite,
+      backingMemRead, backingMemWrite
+    };
+
+    /**
+     * A class for the entries of the
+     * outstanding request buffer (ORB).
+     */
+    class reqBufferEntry
+    {
+      public:
+
+        bool validEntry;
+        Tick arrivalTick;
+
+        // DRAM cache related metadata
+        Addr tagDC;
+        Addr indexDC;
+
+        // pointer to the outside world (ow) packet received from llc
+        const PacketPtr owPkt;
+
+        // pointer to the dram cache controller (dcc) packet
+        MemPacket* dccPkt;
+
+        reqState state;
+        bool isHit;
+        bool conflict;
+        bool issued;
+
+        Addr dirtyLineAddr;
+        bool handleDirtyLine;
+
+        // recording the tick when the req transitions into a new stats.
+        // The subtract between each two consecutive states entrance ticks,
+        // is the number of ticks the req spent in the proceeded state.
+        // The subtract between entrance and issuance ticks for each state,
+        // is the number of ticks for waiting time in that state.
+        Tick dcRdEntered;
+        Tick dcRdIssued;
+        Tick dcWrEntered;
+        Tick dcWrIssued;
+        Tick bmRdEntered;
+        Tick bmRdIssued;
+        Tick bmWrEntered;
+        Tick bmWrIssued;
+
+        reqBufferEntry(
+          bool _validEntry, Tick _arrivalTick,
+          Addr _tagDC, Addr _indexDC,
+          PacketPtr _owPkt, MemPacket* _dccPkt,
+          reqState _state,
+          bool _isHit, bool _conflict, bool _issued,
+          Addr _dirtyLineAddr, bool _handleDirtyLine,
+          Tick _dcRdEntered, Tick _dcRdIssued,
+          Tick _dcWrEntered, Tick _dcWrIssued,
+          Tick _bmRdEntered, Tick _bmWrIssued)
+        :
+        validEntry(_validEntry), arrivalTick(_arrivalTick),
+        tagDC(_tagDC), indexDC(_indexDC),
+        owPkt( _owPkt), dccPkt(_dccPkt),
+        state(_state),
+        isHit(_isHit), conflict(_conflict), issued(_issued),
+        dirtyLineAddr(_dirtyLineAddr), handleDirtyLine(_handleDirtyLine),
+        dcRdEntered(_dcRdEntered), dcRdIssued(_dcRdIssued),
+        dcWrEntered(_dcWrEntered), dcWrIssued(_dcWrIssued),
+        bmRdEntered(_bmRdEntered), bmWrIssued(_bmWrIssued)
+        { }
+    };
+
+    /**
+     * This is the outstanding request buffer (ORB) data
+     * structure, the main DS within the DRAM Cache
+     * Controller. The key is the address, for each key
+     * the map returns a reqBufferEntry which maintains
+     * the entire info related to that address while it's
+     * been processed in the DRAM Cache controller.
+     */
+    std::map<Addr,reqBufferEntry*> ORB;
+
+    typedef std::pair<Tick, PacketPtr> confReqPair;
+    /**
+     * This is the second important data structure
+     * within the DRAM cache controller which holds
+     * received packets that had conflict with some
+     * other address(s) in the DRAM Cache that they
+     * are still under process in the controller.
+     * Once thoes addresses are finished processing,
+     * Conflicting Requets Buffre (CRB) is consulted
+     * to see if any packet can be moved into the
+     * outstanding request buffer and start being
+     * processed in the DRAM cache controller.
+     */
+    std::vector<confReqPair> CRB;
+
+    // neede be reimplemented
     bool recvTimingReq(PacketPtr pkt) override;
 
   public:
 
     DCacheCtrl(const DCacheCtrlParams &p);
+
+    void init() override;
 
 };
 

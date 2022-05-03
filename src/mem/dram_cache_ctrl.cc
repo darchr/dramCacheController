@@ -56,7 +56,15 @@ namespace memory
 {
 
 DCacheCtrl::DCacheCtrl(const DCacheCtrlParams &p) :
-    SimpleMemCtrl(p)
+    SimpleMemCtrl(p),
+    respPort(name() + ".port", *this),
+    reqPort(name() + ".port", *this),
+    retry(false),
+    dramCacheSize(p.dram_cache_size),
+    blockSize(p.block_size),
+    addrSize(p.addr_size),
+    orbMaxSize(p.orb_max_size), orbSize(0),
+    crbMaxSize(p.crb_max_size), crbSize(0)
 {
     DPRINTF(DCacheCtrl, "Setting up controller\n");
 
@@ -68,6 +76,8 @@ DCacheCtrl::DCacheCtrl(const DCacheCtrlParams &p) :
     readQueue.resize(p.qos_priorities);
     writeQueue.resize(p.qos_priorities);
 
+    tagMetadataStore.resize(dramCacheSize/blockSize);
+
     // perform a basic check of the write thresholds
     if (p.write_low_thresh_perc >= p.write_high_thresh_perc)
         fatal("Write buffer low threshold %d must be smaller than the "
@@ -75,11 +85,44 @@ DCacheCtrl::DCacheCtrl(const DCacheCtrlParams &p) :
               p.write_high_thresh_perc);
 }
 
+void
+DCacheCtrl::init()
+{
+   if (!respPort.isConnected()) {
+        fatal("DcacheCtrl %s is unconnected!\n", name());
+    } else if (!reqPort.isConnected()) {
+        fatal("DcacheCtrl %s is unconnected!\n", name());
+    } else {
+        respPort.sendRangeChange();
+    }
+}
+
 
 bool
-MemCtrl::recvTimingReq(PacketPtr pkt)
+DCacheCtrl::recvTimingReq(PacketPtr pkt)
 {
     return false;
+}
+
+void
+DCacheCtrl::recvReqRetry()
+{
+
+}
+
+bool
+DCacheCtrl::recvTimingResp(PacketPtr pkt)
+{
+    return false;
+}
+
+AddrRangeList
+DCacheCtrl::DCacheRespPort::getAddrRanges() const
+{
+    AddrRangeList ranges;
+    DPRINTF(DRAM, "Pushing DRAM ranges to port\n");
+    ranges.push_back(ctrl.dram->getAddrRange());
+    return ranges;
 }
 
 } // namespace memory
