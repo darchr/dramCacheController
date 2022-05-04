@@ -61,12 +61,6 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     retryRdReq(false), retryWrReq(false),
     nextReqEvent([this]{ processNextReqEvent(); }, name()),
     respondEvent([this]{ processRespondEvent(); }, name()),
-    // dram(p.dram), nvm(p.nvm),
-    // mem(p.mem),
-    // readBufferSize((dram ? dram->readBufferSize : 0) +
-    //                (nvm ? nvm->readBufferSize : 0)),
-    // writeBufferSize((dram ? dram->writeBufferSize : 0) +
-    //                 (nvm ? nvm->writeBufferSize : 0)),
     writeHighThreshold(writeBufferSize * p.write_high_thresh_perc / 100.0),
     writeLowThreshold(writeBufferSize * p.write_low_thresh_perc / 100.0),
     minWritesPerSwitch(p.min_writes_per_switch),
@@ -705,32 +699,6 @@ MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
     // time we need to issue a column command to be seamless
     const Tick min_col_at = std::max(mem_int->nextBurstAt + extra_col_delay, curTick());
 
-    // find optimal packet for each interface
-    // if (dram && nvm) {
-    //     // create 2nd set of parameters for NVM
-    //     auto nvm_pkt_it = queue.end();
-    //     Tick nvm_col_at = MaxTick;
-
-    //     // Select packet by default to give priority if both
-    //     // can issue at the same time or seamlessly
-    //     std::tie(selected_pkt_it, col_allowed_at) =
-    //              dram->chooseNextFRFCFS(queue, min_col_at);
-    //     std::tie(nvm_pkt_it, nvm_col_at) =
-    //              nvm->chooseNextFRFCFS(queue, min_col_at);
-
-    //     // Compare DRAM and NVM and select NVM if it can issue
-    //     // earlier than the DRAM packet
-    //     if (col_allowed_at > nvm_col_at) {
-    //         selected_pkt_it = nvm_pkt_it;
-    //     }
-    // } else if (dram) {
-    //     std::tie(selected_pkt_it, col_allowed_at) =
-    //              dram->chooseNextFRFCFS(queue, min_col_at);
-    // } else if (nvm) {
-    //     std::tie(selected_pkt_it, col_allowed_at) =
-    //              nvm->chooseNextFRFCFS(queue, min_col_at);
-    // }
-
     if (mem_int) {
         std::tie(selected_pkt_it, col_allowed_at) =
                  mem_int->chooseNextFRFCFS(queue, min_col_at);
@@ -933,28 +901,6 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int)
     // When was command issued?
     Tick cmd_at;
 
-    // Issue the next burst and update bus state to reflect
-    // when previous command was issued
-    // if (mem_pkt->isDram()) {
-    //     std::vector<MemPacketQueue>& queue = selQueue(mem_pkt->isRead());
-    //     std::tie(cmd_at, nextBurstAt) =
-    //              dram->doBurstAccess(mem_pkt, nextBurstAt, queue);
-
-    //     // Update timing for NVM ranks if NVM is configured on this channel
-    //     if (nvm)
-    //         nvm->addRankToRankDelay(cmd_at);
-
-    // } else {
-    //     std::tie(cmd_at, nextBurstAt) =
-    //              nvm->doBurstAccess(mem_pkt, nextBurstAt);
-
-    //     // Update timing for NVM ranks if NVM is configured on this channel
-    //     if (dram)
-    //         dram->addRankToRankDelay(cmd_at);
-
-    // }
-
-
     if (mem_pkt->isDram()) {
         assert(isDramIntr);
         std::vector<MemPacketQueue>& queue = selQueue(mem_pkt->isRead());
@@ -1031,19 +977,6 @@ MemCtrl::nextReqEventLogic(MemInterface* mem_int, MemPacketQueue& resp_queue,
 
     // updates current state
     busState = busStateNext;
-
-    // if (nvm) {
-    //  for (auto queue = readQueue.rbegin();
-    //       queue != readQueue.rend(); ++queue) {
-    //       // select non-deterministic NVM read to issue
-    //       // assume that we have the command bandwidth to issue this along
-    //       // with additional RD/WR burst with needed bank operations
-    //       if (nvm->readsWaitingToIssue()) {
-    //           // select non-deterministic NVM read to issue
-    //           nvm->chooseRead(*queue);
-    //       }
-    //  }
-    // }
 
     if (!isDramIntr) {
         for (auto queue = readQueue.rbegin();
@@ -1299,21 +1232,6 @@ MemCtrl::nextReqEventLogic(MemInterface* mem_int, MemPacketQueue& resp_queue,
         bool below_threshold =
             totalWriteQueueSize + minWritesPerSwitch < writeLowThreshold;
 
-        // if (totalWriteQueueSize == 0 ||
-        //     (below_threshold && drainState() != DrainState::Draining) ||
-        //     (totalReadQueueSize && writesThisTime >= minWritesPerSwitch) ||
-        //     (totalReadQueueSize && nvm && nvm->writeRespQueueFull() &&
-        //      all_writes_nvm)) {
-
-        //     // turn the bus back around for reads again
-        //     busStateNext = MemCtrl::READ;
-
-        //     // note that the we switch back to reads also in the idle
-        //     // case, which eventually will check for any draining and
-        //     // also pause any further scheduling if there is really
-        //     // nothing to do
-        // }
-
         if (totalWriteQueueSize == 0 ||
             (below_threshold && drainState() != DrainState::Draining) ||
             (totalReadQueueSize && writesThisTime >= minWritesPerSwitch) ||
@@ -1366,28 +1284,18 @@ MemCtrl::packetReady(MemPacket* pkt, MemInterface* mem_int)
 Tick
 MemCtrl::minReadToWriteDataGap(MemInterface* mem_int)
 {
-    // Tick dram_min = dram ?  dram->minReadToWriteDataGap() : MaxTick;
-    // Tick nvm_min = nvm ?  nvm->minReadToWriteDataGap() : MaxTick;
-    // return std::min(dram_min, nvm_min);
     return mem_int->minReadToWriteDataGap();
 }
 
 Tick
 MemCtrl::minWriteToReadDataGap(MemInterface* mem_int)
 {
-    // Tick dram_min = dram ? dram->minWriteToReadDataGap() : MaxTick;
-    // Tick nvm_min = nvm ?  nvm->minWriteToReadDataGap() : MaxTick;
-    // return std::min(dram_min, nvm_min);
     return mem_int->minWriteToReadDataGap();
 }
 
 Addr
 MemCtrl::burstAlign(Addr addr, MemInterface* mem_int) const
 {
-    // if (is_dram)
-    //     return (addr & ~(Addr(dram->bytesPerBurst() - 1)));
-    // else
-    //     return (addr & ~(Addr(nvm->bytesPerBurst() - 1)));
     return (addr & ~(Addr(mem_int->bytesPerBurst() - 1)));
 }
 
@@ -1586,16 +1494,6 @@ MemCtrl::CtrlStats::regStats()
 void
 MemCtrl::recvFunctional(PacketPtr pkt)
 {
-    // if (dram && dram->getAddrRange().contains(pkt->getAddr())) {
-    //     // rely on the abstract memory
-    //     dram->functionalAccess(pkt);
-    // } else if (nvm && nvm->getAddrRange().contains(pkt->getAddr())) {
-    //     // rely on the abstract memory
-    //     nvm->functionalAccess(pkt);
-    // } else {
-    //     panic("Can't handle address range for packet %s\n",
-    //           pkt->print());
-    // }
     if (mem && mem->getAddrRange().contains(pkt->getAddr())) {
         // rely on the abstract memory
         mem->functionalAccess(pkt);
@@ -1618,13 +1516,6 @@ MemCtrl::getPort(const std::string &if_name, PortID idx)
 bool
 MemCtrl::allIntfDrained() const
 {
-   // // ensure dram is in power down and refresh IDLE states
-   // bool dram_drained = !dram || dram->allRanksDrained();
-   // // No outstanding NVM writes
-   // // All other queues verified as needed with calling logic
-   // bool nvm_drained = !nvm || nvm->allRanksDrained();
-   // return (dram_drained && nvm_drained);
-
    return mem->allRanksDrained();
 }
 
@@ -1688,14 +1579,6 @@ AddrRangeList
 MemCtrl::MemoryPort::getAddrRanges() const
 {
     AddrRangeList ranges;
-    // if (ctrl.dram) {
-    //     DPRINTF(DRAM, "Pushing DRAM ranges to port\n");
-    //     ranges.push_back(ctrl.dram->getAddrRange());
-    // }
-    // if (ctrl.nvm) {
-    //     DPRINTF(NVM, "Pushing NVM ranges to port\n");
-    //     ranges.push_back(ctrl.nvm->getAddrRange());
-    // }
     if (ctrl->mem) {
         ranges.push_back(ctrl->mem->getAddrRange());
     }
