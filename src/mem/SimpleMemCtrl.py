@@ -46,24 +46,21 @@ from m5.objects.QoSMemCtrl import *
 # First-Served and a First-Row Hit then First-Come First-Served
 class MemSched(Enum): vals = ['fcfs', 'frfcfs']
 
-# MemCtrl is a single-channel single-ported Memory controller model
+# SimpleMemCtrl is a single-channel single-ported Memory controller model
 # that aims to model the most important system-level performance
 # effects of a memory controller, interfacing with media specific
 # interfaces
-class MemCtrl(QoSMemCtrl):
-    type = 'MemCtrl'
-    cxx_header = "mem/mem_ctrl.hh"
-    cxx_class = 'gem5::memory::MemCtrl'
+class SimpleMemCtrl(QoSMemCtrl):
+    type = 'SimpleMemCtrl'
+    cxx_header = "mem/simple_mem_ctrl.hh"
+    cxx_class = 'gem5::memory::SimpleMemCtrl'
 
     # single-ported on the system interface side, instantiate with a
     # bus in front of the controller for multiple ports
     port = ResponsePort("This port responds to memory requests")
 
-    # Interface to volatile, DRAM media
-    dram = Param.DRAMInterface(NULL, "DRAM interface")
-
-    # Interface to non-volatile media
-    nvm = Param.NVMInterface(NULL, "NVM interface")
+    # Interface to memory media
+    dram = Param.MemInterface(NULL, "Memory interface")
 
     # read and write buffer depths are set in the interface
     # the controller will read these values when instantiated

@@ -57,7 +57,7 @@
 #include "enums/AddrMap.hh"
 #include "enums/PageManage.hh"
 #include "mem/abstract_mem.hh"
-#include "mem/mem_ctrl.hh"
+#include "mem/simple_mem_ctrl.hh"
 #include "params/MemInterface.hh"
 #include "sim/eventq.hh"
 
@@ -111,7 +111,7 @@ class MemInterface : public AbstractMemory
     /**
      * A pointer to the parent MemCtrl instance
      */
-    MemCtrl* ctrl;
+    SimpleMemCtrl* ctrl;
 
     /**
      * Number of commands that can issue in the defined controller
@@ -187,7 +187,7 @@ class MemInterface : public AbstractMemory
      * @param command_window size of command window used to
      *                       check command bandwidth
      */
-    void setCtrl(MemCtrl* _ctrl, unsigned int command_window);
+    void setCtrl(SimpleMemCtrl* _ctrl, unsigned int command_window);
 
     /**
      * Get an address in a dense range which starts from 0. The input
