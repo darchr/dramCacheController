@@ -46,7 +46,9 @@
 #include "debug/MemCtrl.hh"
 #include "debug/NVM.hh"
 #include "debug/QOS.hh"
+#include "mem/dram_interface.hh"
 #include "mem/mem_interface.hh"
+#include "mem/nvm_interface.hh"
 #include "sim/system.hh"
 
 namespace gem5
