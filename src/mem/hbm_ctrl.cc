@@ -1,17 +1,5 @@
 /*
- * Copyright (c) 2010-2020 ARM Limited
- * All rights reserved
- *
- * The license below extends only to copyright in the software and shall
- * not be construed as granting a license to any other intellectual
- * property including but not limited to intellectual property relating
- * to a hardware implementation of the functionality of the software
- * licensed hereunder.  You may use the software subject to the license
- * terms below provided that you ensure that this notice is replicated
- * unmodified and in its entirety in all distributions of the software,
- * modified or unmodified, in source code or in binary form.
- *
- * Copyright (c) 2013 Amin Farmahini-Farahani
+ * Copyright (c) 2022 The Regents of the University of California
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -57,18 +45,13 @@ namespace memory
 
 HBMCtrl::HBMCtrl(const HBMCtrlParams &p) :
     MemCtrl(p),
-    //port(name() + ".port", *this),
-    retryRdReq2(false), retryWrReq2(false),
+    retryRdReqCh1(false), retryWrReqCh1(false),
     nextReqEventCh1([this]{ processNextReqEventCh1(); }, name()),
     respondEventCh1([this]{ processRespondEventCh1(); }, name()),
     ch1_int(p.mem_2),
     partitionedQ(p.partitioned_q)
 {
     DPRINTF(MemCtrl, "Setting up HBM controller\n");
-
-    //if (dynamic_cast<DRAMInterface*>(p.mem) != nullptr) {
-    //    ch0_int = dynamic_cast<DRAMInterface*>(p.mem);
-   // }
 
     ch0_int = dynamic_cast<DRAMInterface*>(mem);
 
@@ -77,20 +60,26 @@ HBMCtrl::HBMCtrl(const HBMCtrlParams &p) :
     readBufferSize = ch0_int->readBufferSize + ch1_int->readBufferSize;
     writeBufferSize = ch0_int->writeBufferSize + ch1_int->writeBufferSize;
 
+    fatal_if(!ch0_int, "Memory controller must have ch0 interface");
+    fatal_if(!ch1_int, "Memory controller must have ch1 interface");
+
     if (ch0_int) {
         ch0_int->setCtrl(this, commandWindow, 0);
-        //mem->setCtrl(this, commandWindow, 0);
     }
     if (ch1_int) {
         ch1_int->setCtrl(this, commandWindow, 1);
     }
-    fatal_if(!ch0_int, "Memory controller must have ch0 interface");
-    fatal_if(!ch1_int, "Memory controller must have ch1 interface");
 
     port.ctrl = this;
 
-    writeHighThreshold = (writeBufferSize * p.write_high_thresh_perc / 100.0);
-    writeLowThreshold = (writeBufferSize * p.write_low_thresh_perc / 100.0);
+    if (partitionedQ) {
+        writeHighThreshold = (writeBufferSize * (p.write_high_thresh_perc/2) / 100.0);
+        writeLowThreshold = (writeBufferSize * (p.write_low_thresh_perc/2) / 100.0);
+    } else {
+        writeHighThreshold = (writeBufferSize * p.write_high_thresh_perc / 100.0);
+        writeLowThreshold = (writeBufferSize * p.write_low_thresh_perc / 100.0);      
+    }
+
 
 }
 
@@ -112,8 +101,6 @@ HBMCtrl::startup()
         // have to worry about negative values when computing the time for
         // the next request, this will add an insignificant bubble at the
         // start of simulation
-        // nextBurstAt = curTick() + (dram ? dram->commandOffset() :
-        //                                   nvm->commandOffset());
         ch1_int->nextBurstAt = curTick() + ch1_int->commandOffset();
     }
 }
@@ -219,10 +206,10 @@ HBMCtrl::readQueueFullCh1(unsigned int neededEntries) const
 {
     DPRINTF(MemCtrl,
             "Read queue limit %d, ch1 size %d, entries needed %d\n",
-            readBufferSize, readQueueSizeCh1 + respQueue2.size(),
+            readBufferSize, readQueueSizeCh1 + respQueueCh1.size(),
             neededEntries);
 
-    auto rdsize_new = readQueueSizeCh1 + respQueue2.size() + neededEntries;
+    auto rdsize_new = readQueueSizeCh1 + respQueueCh1.size() + neededEntries;
     return rdsize_new > (readBufferSize/2);
 }
 
@@ -233,7 +220,7 @@ HBMCtrl::readQueueFull(unsigned int neededEntries)
             "HBMCtrl: Read queue limit %d, entries needed %d\n",
             readBufferSize, neededEntries);
 
-    auto rdsize_new = totalReadQueueSize + respQueue.size() + respQueue2.size() + neededEntries;
+    auto rdsize_new = totalReadQueueSize + respQueue.size() + respQueueCh1.size() + neededEntries;
     return rdsize_new > readBufferSize;
 }
 
@@ -259,16 +246,8 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
 
     // What type of media does this packet access?
     bool is_ch0;
-    /*
-    if (dram && dram->getAddrRange().contains(pkt->getAddr())) {
-        is_dram = true;
-    } else if (nvm && nvm->getAddrRange().contains(pkt->getAddr())) {
-        is_dram = false;
-    } else {
-        panic("Can't handle address range for packet %s\n",
-        pkt->print());
-    }*/
 
+    // TODO: make the interleaving bit across pseudo channels a parameter
     if (bits(pkt->getAddr(), 6) == 0)
     {
         is_ch0 = true;
@@ -277,9 +256,6 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
     {
         is_ch0 = false;
     }
-
-    // AYAZ:  temporarily updating the address of the pkt
-    //pkt->setAddr(pkt->getAddr() | 0x40);
 
     // Find out how many memory packets a pkt translates to
     // If the burst size is equal or larger than the pkt size, then a pkt
@@ -318,7 +294,7 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
             {
                 DPRINTF(MemCtrl, "Write queue full, not accepting\n");
                 // remember that we have to retry this port
-                retryWrReq2 = true;
+                retryWrReqCh1 = true;
                 stats.numWrRetry++;
                 return false;
             }
@@ -341,7 +317,7 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
             {
                 DPRINTF(MemCtrl, "Read queue full, not accepting\n");
                 // remember that we have to retry this port
-                retryRdReq2 = true;
+                retryRdReqCh1 = true;
                 stats.numRdRetry++;
                 return false;
             }
@@ -364,7 +340,7 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
             {
                 DPRINTF(MemCtrl, "Read queue full, not accepting\n");
                 // remember that we have to retry this port
-                retryRdReq2 = true;
+                retryRdReqCh1 = true;
                 stats.numRdRetry++;
                 return false;
             }
@@ -390,14 +366,14 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
 void
 HBMCtrl::processNextReqEventCh1()
 {
-    MemCtrl::nextReqEventLogic(ch1_int, respQueue2, respondEventCh1, nextReqEventCh1);
+    MemCtrl::nextReqEventLogic(ch1_int, respQueueCh1, respondEventCh1, nextReqEventCh1);
 
     // If there is space available and we have writes waiting then let
     // them retry. This is done here to ensure that the retry does not
     // cause a nextReqEvent to be scheduled before we do so as part of
     // the next request processing
-    if (retryWrReq2 && totalWriteQueueSize < writeBufferSize) {
-        retryWrReq2 = false;
+    if (retryWrReqCh1 && totalWriteQueueSize < writeBufferSize) {
+        retryWrReqCh1 = false;
         MemCtrl::port.sendRetryReq();
     }
 }
@@ -407,11 +383,11 @@ HBMCtrl::processRespondEventCh1()
 {
     DPRINTF(MemCtrl,
             "processRespondEventCh1(): Some req has reached its readyTime\n");
-    MemCtrl::respondEventLogic(ch1_int, respQueue2, respondEventCh1);
+    MemCtrl::respondEventLogic(ch1_int, respQueueCh1, respondEventCh1);
     // We have made a location in the queue available at this point,
     // so if there is a read that was forced to wait, retry now
-    if (retryRdReq2) {
-        retryRdReq2 = false;
+    if (retryRdReqCh1) {
+        retryRdReqCh1 = false;
         MemCtrl::port.sendRetryReq();
     }
 }
@@ -581,63 +557,6 @@ HBMCtrl::drainResume()
     // update the mode
     isTimingMode = system()->isTimingMode();
 }
-
-
-//HBMCtrl::MemoryPort::MemoryPort(const std::string& name, HBMCtrl& _ctrl)
-//    : QueuedResponsePort(name, &_ctrl, queue), queue(_ctrl, *this, true),
-//      ctrl(_ctrl)
-//{ }
-
-/*
-AddrRangeList
-HBMCtrl::MemoryPort::getAddrRanges() const
-{
-    AddrRangeList ranges;
-
-    if (dynamic_cast<HBMCtrl&>(ctrl).ch0_int) {
-        ranges.push_back(dynamic_cast<HBMCtrl&>(ctrl).ch0_int->getAddrRange());
-    }
-    if (dynamic_cast<HBMCtrl&>(ctrl).ch1_int) {
-        ranges.push_back(dynamic_cast<HBMCtrl&>(ctrl).ch1_int->getAddrRange());
-    }
-    return ranges;
-}
-
-void
-HBMCtrl::MemoryPort::recvFunctional(PacketPtr pkt)
-{
-    pkt->pushLabel(ctrl.name());
-
-    if (!queue.trySatisfyFunctional(pkt)) {
-        // Default implementation of SimpleTimingPort::recvFunctional()
-        // calls recvAtomic() and throws away the latency; we can save a
-        // little here by just not calculating the latency.
-        ctrl.recvFunctional(pkt);
-    }
-
-    pkt->popLabel();
-}
-
-Tick
-HBMCtrl::MemoryPort::recvAtomic(PacketPtr pkt)
-{
-    return ctrl.recvAtomic(pkt);
-}
-
-Tick
-HBMCtrl::MemoryPort::recvAtomicBackdoor(
-        PacketPtr pkt, MemBackdoorPtr &backdoor)
-{
-    return ctrl.recvAtomicBackdoor(pkt, backdoor);
-}
-
-bool
-HBMCtrl::MemoryPort::recvTimingReq(PacketPtr pkt)
-{
-    // pass it to the memory controller
-    return ctrl.recvTimingReq(pkt);
-}
-*/
 
 } // namespace memory
 } // namespace gem5

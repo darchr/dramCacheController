@@ -1,17 +1,5 @@
 /*
- * Copyright (c) 2012-2020 ARM Limited
- * All rights reserved
- *
- * The license below extends only to copyright in the software and shall
- * not be construed as granting a license to any other intellectual
- * property including but not limited to intellectual property relating
- * to a hardware implementation of the functionality of the software
- * licensed hereunder.  You may use the software subject to the license
- * terms below provided that you ensure that this notice is replicated
- * unmodified and in its entirety in all distributions of the software,
- * modified or unmodified, in source code or in binary form.
- *
- * Copyright (c) 2013 Amin Farmahini-Farahani
+ * Copyright (c) 2022 The Regents of the University of California
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -84,7 +72,7 @@ class HBMCtrl : public MemCtrl
 
     bool respQEmpty()
     {
-      return (respQueue.empty() && respQueue2.empty());
+      return (respQueue.empty() && respQueueCh1.empty());
     };
 
   private:
@@ -92,8 +80,8 @@ class HBMCtrl : public MemCtrl
     /**
      * Remember if we have to retry a request for second pseudo channel.
      */
-    bool retryRdReq2;
-    bool retryWrReq2;
+    bool retryRdReqCh1;
+    bool retryWrReqCh1;
 
   public:
     HBMCtrl(const HBMCtrlParams &p);
@@ -251,52 +239,40 @@ class HBMCtrl : public MemCtrl
      * as sizing the read queue, this and the main read queue need to
      * be added together.
      */
-    std::deque<MemPacket*> respQueue2;
+    std::deque<MemPacket*> respQueueCh1;
 
     /**
      * Holds count of commands issued in burst window starting at
-     * defined Tick. This is used to ensure that the command bandwidth
+     * defined Tick. This is used to ensure that the row command bandwidth
      * does not exceed the allowable media constraints.
-     * This is specific to row commands
      */
     std::unordered_multiset<Tick> rowBurstTicks;
 
     /**
-     * This is specific to col commands
+     * This is used to ensure that the row command bandwidth
+     * does not exceed the allowable media constraints. HBM2 has separate
+     * command bus for row and column commands
      */
     std::unordered_multiset<Tick> colBurstTicks;
 
 
-    // /**
-    //  * Create pointer to interface of the actual dram media when connected
-    //  */
-    // DRAMInterface* const dram;
-
-    // /**
-    //  * Create pointer to interface of the actual nvm media when connected
-    //  */
-    // NVMInterface* const nvm;
-
     /**
-     * Create pointer to interface of the actual dram media when connected
+     * Pointers to interfaces of the two pseudo channels
      */
-    //MemInterface* mem;
     DRAMInterface* ch0_int;
     DRAMInterface* ch1_int;
-    bool partitionedQ;
 
     /**
-     * Till when must we wait before issuing next RD/WR burst?
-     */
-    //Tick nextBurstAt1;
-    //Tick nextReqTime1;
+     * This indicates if the R/W queues will be partitioned among
+     * pseudo channels
+     */    
+    bool partitionedQ;
 
   public:
 
-
     /**
-     * Is there a respondEvent scheduled?
-     *
+     * Is there a respondEvent for pseudo channel 1 scheduled?
+     * 
      * @return true if event is scheduled
      */
     bool respondEventCh1Scheduled() const
@@ -311,9 +287,7 @@ class HBMCtrl : public MemCtrl
               { return nextReqEventCh1.scheduled(); }
 
     /**
-     * restart the controller
-     * This can be used by interfaces to restart the
-     * scheduler after maintainence commands complete
+     * restart the controller scheduler for pseudo channel 1 packets
      *
      * @param Tick to schedule next event
      */
