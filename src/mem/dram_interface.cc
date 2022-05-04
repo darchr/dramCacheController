@@ -656,6 +656,8 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
     fatal_if(!isPowerOf2(ranksPerChannel), "DRAM rank count of %d is "
              "not allowed, must be a power of two\n", ranksPerChannel);
 
+    isDramIntr = true;
+
     for (int i = 0; i < ranksPerChannel; i++) {
         DPRINTF(DRAM, "Creating DRAM rank %d \n", i);
         Rank* rank = new Rank(_p, i, *this);
@@ -780,7 +782,7 @@ DRAMInterface::startup()
 }
 
 bool
-DRAMInterface::isBusy()
+DRAMInterface::isBusy(bool read_queue_empty, bool all_writes_nvm)
 {
     int busy_ranks = 0;
     for (auto r : ranks) {
@@ -1922,6 +1924,22 @@ DRAMInterface::RankStats::preDumpStats()
     statistics::Group::preDumpStats();
 
     rank.computeStats();
+}
+
+void
+DRAMInterface::chooseRead(MemPacketQueue& queue)
+{ };
+
+bool
+DRAMInterface::readsWaitingToIssue()
+{
+    return false;
+}
+
+bool
+DRAMInterface::writeRespQueueFull() const
+{
+    return false;
 }
 
 } // namespace memory

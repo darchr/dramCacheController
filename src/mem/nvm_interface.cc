@@ -62,7 +62,7 @@ NVMInterface::NVMInterface(const NVMInterfaceParams &_p)
       writeRespondEvent([this]{ processWriteRespondEvent(); }, name()),
       readReadyEvent([this]{ processReadReadyEvent(); }, name()),
       nextReadAt(0), numPendingReads(0), numReadDataReady(0),
-      numReadsToIssue(0), numWritesQueued(0)
+      numReadsToIssue(0)
 {
     DPRINTF(NVM, "Setting up NVM Interface\n");
 
@@ -73,6 +73,8 @@ NVMInterface::NVMInterface(const NVMInterfaceParams &_p)
     // address decoding
     fatal_if(!isPowerOf2(ranksPerChannel), "NVM rank count of %d is "
              "not allowed, must be a power of two\n", ranksPerChannel);
+
+    isDramIntr = false;
 
     for (int i =0; i < ranksPerChannel; i++) {
         // Add NVM ranks to the system
@@ -88,6 +90,7 @@ NVMInterface::NVMInterface(const NVMInterfaceParams &_p)
 
     rowsPerBank = capacity / (rowBufferSize *
                     banksPerRank * ranksPerChannel);
+    numWritesQueued = 0;
 
 }
 
@@ -325,7 +328,8 @@ NVMInterface::burstReady(MemPacket* pkt) const {
 }
 
     std::pair<Tick, Tick>
-NVMInterface::doBurstAccess(MemPacket* pkt, Tick next_burst_at)
+NVMInterface::doBurstAccess(MemPacket* pkt, Tick next_burst_at,
+                  const std::vector<MemPacketQueue>& queue)
 {
     DPRINTF(NVM, "NVM Timing access to addr %#x, rank/bank/row %d %d %d\n",
             pkt->addr, pkt->rank, pkt->bank, pkt->row);
@@ -515,6 +519,14 @@ NVMInterface::addRankToRankDelay(Tick cmd_at)
     }
 }
 
+void
+NVMInterface::respondEvent(uint8_t rank)
+{ };
+
+void
+NVMInterface::checkRefreshState(uint8_t rank)
+{ };
+
 bool
 NVMInterface::isBusy(bool read_queue_empty, bool all_writes_nvm)
 {
@@ -533,6 +545,17 @@ NVMInterface::isBusy(bool read_queue_empty, bool all_writes_nvm)
                                          all_writes_nvm);
 }
 
+void
+NVMInterface::drainRanks()
+{ }
+
+void
+NVMInterface::suspend()
+{ }
+
+void
+NVMInterface::startup()
+{ }
 
 NVMInterface::NVMStats::NVMStats(NVMInterface &_nvm)
     : statistics::Group(&_nvm),

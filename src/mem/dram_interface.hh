@@ -62,7 +62,6 @@ namespace memory
  * The DRAMInterface includes a class for individual ranks
  * and per rank functions.
  */
-
 class DRAMInterface : public MemInterface
 {
   private:
@@ -668,7 +667,9 @@ class DRAMInterface : public MemInterface
     /**
      * Iterate through dram ranks to exit self-refresh in order to drain
      */
-    void drainRanks();
+    void drainRanks() override;
+
+    bool readsWaitingToIssue() override;
 
     /**
      * Return true once refresh is complete for all ranks and there are no
@@ -684,7 +685,7 @@ class DRAMInterface : public MemInterface
     /**
      * Iterate through DRAM ranks and suspend them
      */
-    void suspend();
+    void suspend() override;
 
     /*
      * @return time to offset next command
@@ -723,7 +724,7 @@ class DRAMInterface : public MemInterface
      */
     std::pair<Tick, Tick>
     doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
-                  const std::vector<MemPacketQueue>& queue);
+                  const std::vector<MemPacketQueue>& queue) override;
 
     /**
      * Check if a burst operation can be issued to the DRAM
@@ -746,7 +747,7 @@ class DRAMInterface : public MemInterface
      *
      * return boolean if all ranks are in refresh and therefore busy
      */
-    bool isBusy();
+    bool isBusy(bool read_queue_empty, bool all_writes_nvm) override;
 
     /**
      *  Add rank to rank delay to bus timing to all DRAM banks in alli ranks
@@ -764,7 +765,7 @@ class DRAMInterface : public MemInterface
      *
      * @param rank Specifies rank associated with read burst
      */
-    void respondEvent(uint8_t rank);
+    void respondEvent(uint8_t rank) override;
 
     /**
      * Check the refresh state to determine if refresh needs
@@ -773,6 +774,10 @@ class DRAMInterface : public MemInterface
      * @param rank Specifies rank associated with read burst
      */
     void checkRefreshState(uint8_t rank);
+
+    void chooseRead(MemPacketQueue& queue) override;
+
+    bool writeRespQueueFull() const override;
 
     DRAMInterface(const DRAMInterfaceParams &_p);
 };

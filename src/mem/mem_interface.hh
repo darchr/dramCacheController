@@ -177,6 +177,10 @@ class MemInterface : public AbstractMemory
     const uint32_t readBufferSize;
     const uint32_t writeBufferSize;
 
+    uint32_t numWritesQueued;
+
+    bool isDramIntr;
+
     /** Set a pointer to the controller and initialize
      * interface based on controller parameters
      * @param _ctrl pointer to the parent controller
@@ -292,10 +296,70 @@ class MemInterface : public AbstractMemory
      */
     virtual void addRankToRankDelay(Tick cmd_at) = 0;
 
+    virtual void respondEvent(uint8_t rank)
+    {
+      panic("MemInterface respondEvent should "
+      "not be executed from here.\n");
+    };
+
+    virtual void checkRefreshState(uint8_t rank)
+    {
+      panic("MemInterface checkRefreshState should "
+      "not be executed from here.\n");
+    };
+
+    virtual std::pair<Tick, Tick>
+    doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
+                  const std::vector<MemPacketQueue>& queue)
+    {
+      panic("MemInterface doBurstAccess (DRAM) "
+      "should not be executed from here.\n");
+    };
+
+    virtual void drainRanks()
+    {
+      panic("MemInterface drainRanks (DRAM) should "
+      "not be executed from here.\n");
+    }
+
+    virtual void suspend()
+    {
+      panic("MemInterface suspend (DRAM) should "
+      "not be executed from here.\n");
+    }
+
+    virtual void startup()
+    {
+      panic("MemInterface startup (DRAM) should "
+      "not be executed from here.\n");
+    }
+
+    virtual bool readsWaitingToIssue()
+    {
+      panic("MemInterface readsWaitingToIssue (NVM) "
+      "should not be executed from here.\n");
+    };
+
+    virtual void chooseRead(MemPacketQueue& queue)
+    {
+      panic("MemInterface chooseRead (NVM) should "
+      "not be executed from here.\n");
+    };
+
+    virtual bool isBusy(bool read_queue_empty, bool all_writes_nvm)
+    {
+      panic("MemInterface isBusy (NVM) should not "
+      "be executed from here.\n");
+    }
+    virtual bool writeRespQueueFull() const
+    {
+      panic("MemInterface writeRespQueueFull (NVM) "
+      "should not be executed from here.\n");
+    }
+
     typedef MemInterfaceParams Params;
     MemInterface(const Params &_p);
 };
-
 
 
 } // namespace memory

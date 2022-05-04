@@ -187,9 +187,6 @@ class NVMInterface : public MemInterface
     // keep track of the number of reads that have yet to be issued
     uint16_t numReadsToIssue;
 
-    // number of writes in the writeQueue for the NVM interface
-    uint32_t numWritesQueued;
-
     /**
      * Initialize the NVM interface and verify parameters
      */
@@ -237,7 +234,7 @@ class NVMInterface : public MemInterface
      * @return true of NVM is busy
      *
      */
-    bool isBusy(bool read_queue_empty, bool all_writes_nvm);
+    bool isBusy(bool read_queue_empty, bool all_writes_nvm) override;
     /**
      * For FR-FCFS policy, find first NVM command that can issue
      * default to first command to prepped region
@@ -259,11 +256,14 @@ class NVMInterface : public MemInterface
      */
     void addRankToRankDelay(Tick cmd_at) override;
 
+    void respondEvent(uint8_t rank) override;
+
+    void checkRefreshState(uint8_t rank);
 
     /**
      * Select read command to issue asynchronously
      */
-    void chooseRead(MemPacketQueue& queue);
+    void chooseRead(MemPacketQueue& queue) override;
 
     /*
      * Function to calulate unloaded access latency
@@ -276,13 +276,13 @@ class NVMInterface : public MemInterface
      * @param Return true if full
      */
     bool
-    writeRespQueueFull() const
+    writeRespQueueFull() const override
     {
         return writeRespQueue.size() == maxPendingWrites;
     }
 
     bool
-    readsWaitingToIssue() const
+    readsWaitingToIssue() override
     {
         return ((numReadsToIssue != 0) &&
                 (numPendingReads < maxPendingReads));
@@ -297,7 +297,14 @@ class NVMInterface : public MemInterface
      *               tick when next burst can issue
      */
     std::pair<Tick, Tick>
-    doBurstAccess(MemPacket* pkt, Tick next_burst_at);
+    doBurstAccess(MemPacket* pkt, Tick next_burst_at,
+                  const std::vector<MemPacketQueue>& queue) override;
+
+    void drainRanks() override;
+
+    void suspend() override;
+
+    void startup() override;
 
     NVMInterface(const NVMInterfaceParams &_p);
 };
