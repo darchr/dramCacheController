@@ -79,7 +79,7 @@ MemInterface::MemInterface(const MemInterfaceParams &_p)
 {}
 
 void
-MemInterface::setCtrl(HBMCtrl* _ctrl, unsigned int command_window, uint8_t chan_num)
+MemInterface::setCtrl(MemCtrl* _ctrl, unsigned int command_window, uint8_t chan_num)
 {
     ctrl = _ctrl;
     maxCommandsPerWindow = command_window / tCK;
@@ -101,14 +101,14 @@ MemInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
     uint64_t row;
 
     // Get packed address, starting at 0
-    //Addr addr = getCtrlAddr(pkt_addr);
-    Addr addr = pkt_addr;
+    Addr addr = getCtrlAddr(pkt_addr);
+    //Addr addr = pkt_addr;
 
     // truncate the address to a memory burst, which makes it unique to
     // a specific buffer, row, bank, rank and channel
     addr = addr / burstSize;
 
-    addr = addr >> 1;
+    //addr = addr >> 1;
 
     // we have removed the lowest order address bits that denote the
     // position within the column

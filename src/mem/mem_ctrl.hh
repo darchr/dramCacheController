@@ -676,7 +676,7 @@ class MemCtrl : public qos::MemCtrl
      *                           in a burst window
      * @return tick for command issue without contention
      */
-    Tick verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst, bool row_cmd);
+    virtual Tick verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst, bool row_cmd);
 
     /**
      * Check for command bus contention for multi-cycle (2 currently)
@@ -692,7 +692,7 @@ class MemCtrl : public qos::MemCtrl
      *                           in a burst window
      * @return tick for command issue without contention
      */
-    Tick verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
+    virtual Tick verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
                         Tick max_multi_cmd_split = 0);
 
     /**

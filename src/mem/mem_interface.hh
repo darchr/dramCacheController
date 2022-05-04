@@ -71,6 +71,8 @@ namespace gem5
 namespace memory
 {
 
+class HBMCtrl;
+
 /**
  * General interface to memory device
  * Includes functions and parameters shared across media types
@@ -115,7 +117,7 @@ class MemInterface : public AbstractMemory
     /**
      * A pointer to the parent MemCtrl instance
      */
-    HBMCtrl* ctrl;
+    MemCtrl* ctrl;
 
     /**
      * Number of commands that can issue in the defined controller
@@ -201,7 +203,7 @@ class MemInterface : public AbstractMemory
      *                       check command bandwidth
      * @param chan_num pseudo channel number
      */
-    void setCtrl(HBMCtrl* _ctrl, unsigned int command_window, uint8_t chan_num);
+    void setCtrl(MemCtrl* _ctrl, unsigned int command_window, uint8_t chan_num);
 
     /**
      * Get an address in a dense range which starts from 0. The input
@@ -1010,9 +1012,9 @@ class DRAMInterface : public MemInterface
     /*
      * @return time to offset next command
      */
-    Tick commandOffset() const override 
-    { 
-      return (tRP + std::max(tRCD_RD, tRCD_WR)); 
+    Tick commandOffset() const override
+    {
+      return (tRP + std::max(tRCD_RD, tRCD_WR));
     }
 
     /*

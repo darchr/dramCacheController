@@ -77,7 +77,7 @@ HBMCtrl::HBMCtrl(const HBMCtrlParams &p) :
         writeLowThreshold = (writeBufferSize * (p.write_low_thresh_perc/2) / 100.0);
     } else {
         writeHighThreshold = (writeBufferSize * p.write_high_thresh_perc / 100.0);
-        writeLowThreshold = (writeBufferSize * p.write_low_thresh_perc / 100.0);      
+        writeLowThreshold = (writeBufferSize * p.write_low_thresh_perc / 100.0);
     }
 
 
@@ -447,10 +447,6 @@ HBMCtrl::verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst, bool row_cmd)
         rowBurstTicks.insert(burst_tick);
 
     } else {
-
-        //cmd_at = last_col_tick + commandWindow;
-        //cmd_at  = std::max(cmd_at, curTick());
-        //last_col_tick = cmd_at;
 
         while (colBurstTicks.count(burst_tick) >= max_cmds_per_burst)
         {

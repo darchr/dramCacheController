@@ -91,13 +91,7 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     readQueue.resize(p.qos_priorities);
     writeQueue.resize(p.qos_priorities);
 
-    // // Hook up interfaces to the controller
-    // if (dram)
-    //     dram->setCtrl(this, commandWindow);
-    // if (nvm)
-    //     nvm->setCtrl(this, commandWindow);
-    //mem->setCtrl(this, commandWindow, 0);
-
+    mem->setCtrl(this, commandWindow, 0);
 
     //fatal_if(!dram && !nvm, "Memory controller must have an interface");
     fatal_if(!mem, "Memory controller must have an interface");
