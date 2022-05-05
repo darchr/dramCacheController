@@ -1215,7 +1215,8 @@ DRAMInterface::Rank::processRefreshEvent()
         // if a request is at the moment being handled and this request is
         // accessing the current rank then wait for it to finish
         if ((rank == dram.activeRank)
-            && (dram.ctrl->requestEventScheduled())) {
+            && ((dram.channel_num == 0) ? dram.ctrl->requestEventScheduled() :
+            dynamic_cast<HBMCtrl*>(dram.ctrl)->requestEventCh1Scheduled())) {
             // hand control over to the request loop until it is
             // evaluated next
             DPRINTF(DRAM, "Refresh awaiting draining\n");
@@ -1576,10 +1577,16 @@ DRAMInterface::Rank::processPowerEvent()
         }
 
         // completed refresh event, ensure next request is scheduled
-        if (!dram.ctrl->requestEventScheduled()) {
+        if (!((dram.channel_num == 0) ? dram.ctrl->requestEventScheduled() :
+            dynamic_cast<HBMCtrl*>(dram.ctrl)->requestEventCh1Scheduled())) {
             DPRINTF(DRAM, "Scheduling next request after refreshing"
                            " rank %d\n", rank);
-            dram.ctrl->restartScheduler(curTick());
+            if (dram.channel_num == 0) {
+                dram.ctrl->restartScheduler(curTick());
+            } else {
+                dynamic_cast<HBMCtrl*>(dram.ctrl)->
+                                restartSchedulerCh1(curTick());
+            }
         }
     }
 
