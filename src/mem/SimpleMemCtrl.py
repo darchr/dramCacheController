@@ -77,6 +77,10 @@ class SimpleMemCtrl(QoSMemCtrl):
     min_writes_per_switch = Param.Unsigned(16, "Minimum write bursts before "
                                            "switching to reads")
 
+    # minimum read bursts to schedule before switching back to writes
+    min_reads_per_switch = Param.Unsigned(16, "Minimum read bursts before "
+                                           "switching to writes")
+
     # scheduler, address map and page policy
     mem_sched_policy = Param.MemSched('frfcfs', "Memory scheduling policy")
 

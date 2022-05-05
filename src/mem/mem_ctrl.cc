@@ -481,7 +481,8 @@ MemCtrl::processNextReqEvent()
             // don't transition if the writeRespQueue is full and
             // there are no other writes that can issue
             if ((totalWriteQueueSize > writeHighThreshold) &&
-               !(all_writes_nvm && nvm->writeRespQueueFull())) {
+                (readsThisTime >= minReadsPerSwitch || totalReadQueueSize == 0)
+                && !(all_writes_nvm && nvm->writeRespQueueFull())) {
                 switch_to_writes = true;
             }
 
