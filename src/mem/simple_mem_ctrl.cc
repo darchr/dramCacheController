@@ -74,8 +74,7 @@ SimpleMemCtrl::SimpleMemCtrl(const SimpleMemCtrlParams &p) :
     frontendLatency(p.static_frontend_latency),
     backendLatency(p.static_backend_latency),
     commandWindow(p.command_window),
-    nextBurstAt(0), prevArrival(0),
-    nextReqTime(0),
+    prevArrival(0),
     stats(*this)
 {
     DPRINTF(MemCtrl, "Setting up controller\n");
@@ -115,7 +114,7 @@ SimpleMemCtrl::startup()
         // have to worry about negative values when computing the time for
         // the next request, this will add an insignificant bubble at the
         // start of simulation
-        nextBurstAt = curTick() + dram->commandOffset();
+        dram->nextBurstAt = curTick() + dram->commandOffset();
     }
 }
 
@@ -162,7 +161,7 @@ SimpleMemCtrl::recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor)
 }
 
 bool
-SimpleMemCtrl::readQueueFull(unsigned int neededEntries) const
+SimpleMemCtrl::readQueueFull(unsigned int neededEntries)
 {
     DPRINTF(MemCtrl,
             "Read queue limit %d, current size %d, entries needed %d\n",
@@ -611,7 +610,8 @@ SimpleMemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
     Tick col_allowed_at = MaxTick;
 
     // time we need to issue a column command to be seamless
-    const Tick min_col_at = std::max(nextBurstAt + extra_col_delay, curTick());
+    const Tick min_col_at = std::max(mem_int->nextBurstAt + extra_col_delay,
+                                    curTick());
 
     std::tie(selected_pkt_it, col_allowed_at) =
                  mem_int->chooseNextFRFCFS(queue, min_col_at);
@@ -815,21 +815,19 @@ SimpleMemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int)
     // Issue the next burst and update bus state to reflect
     // when previous command was issued
     std::vector<MemPacketQueue>& queue = selQueue(mem_pkt->isRead());
-    std::tie(cmd_at, nextBurstAt) =
+    std::tie(cmd_at, mem_int->nextBurstAt) =
                 mem_int->doBurstAccess(mem_pkt, nextBurstAt, queue);
 
     DPRINTF(MemCtrl,
             "Access to %#x, ready at %lld next burst at %lld.\n",
-            mem_pkt->addr, mem_pkt->readyTime, nextBurstAt);
+            mem_pkt->addr, mem_pkt->readyTime, mem_int->nextBurstAt);
 
     // Update the minimum timing between the requests, this is a
     // conservative estimate of when we have to schedule the next
     // request to not introduce any unecessary bubbles. In most cases
     // we will wake up sooner than we have to.
-    // nextReqTime = nextBurstAt - (dram ? dram->commandOffset() :
-    //                                     nvm->commandOffset());
 
-    nextReqTime = nextBurstAt - dram->commandOffset();
+    mem_int->nextReqTime = mem_int->nextBurstAt - dram->commandOffset();
 
     // Update the common bus stats
     if (mem_pkt->isRead()) {
@@ -1121,7 +1119,7 @@ SimpleMemCtrl::nextReqEventLogic(MemInterface* mem_int,
     // It is possible that a refresh to another rank kicks things back into
     // action before reaching this point.
     if (!nextReqEvent.scheduled())
-        schedule(next_req_event, std::max(nextReqTime, curTick()));
+        schedule(next_req_event, std::max(mem_int->nextReqTime, curTick()));
 }
 
 void

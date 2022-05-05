@@ -187,6 +187,12 @@ class MemInterface : public AbstractMemory
     bool isDramIntr;
 
     /**
+     * Till when the controller must wait before issuing next RD/WR burst?
+     */
+    Tick nextBurstAt = 0;
+    Tick nextReqTime = 0;
+
+    /**
      * pseudo channel number used for HBM modeling
      */
     uint8_t channel_num;
