@@ -60,11 +60,10 @@ class MemCtrl : public SimpleMemCtrl
 
     NVMInterface* nvm;
     MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
-                                        Tick extra_col_delay) override;
-    MemPacketQueue::iterator chooseNextFRFCFS(MemPacketQueue& queue,
-                                              Tick extra_col_delay) override;
-    void accessAndRespond(PacketPtr pkt, Tick static_latency) override;
-    void doBurstAccess(MemPacket* mem_pkt) override;
+                      Tick extra_col_delay, MemInterface* mem_int) override;
+    MemPacketQueue::iterator nextFRFCFS(MemPacketQueue& queue,
+                                              Tick extra_col_delay);
+    Tick doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int) override;
     Tick minReadToWriteDataGap() override;
     Tick minWriteToReadDataGap() override;
     std::vector<MemInterface*> getMemInterface();

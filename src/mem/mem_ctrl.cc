@@ -70,6 +70,8 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     dram->setCtrl(this, commandWindow);
     nvm->setCtrl(this, commandWindow);
 
+    port.ctrl = this;
+
     readBufferSize = dram->readBufferSize + nvm->readBufferSize;
     writeBufferSize = dram->writeBufferSize + nvm->writeBufferSize;
 
@@ -89,33 +91,14 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
 Tick
 MemCtrl::recvAtomic(PacketPtr pkt)
 {
-    DPRINTF(MemCtrl, "recvAtomic: %s 0x%x\n",
-                     pkt->cmdString(), pkt->getAddr());
-
-    panic_if(pkt->cacheResponding(), "Should not see packets where cache "
-             "is responding");
-
     Tick latency = 0;
-    // do the actual memory access and turn the packet into a response
+
     if (dram->getAddrRange().contains(pkt->getAddr())) {
-        dram->access(pkt);
-
-        if (pkt->hasData()) {
-            // this value is not supposed to be accurate, just enough to
-            // keep things going, mimic a closed page
-            latency = dram->accessLatency();
-        }
+        latency = SimpleMemCtrl::recvAtomicLogic(pkt, dram);
     } else if (nvm->getAddrRange().contains(pkt->getAddr())) {
-        nvm->access(pkt);
-
-        if (pkt->hasData()) {
-            // this value is not supposed to be accurate, just enough to
-            // keep things going, mimic a closed page
-            latency = nvm->accessLatency();
-        }
+        latency = SimpleMemCtrl::recvAtomicLogic(pkt, nvm);
     } else {
-        panic("Can't handle address range for packet %s\n",
-              pkt->print());
+        panic("Can't handle address range for packet %s\n", pkt->print());
     }
 
     return latency;
@@ -175,6 +158,12 @@ MemCtrl::recvTimingReq(PacketPtr pkt)
             return false;
         } else {
             addToWriteQueue(pkt, pkt_count, is_dram ? dram : nvm);
+            // If we are not already scheduled to get a request out of the
+            // queue, do so now
+            if (!nextReqEvent.scheduled()) {
+                DPRINTF(MemCtrl, "Request scheduled immediately\n");
+                schedule(nextReqEvent, curTick());
+            }
             stats.writeReqs++;
             stats.bytesWrittenSys += size;
         }
@@ -188,7 +177,14 @@ MemCtrl::recvTimingReq(PacketPtr pkt)
             stats.numRdRetry++;
             return false;
         } else {
-            addToReadQueue(pkt, pkt_count, is_dram ? dram : nvm);
+            if (!addToReadQueue(pkt, pkt_count, is_dram ? dram : nvm)) {
+                // If we are not already scheduled to get a request out of the
+                // queue, do so now
+                if (!nextReqEvent.scheduled()) {
+                    DPRINTF(MemCtrl, "Request scheduled immediately\n");
+                    schedule(nextReqEvent, curTick());
+                }
+            }
             stats.readReqs++;
             stats.bytesReadSys += size;
         }
@@ -203,56 +199,13 @@ MemCtrl::processRespondEvent()
     DPRINTF(MemCtrl,
             "processRespondEvent(): Some req has reached its readyTime\n");
 
-    MemPacket* mem_pkt = respQueue.front();
-
-    if (mem_pkt->isDram()) {
-        // media specific checks and functions when read response is complete
-        dram->respondEvent(mem_pkt->rank);
-    }
-
-    if (mem_pkt->burstHelper) {
-        // it is a split packet
-        mem_pkt->burstHelper->burstsServiced++;
-        if (mem_pkt->burstHelper->burstsServiced ==
-            mem_pkt->burstHelper->burstCount) {
-            // we have now serviced all children packets of a system packet
-            // so we can now respond to the requestor
-            // @todo we probably want to have a different front end and back
-            // end latency for split packets
-            accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency);
-            delete mem_pkt->burstHelper;
-            mem_pkt->burstHelper = NULL;
-        }
+    if (respQueue.front()->isDram()) {
+        respondEventLogic(dram, respQueue, respondEvent);
     } else {
-        // it is not a split packet
-        accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency);
+        respondEventLogic(nvm, respQueue, respondEvent);
     }
 
-    respQueue.pop_front();
-
-    if (!respQueue.empty()) {
-        assert(respQueue.front()->readyTime >= curTick());
-        assert(!respondEvent.scheduled());
-        schedule(respondEvent, respQueue.front()->readyTime);
-    } else {
-        // if there is nothing left in any queue, signal a drain
-        if (drainState() == DrainState::Draining &&
-            !totalWriteQueueSize && !totalReadQueueSize &&
-            allIntfDrained()) {
-
-            DPRINTF(Drain, "Controller done draining\n");
-            signalDrainDone();
-        } else if (mem_pkt->isDram()) {
-            // check the refresh state and kick the refresh event loop
-            // into action again if banks already closed and just waiting
-            // for read to complete
-            dram->checkRefreshState(mem_pkt->rank);
-        }
-    }
-
-    delete mem_pkt;
-
-    // We have made a location in the queue available at this point,
+    // We have made a location in the read queue available at this point,
     // so if there is a read that was forced to wait, retry now
     if (retryRdReq) {
         retryRdReq = false;
@@ -261,7 +214,8 @@ MemCtrl::processRespondEvent()
 }
 
 MemPacketQueue::iterator
-MemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay)
+MemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
+                    MemInterface* mem_int)
 {
     // This method does the arbitration between requests.
 
@@ -289,7 +243,7 @@ MemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay)
                 }
             }
         } else if (memSchedPolicy == enums::frfcfs) {
-            ret = chooseNextFRFCFS(queue, extra_col_delay);
+            ret = nextFRFCFS(queue, extra_col_delay);
         } else {
             panic("No scheduling policy chosen\n");
         }
@@ -298,25 +252,20 @@ MemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay)
 }
 
 MemPacketQueue::iterator
-MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay)
+MemCtrl::nextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay)
 {
+
     auto selected_pkt_it = queue.end();
     auto nvm_pkt_it = queue.end();
     Tick col_allowed_at = MaxTick;
     Tick nvm_col_allowed_at = MaxTick;
 
-    // time we need to issue a column command to be seamless
-    const Tick min_col_at = std::max(nextBurstAt + extra_col_delay, curTick());
-
-    assert (dram && nvm);
-
-    // find optimal packet for each interface
-    // Select packet by default to give priority if both
-    // can issue at the same time or seamlessly
     std::tie(selected_pkt_it, col_allowed_at) =
-                dram->chooseNextFRFCFS(queue, min_col_at);
+            chooseNextFRFCFS(queue, extra_col_delay, dram);
+
     std::tie(nvm_pkt_it, nvm_col_allowed_at) =
-                nvm->chooseNextFRFCFS(queue, min_col_at);
+            chooseNextFRFCFS(queue, extra_col_delay, nvm);
+
 
     // Compare DRAM and NVM and select NVM if it can issue
     // earlier than the DRAM packet
@@ -324,110 +273,27 @@ MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay)
         selected_pkt_it = nvm_pkt_it;
     }
 
-    if (selected_pkt_it == queue.end()) {
-        DPRINTF(MemCtrl, "%s no available packets found\n", __func__);
-    }
-
     return selected_pkt_it;
 }
 
-void
-MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency)
+
+Tick
+MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int)
 {
-    DPRINTF(MemCtrl, "Responding to Address %#x.. \n", pkt->getAddr());
-
-    bool needsResponse = pkt->needsResponse();
-    // do the actual memory access which also turns the packet into a
-    // response
-    if (dram && dram->getAddrRange().contains(pkt->getAddr())) {
-        dram->access(pkt);
-    } else if (nvm && nvm->getAddrRange().contains(pkt->getAddr())) {
-        nvm->access(pkt);
-    } else {
-        panic("Can't handle address range for packet %s\n",
-              pkt->print());
-    }
-
-    // turn packet around to go back to requestor if response expected
-    if (needsResponse) {
-        // access already turned the packet into a response
-        assert(pkt->isResponse());
-        // response_time consumes the static latency and is charged also
-        // with headerDelay that takes into account the delay provided by
-        // the xbar and also the payloadDelay that takes into account the
-        // number of data beats.
-        Tick response_time = curTick() + static_latency + pkt->headerDelay +
-                             pkt->payloadDelay;
-        // Here we reset the timing of the packet before sending it out.
-        pkt->headerDelay = pkt->payloadDelay = 0;
-
-        // queue the packet in the response queue to be sent out after
-        // the static latency has passed
-        port.schedTimingResp(pkt, response_time);
-    } else {
-        // @todo the packet is going to be deleted, and the MemPacket
-        // is still having a pointer to it
-        pendingDelete.reset(pkt);
-    }
-
-    DPRINTF(MemCtrl, "Done\n");
-
-    return;
-}
-
-void
-MemCtrl::doBurstAccess(MemPacket* mem_pkt)
-{
-    // first clean up the burstTick set, removing old entries
-    // before adding new entries for next burst
-    pruneBurstTick();
 
     // When was command issued?
-    Tick cmd_at;
+    Tick cmd_at = SimpleMemCtrl::doBurstAccess(mem_pkt, mem_int);
 
-    std::vector<MemPacketQueue>& queue = selQueue(mem_pkt->isRead());
-
-    // Issue the next burst and update bus state to reflect
-    // when previous command was issued
     if (mem_pkt->isDram()) {
-        std::tie(cmd_at, nextBurstAt) =
-                 dram->doBurstAccess(mem_pkt, nextBurstAt, queue);
-
         // Update timing for NVM ranks if NVM is configured on this channel
         nvm->addRankToRankDelay(cmd_at);
 
     } else {
-        std::tie(cmd_at, nextBurstAt) =
-                 nvm->doBurstAccess(mem_pkt, nextBurstAt, queue);
-
         // Update timing for NVM ranks if NVM is configured on this channel
         dram->addRankToRankDelay(cmd_at);
-
     }
 
-    DPRINTF(MemCtrl, "Access to %#x, ready at %lld next burst at %lld.\n",
-            mem_pkt->addr, mem_pkt->readyTime, nextBurstAt);
-
-    // Update the minimum timing between the requests, this is a
-    // conservative estimate of when we have to schedule the next
-    // request to not introduce any unecessary bubbles. In most cases
-    // we will wake up sooner than we have to.
-    nextReqTime = nextBurstAt - dram->commandOffset();
-
-
-    // Update the common bus stats
-    if (mem_pkt->isRead()) {
-        ++readsThisTime;
-        // Update latency stats
-        stats.requestorReadTotalLat[mem_pkt->requestorId()] +=
-            mem_pkt->readyTime - mem_pkt->entryTime;
-        stats.requestorReadBytes[mem_pkt->requestorId()] += mem_pkt->size;
-    } else {
-        ++writesThisTime;
-        stats.requestorWriteBytes[mem_pkt->requestorId()] += mem_pkt->size;
-        stats.requestorWriteTotalLat[mem_pkt->requestorId()] +=
-            mem_pkt->readyTime - mem_pkt->entryTime;
-    }
+    return cmd_at;
 }
 
 void
@@ -550,7 +416,8 @@ MemCtrl::processNextReqEvent()
                 // If we are changing command type, incorporate the minimum
                 // bus turnaround delay which will be rank to rank delay
                 to_read = chooseNext((*queue), switched_cmd_type ?
-                                               minWriteToReadDataGap() : 0);
+                                               minWriteToReadDataGap() : 0,
+                                                dram);
 
                 if (to_read != queue->end()) {
                     // candidate read found
@@ -570,8 +437,15 @@ MemCtrl::processNextReqEvent()
             }
 
             auto mem_pkt = *to_read;
+            Tick cmd_at;
+            if (mem_pkt->isDram()) {
+                cmd_at = doBurstAccess(mem_pkt, dram);
+            } else {
+                cmd_at = doBurstAccess(mem_pkt, nvm);
+            }
 
-            doBurstAccess(mem_pkt);
+            DPRINTF(MemCtrl,
+            "Command for %#x, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
             // sanity check
             assert(mem_pkt->size <= (mem_pkt->isDram() ?
@@ -635,7 +509,8 @@ MemCtrl::processNextReqEvent()
             // If we are changing command type, incorporate the minimum
             // bus turnaround delay
             to_write = chooseNext((*queue),
-                     switched_cmd_type ? minReadToWriteDataGap() : 0);
+                     switched_cmd_type ? minReadToWriteDataGap() : 0,
+                    dram);
 
             if (to_write != queue->end()) {
                 write_found = true;
@@ -659,8 +534,15 @@ MemCtrl::processNextReqEvent()
         assert(mem_pkt->size <= (mem_pkt->isDram() ?
                                     dram->bytesPerBurst() :
                                     nvm->bytesPerBurst()));
+        Tick cmd_at;
+        if (mem_pkt->isDram()) {
+            cmd_at = doBurstAccess(mem_pkt, dram);
+        } else {
+            cmd_at = doBurstAccess(mem_pkt, nvm);
+        }
 
-        doBurstAccess(mem_pkt);
+        DPRINTF(MemCtrl,
+        "Command for %#x, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
         isInWriteQueue.erase(burstAlign(mem_pkt->addr,
                     mem_pkt->isDram() ? dram : nvm));
@@ -732,16 +614,17 @@ MemCtrl::minWriteToReadDataGap()
 void
 MemCtrl::recvFunctional(PacketPtr pkt)
 {
-    if (dram->getAddrRange().contains(pkt->getAddr())) {
-        // rely on the abstract memory
-        dram->functionalAccess(pkt);
-    } else if (nvm->getAddrRange().contains(pkt->getAddr())) {
-        // rely on the abstract memory
-        nvm->functionalAccess(pkt);
-   } else {
-        panic("Can't handle address range for packet %s\n",
-              pkt->print());
-   }
+    bool found;
+
+    found = SimpleMemCtrl::recvFunctionalLogic(pkt, dram);
+
+    if (!found) {
+        found = SimpleMemCtrl::recvFunctionalLogic(pkt, nvm);
+    }
+
+    if (!found) {
+        panic("Can't handle address range for packet %s\n", pkt->print());
+    }
 }
 
 bool

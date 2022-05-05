@@ -249,12 +249,13 @@ class SimpleMemCtrl : public qos::MemCtrl
     class MemoryPort : public QueuedResponsePort
     {
 
+      public:
         RespPacketQueue queue;
-        SimpleMemCtrl& ctrl;
+        SimpleMemCtrl* ctrl;
 
       public:
 
-        MemoryPort(const std::string& name, SimpleMemCtrl& _ctrl);
+        MemoryPort(const std::string& name, SimpleMemCtrl* _ctrl);
 
       protected:
 
@@ -294,9 +295,14 @@ class SimpleMemCtrl : public qos::MemCtrl
      * in these methods
      */
     virtual void processNextReqEvent();
+    void nextReqEventLogic(MemInterface* mem_int, MemPacketQueue& resp_queue,
+                          EventFunctionWrapper& resp_event,
+                          EventFunctionWrapper& next_req_event);
     EventFunctionWrapper nextReqEvent;
 
     virtual void processRespondEvent();
+    void respondEventLogic(MemInterface* mem_int, MemPacketQueue& queue,
+                          EventFunctionWrapper& resp_event);
     EventFunctionWrapper respondEvent;
 
     /**
@@ -329,8 +335,9 @@ class SimpleMemCtrl : public qos::MemCtrl
      * @param is_dram Does this packet access DRAM?
      * translate to. If pkt size is larger then one full burst,
      * then pkt_count is greater than one.
+     * @return if all the read pkts are already serviced by wrQ
      */
-    void addToReadQueue(PacketPtr pkt, unsigned int pkt_count,
+    bool addToReadQueue(PacketPtr pkt, unsigned int pkt_count,
                         MemInterface* memIntr);
 
     /**
@@ -353,8 +360,11 @@ class SimpleMemCtrl : public qos::MemCtrl
      * Update bus statistics when complete.
      *
      * @param mem_pkt The memory packet created from the outside world pkt
+     * @param mem_int The memory interface to access
+     * @return Time when the command was issued
+     *
      */
-    virtual void doBurstAccess(MemPacket* mem_pkt);
+    virtual Tick doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int);
 
     /**
      * When a packet reaches its "readyTime" in the response Q,
@@ -364,8 +374,10 @@ class SimpleMemCtrl : public qos::MemCtrl
      *
      * @param pkt The packet from the outside world
      * @param static_latency Static latency to add before sending the packet
+     * @param mem_int the memory interface to access
      */
-    virtual void accessAndRespond(PacketPtr pkt, Tick static_latency);
+    virtual void accessAndRespond(PacketPtr pkt, Tick static_latency,
+                                                MemInterface* mem_int);
 
     /**
      * Determine if there is a packet that can issue.
@@ -397,10 +409,11 @@ class SimpleMemCtrl : public qos::MemCtrl
      *
      * @param queue Queued requests to consider
      * @param extra_col_delay Any extra delay due to a read/write switch
+     * @param mem_int the dram memory interface to choose from
      * @return an iterator to the selected packet, else queue.end()
      */
     virtual MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
-        Tick extra_col_delay);
+        Tick extra_col_delay, MemInterface* mem_int);
 
     /**
      * For FR-FCFS policy reorder the read/write queue depending on row buffer
@@ -410,8 +423,9 @@ class SimpleMemCtrl : public qos::MemCtrl
      * @param extra_col_delay Any extra delay due to a read/write switch
      * @return an iterator to the selected packet, else queue.end()
      */
-    virtual MemPacketQueue::iterator chooseNextFRFCFS(MemPacketQueue& queue,
-            Tick extra_col_delay);
+    virtual std::pair<MemPacketQueue::iterator, Tick>
+    chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
+                    MemInterface* mem_int);
 
     /**
      * Calculate burst window aligned tick
@@ -608,6 +622,12 @@ class SimpleMemCtrl : public qos::MemCtrl
         return (is_read ? readQueue : writeQueue);
     };
 
+    virtual bool respQEmpty()
+    {
+        return respQueue.empty();
+    }
+
+
     /**
      * Remove commands that have already issued from burstTicks
      */
@@ -617,6 +637,9 @@ class SimpleMemCtrl : public qos::MemCtrl
     virtual Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor);
     virtual void recvFunctional(PacketPtr pkt);
     virtual bool recvTimingReq(PacketPtr pkt);
+
+    bool recvFunctionalLogic(PacketPtr pkt, MemInterface* mem_int);
+    Tick recvAtomicLogic(PacketPtr pkt, MemInterface* mem_int);
 
   public:
 
