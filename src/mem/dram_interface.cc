@@ -88,7 +88,7 @@ DRAMInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
         MemPacket* pkt = *i;
 
         // select optimal DRAM packet in Q
-        if (pkt->isDram()) {
+        if (pkt->isDram() && (pkt->channel == this->channel_num)) {
             const Bank& bank = ranks[pkt->rank]->banks[pkt->bank];
             const Tick col_allowed_at = pkt->isRead() ? bank.rdAllowedAt :
                                                         bank.wrAllowedAt;
@@ -513,6 +513,14 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             // 3) make sure we are not considering the packet that we are
             //    currently dealing with
             while (!got_more_hits && p != queue[i].end()) {
+
+                if ((*p)->channel != this->channel_num)
+                    {
+                        // only consider if this pkt belongs to this interface
+                        ++p;
+                        continue;
+                    }
+
                 if (mem_pkt != (*p)) {
                     bool same_rank_bank = (mem_pkt->rank == (*p)->rank) &&
                                           (mem_pkt->bank == (*p)->bank);
@@ -948,6 +956,9 @@ DRAMInterface::minBankPrep(const MemPacketQueue& queue,
     // bank in question
     std::vector<bool> got_waiting(ranksPerChannel * banksPerRank, false);
     for (const auto& p : queue) {
+        if (p->channel != this->channel_num)
+            continue;
+
         if (p->isDram() && ranks[p->rank]->inRefIdleState())
             got_waiting[p->bankId] = true;
     }

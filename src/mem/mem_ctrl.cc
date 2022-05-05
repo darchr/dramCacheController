@@ -67,8 +67,8 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     fatal_if(!dram || !nvm, "Memory controller must have two interfaces");
 
     // hook up interfaces to the controller
-    dram->setCtrl(this, commandWindow);
-    nvm->setCtrl(this, commandWindow);
+    dram->setCtrl(this, commandWindow, 0);
+    nvm->setCtrl(this, commandWindow, 0);
 
     port.ctrl = this;
 
