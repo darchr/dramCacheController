@@ -314,7 +314,7 @@ class SimpleMemCtrl : public qos::MemCtrl
      * @param pkt_count The number of entries needed in the read queue
      * @return true if read queue is full, false otherwise
      */
-    bool readQueueFull(unsigned int pkt_count) const;
+    bool readQueueFull(unsigned int pkt_count);
 
     /**
      * Check if the write queue has room for more entries

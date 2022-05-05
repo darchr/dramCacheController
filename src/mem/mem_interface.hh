@@ -188,6 +188,12 @@ class MemInterface : public AbstractMemory
     bool isDramIntr;
 
     /**
+     * Till when the controller must wait before issuing next RD/WR burst?
+     */
+    Tick nextBurstAt = 0;
+    Tick nextReqTime = 0;
+
+    /**
      * pseudo channel number used for HBM modeling
      */
     uint8_t channel_num;
@@ -301,7 +307,7 @@ class MemInterface : public AbstractMemory
      */
     virtual MemPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,
                                     unsigned int size, bool is_read,
-                                    bool is_dram, uint8_t channel))
+                                    uint8_t channel)
     {
       panic("MemInterface decodePacket should not be executed from here.\n");
       return nullptr;
