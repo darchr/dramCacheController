@@ -183,7 +183,7 @@ DRAMInterface::activateBank(Rank& rank_ref, Bank& bank_ref,
     if (twoCycleActivate)
         act_at = ctrl->verifyMultiCmd(act_tick, maxCommandsPerWindow, tAAD);
     else
-        act_at = ctrl->verifySingleCmd(act_tick, maxCommandsPerWindow);
+        act_at = ctrl->verifySingleCmd(act_tick, maxCommandsPerWindow, true);
 
     DPRINTF(DRAM, "Activate at tick %d\n", act_at);
 
@@ -302,7 +302,7 @@ DRAMInterface::prechargeBank(Rank& rank_ref, Bank& bank, Tick pre_tick,
         // Issuing an explicit PRE command
         // Verify that we have command bandwidth to issue the precharge
         // if not, shift to next burst window
-        pre_at = ctrl->verifySingleCmd(pre_tick, maxCommandsPerWindow);
+        pre_at = ctrl->verifySingleCmd(pre_tick, maxCommandsPerWindow, true);
         // enforce tPPD
         for (int i = 0; i < banksPerRank; i++) {
             rank_ref.banks[i].preAllowedAt = std::max(pre_at + tPPD,
@@ -404,7 +404,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     if (dataClockSync && ((cmd_at - rank_ref.lastBurstTick) > max_sync))
         cmd_at = ctrl->verifyMultiCmd(cmd_at, maxCommandsPerWindow, tCK);
     else
-        cmd_at = ctrl->verifySingleCmd(cmd_at, maxCommandsPerWindow);
+        cmd_at = ctrl->verifySingleCmd(cmd_at, maxCommandsPerWindow, false);
 
     // if we are interleaving bursts, ensure that
     // 1) we don't double interleave on next burst issue
