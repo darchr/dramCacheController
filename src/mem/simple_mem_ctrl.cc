@@ -87,7 +87,7 @@ SimpleMemCtrl::SimpleMemCtrl(const SimpleMemCtrlParams &p) :
     readQueue.resize(p.qos_priorities);
     writeQueue.resize(p.qos_priorities);
 
-    dram->setCtrl(this, commandWindow);
+    dram->setCtrl(this, commandWindow, 0);
 
     // NVM specific parameter initialization
     dram->numWritesQueued = 0;
@@ -258,7 +258,9 @@ SimpleMemCtrl::addToReadQueue(PacketPtr pkt,
             }
 
             MemPacket* mem_pkt;
-            mem_pkt = memIntr->decodePacket(pkt, addr, size, true);
+
+            mem_pkt = memIntr->decodePacket(pkt, addr, size, true,
+                                            memIntr->channel_num);
 
             // Increment read entries of the rank (dram)
             // Increment count to trigger issue of non-deterministic read (nvm)
@@ -330,7 +332,10 @@ SimpleMemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
         // and enqueue it
         if (!merged) {
             MemPacket* mem_pkt;
-            mem_pkt = memIntr->decodePacket(pkt, addr, size, false);
+
+            mem_pkt = memIntr->decodePacket(pkt, addr, size, false,
+                                            memIntr->channel_num);
+
             // Default readyTime to Max if nvm interface;
             //will be reset once read is issued
             mem_pkt->readyTime = MaxTick;
@@ -561,6 +566,11 @@ SimpleMemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
         if (queue.size() == 1) {
             // available rank corresponds to state refresh idle
             MemPacket* mem_pkt = *(queue.begin());
+
+            if (mem_pkt->channel != mem_int->channel_num) {
+                return ret;
+            }
+
             if (packetReady(mem_pkt, dram)) {
                 ret = queue.begin();
                 DPRINTF(MemCtrl, "Single request, going to a free rank\n");
