@@ -47,6 +47,7 @@
 #define __DRAM_INTERFACE_HH__
 
 #include "mem/drampower.hh"
+#include "mem/hbm_ctrl.hh"
 #include "mem/mem_interface.hh"
 #include "params/DRAMInterface.hh"
 
@@ -487,12 +488,14 @@ class DRAMInterface : public MemInterface
     /**
      * DRAM specific timing requirements
      */
-    const Tick tCL;
+    const Tick tRL;
+    const Tick tWL;
     const Tick tBURST_MIN;
     const Tick tBURST_MAX;
     const Tick tCCD_L_WR;
     const Tick tCCD_L;
-    const Tick tRCD;
+    const Tick tRCD_RD;
+    const Tick tRCD_WR;
     const Tick tRP;
     const Tick tRAS;
     const Tick tWR;
@@ -621,7 +624,7 @@ class DRAMInterface : public MemInterface
     /*
      * @return delay between write and read commands
      */
-    Tick writeToReadDelay() const override { return tBURST + tWTR + tCL; }
+    Tick writeToReadDelay() const override { return tBURST + tWTR + tWL; }
 
     /**
      * Find which are the earliest banks ready to issue an activate
@@ -690,12 +693,15 @@ class DRAMInterface : public MemInterface
     /*
      * @return time to offset next command
      */
-    Tick commandOffset() const override { return (tRP + tRCD); }
+    Tick commandOffset() const override
+    {
+        return (tRP + std::max(tRCD_RD, tRCD_WR));
+    }
 
     /*
      * Function to calulate unloaded, closed bank access latency
      */
-    Tick accessLatency() const override { return (tRP + tRCD + tCL); }
+    Tick accessLatency() const override { return (tRP + tRCD_RD + tRL); }
 
     /**
      * For FR-FCFS policy, find first DRAM command that can issue

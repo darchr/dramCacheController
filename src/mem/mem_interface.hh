@@ -186,13 +186,26 @@ class MemInterface : public AbstractMemory
 
     bool isDramIntr;
 
+    /**
+     * Till when the controller must wait before issuing next RD/WR burst?
+     */
+    Tick nextBurstAt = 0;
+    Tick nextReqTime = 0;
+
+    /**
+     * pseudo channel number used for HBM modeling
+     */
+    uint8_t channel_num;
+
     /** Set a pointer to the controller and initialize
      * interface based on controller parameters
      * @param _ctrl pointer to the parent controller
      * @param command_window size of command window used to
      *                       check command bandwidth
+     * @param chan_num pseudo channel number
      */
-    void setCtrl(SimpleMemCtrl* _ctrl, unsigned int command_window);
+    void setCtrl(SimpleMemCtrl* _ctrl, unsigned int command_window,
+                                                  uint8_t chan_num);
 
     /**
      * Get an address in a dense range which starts from 0. The input
@@ -287,10 +300,12 @@ class MemInterface : public AbstractMemory
      * @param size The size of the packet in bytes
      * @param is_read Is the request for a read or a write to memory
      * @param is_dram Is the request to a DRAM interface
+     * @param channel pseudo channel number of the packet
      * @return A MemPacket pointer with the decoded information
      */
     MemPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,
-                           unsigned int size, bool is_read, bool is_dram);
+                           unsigned int size, bool is_read, bool is_dram,
+                           uint8_t channel);
 
     /**
      *  Add rank to rank delay to bus timing to all banks in all ranks

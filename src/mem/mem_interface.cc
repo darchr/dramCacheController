@@ -74,15 +74,18 @@ MemInterface::MemInterface(const MemInterfaceParams &_p)
 {}
 
 void
-MemInterface::setCtrl(SimpleMemCtrl* _ctrl, unsigned int command_window)
+MemInterface::setCtrl(SimpleMemCtrl* _ctrl, unsigned int command_window,
+                                                        uint8_t chan_num)
 {
     ctrl = _ctrl;
     maxCommandsPerWindow = command_window / tCK;
+    // setting the pseudo channel number for this interface
+    channel_num = chan_num;
 }
 
 MemPacket*
 MemInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
-                       unsigned size, bool is_read, bool is_dram)
+            unsigned size, bool is_read, bool is_dram, uint8_t channel)
 {
     // decode the address based on the address mapping scheme, with
     // Ro, Ra, Co, Ba and Ch denoting row, rank, column, bank and
@@ -162,8 +165,8 @@ MemInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
     // later
     uint16_t bank_id = banksPerRank * rank + bank;
 
-    return new MemPacket(pkt, is_read, is_dram, rank, bank, row, bank_id,
-                   pkt_addr, size);
+    return new MemPacket(pkt, is_read, is_dram, channel, rank, bank, row,
+                    bank_id, pkt_addr, size);
 }
 
 } // namespace memory

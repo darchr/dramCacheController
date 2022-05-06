@@ -69,13 +69,13 @@ SimpleMemCtrl::SimpleMemCtrl(const SimpleMemCtrlParams &p) :
     writeHighThreshold(writeBufferSize * p.write_high_thresh_perc / 100.0),
     writeLowThreshold(writeBufferSize * p.write_low_thresh_perc / 100.0),
     minWritesPerSwitch(p.min_writes_per_switch),
+    minReadsPerSwitch(p.min_reads_per_switch),
     writesThisTime(0), readsThisTime(0),
     memSchedPolicy(p.mem_sched_policy),
     frontendLatency(p.static_frontend_latency),
     backendLatency(p.static_backend_latency),
     commandWindow(p.command_window),
-    nextBurstAt(0), prevArrival(0),
-    nextReqTime(0),
+    prevArrival(0),
     stats(*this)
 {
     DPRINTF(MemCtrl, "Setting up controller\n");
@@ -85,7 +85,7 @@ SimpleMemCtrl::SimpleMemCtrl(const SimpleMemCtrlParams &p) :
     readQueue.resize(p.qos_priorities);
     writeQueue.resize(p.qos_priorities);
 
-    dram->setCtrl(this, commandWindow);
+    dram->setCtrl(this, commandWindow, 0);
 
     // perform a basic check of the write thresholds
     if (p.write_low_thresh_perc >= p.write_high_thresh_perc)
@@ -115,7 +115,7 @@ SimpleMemCtrl::startup()
         // have to worry about negative values when computing the time for
         // the next request, this will add an insignificant bubble at the
         // start of simulation
-        nextBurstAt = curTick() + dram->commandOffset();
+        dram->nextBurstAt = curTick() + dram->commandOffset();
     }
 }
 
@@ -162,7 +162,7 @@ SimpleMemCtrl::recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor)
 }
 
 bool
-SimpleMemCtrl::readQueueFull(unsigned int neededEntries) const
+SimpleMemCtrl::readQueueFull(unsigned int neededEntries)
 {
     DPRINTF(MemCtrl,
             "Read queue limit %d, current size %d, entries needed %d\n",
@@ -255,15 +255,16 @@ SimpleMemCtrl::addToReadQueue(PacketPtr pkt,
 
             MemPacket* mem_pkt;
             mem_pkt = memIntr->decodePacket(pkt, addr, size, true,
-                                            memIntr->isDramIntr);
+                                    memIntr->isDramIntr, memIntr->channel_num);
 
             // Increment read entries of the rank (dram)
             // Increment count to trigger issue of non-deterministic read (nvm)
             memIntr->setupRank(mem_pkt->rank, true);
 
             // Default readyTime to Max will be reset once read is issued
-            mem_pkt->readyTime = MaxTick;
-
+            if (!mem_pkt->isDram()) {
+                mem_pkt->readyTime = MaxTick;
+            }
 
             mem_pkt->burstHelper = burst_helper;
 
@@ -332,10 +333,12 @@ SimpleMemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
         if (!merged) {
             MemPacket* mem_pkt;
             mem_pkt = memIntr->decodePacket(pkt, addr, size, false,
-                                            memIntr->isDramIntr);
+                                    memIntr->isDramIntr, memIntr->channel_num);
             // Default readyTime to Max if nvm interface;
             //will be reset once read is issued
-            mem_pkt->readyTime = MaxTick;
+            if (!mem_pkt->isDram()) {
+                mem_pkt->readyTime = MaxTick;
+            }
 
             memIntr->setupRank(mem_pkt->rank, false);
 
@@ -570,7 +573,12 @@ SimpleMemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
         if (queue.size() == 1) {
             // available rank corresponds to state refresh idle
             MemPacket* mem_pkt = *(queue.begin());
-            if (packetReady(mem_pkt, dram)) {
+
+            if (mem_pkt->channel != mem_int->channel_num) {
+                return ret;
+            }
+
+            if (packetReady(mem_pkt, mem_int)) {
                 ret = queue.begin();
                 DPRINTF(MemCtrl,
                 "Single request, going to a free rank\n");
@@ -582,7 +590,7 @@ SimpleMemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
             // check if there is a packet going to a free rank
             for (auto i = queue.begin(); i != queue.end(); ++i) {
                 MemPacket* mem_pkt = *i;
-                if (packetReady(mem_pkt, dram)) {
+                if (packetReady(mem_pkt, mem_int)) {
                     ret = i;
                     break;
                 }
@@ -606,7 +614,8 @@ SimpleMemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
     Tick col_allowed_at = MaxTick;
 
     // time we need to issue a column command to be seamless
-    const Tick min_col_at = std::max(nextBurstAt + extra_col_delay, curTick());
+    const Tick min_col_at = std::max(mem_int->nextBurstAt + extra_col_delay,
+                                    curTick());
 
     std::tie(selected_pkt_it, col_allowed_at) =
                  mem_int->chooseNextFRFCFS(queue, min_col_at);
@@ -683,7 +692,8 @@ SimpleMemCtrl::getBurstWindow(Tick cmd_tick)
 }
 
 Tick
-SimpleMemCtrl::verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst)
+SimpleMemCtrl::verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst,
+                                bool row_cmd)
 {
     // start with assumption that there is no contention on command bus
     Tick cmd_at = cmd_tick;
@@ -810,21 +820,19 @@ SimpleMemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int)
     // Issue the next burst and update bus state to reflect
     // when previous command was issued
     std::vector<MemPacketQueue>& queue = selQueue(mem_pkt->isRead());
-    std::tie(cmd_at, nextBurstAt) =
-                mem_int->doBurstAccess(mem_pkt, nextBurstAt, queue);
+    std::tie(cmd_at, mem_int->nextBurstAt) =
+                mem_int->doBurstAccess(mem_pkt, mem_int->nextBurstAt, queue);
 
     DPRINTF(MemCtrl,
             "Access to %#x, ready at %lld next burst at %lld.\n",
-            mem_pkt->addr, mem_pkt->readyTime, nextBurstAt);
+            mem_pkt->addr, mem_pkt->readyTime, mem_int->nextBurstAt);
 
     // Update the minimum timing between the requests, this is a
     // conservative estimate of when we have to schedule the next
     // request to not introduce any unecessary bubbles. In most cases
     // we will wake up sooner than we have to.
-    // nextReqTime = nextBurstAt - (dram ? dram->commandOffset() :
-    //                                     nvm->commandOffset());
 
-    nextReqTime = nextBurstAt - dram->commandOffset();
+    mem_int->nextReqTime = mem_int->nextBurstAt - dram->commandOffset();
 
     // Update the common bus stats
     if (mem_pkt->isRead()) {
@@ -1004,17 +1012,20 @@ SimpleMemCtrl::nextReqEventLogic(MemInterface* mem_int,
                 assert(!resp_event.scheduled());
                 schedule(resp_event, mem_pkt->readyTime);
             } else {
-                assert(respQueue.back()->readyTime <= mem_pkt->readyTime);
+                assert(resp_queue.back()->readyTime <= mem_pkt->readyTime);
                 assert(resp_event.scheduled());
             }
 
-            respQueue.push_back(mem_pkt);
+            resp_queue.push_back(mem_pkt);
 
             // we have so many writes that we have to transition
             // don't transition if the writeRespQueue is full and
             // there are no other writes that can issue
+            // Also ensure that we've issued a minimum defined number
+            // of reads before switching, or have emptied the readQ
             if ((totalWriteQueueSize > writeHighThreshold) &&
-               !(all_writes_nvm && dram->writeRespQueueFull())) {
+                (readsThisTime >= minReadsPerSwitch || totalReadQueueSize == 0)
+                && !(all_writes_nvm && dram->writeRespQueueFull())) {
                 switch_to_writes = true;
             }
 
@@ -1048,7 +1059,7 @@ SimpleMemCtrl::nextReqEventLogic(MemInterface* mem_int,
             // If we are changing command type, incorporate the minimum
             // bus turnaround delay
             to_write = chooseNext((*queue),
-                        switched_cmd_type ? minReadToWriteDataGap() : 0, dram);
+                    switched_cmd_type ? minReadToWriteDataGap() : 0, mem_int);
 
             if (to_write != queue->end()) {
                 write_found = true;
@@ -1101,7 +1112,7 @@ SimpleMemCtrl::nextReqEventLogic(MemInterface* mem_int,
             (below_threshold && drainState() != DrainState::Draining) ||
             (totalReadQueueSize && writesThisTime >= minWritesPerSwitch) ||
             (totalReadQueueSize &&
-             dram->writeRespQueueFull() &&
+             mem_int->writeRespQueueFull() &&
              all_writes_nvm)) {
 
             // turn the bus back around for reads again
@@ -1115,8 +1126,8 @@ SimpleMemCtrl::nextReqEventLogic(MemInterface* mem_int,
     }
     // It is possible that a refresh to another rank kicks things back into
     // action before reaching this point.
-    if (!nextReqEvent.scheduled())
-        schedule(next_req_event, std::max(nextReqTime, curTick()));
+    if (!next_req_event.scheduled())
+        schedule(next_req_event, std::max(mem_int->nextReqTime, curTick()));
 }
 
 void

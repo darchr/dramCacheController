@@ -217,7 +217,7 @@ NVMInterface::chooseRead(MemPacketQueue& queue)
                                               maxCommandsPerWindow, tCK);
             } else {
                 cmd_at = ctrl->verifySingleCmd(cmd_at,
-                                               maxCommandsPerWindow);
+                                               maxCommandsPerWindow, false);
             }
 
             // Update delay to next read
@@ -354,7 +354,7 @@ NVMInterface::doBurstAccess(MemPacket* pkt, Tick next_burst_at,
     // one command cycle
     // Write command may require multiple cycles to enable larger address space
     if (pkt->isRead() || !twoCycleRdWr) {
-        cmd_at = ctrl->verifySingleCmd(cmd_at, maxCommandsPerWindow);
+        cmd_at = ctrl->verifySingleCmd(cmd_at, maxCommandsPerWindow, false);
     } else {
         cmd_at = ctrl->verifyMultiCmd(cmd_at, maxCommandsPerWindow, tCK);
     }

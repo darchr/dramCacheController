@@ -67,8 +67,8 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     fatal_if(!dram || !nvm, "Memory controller must have two interfaces");
 
     // hook up interfaces to the controller
-    dram->setCtrl(this, commandWindow);
-    nvm->setCtrl(this, commandWindow);
+    dram->setCtrl(this, commandWindow, 0);
+    nvm->setCtrl(this, commandWindow, 0);
 
     port.ctrl = this;
 
@@ -287,10 +287,16 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int)
     if (mem_pkt->isDram()) {
         // Update timing for NVM ranks if NVM is configured on this channel
         nvm->addRankToRankDelay(cmd_at);
+        // Since nextBurstAt and nextReqAt are part of the interface, making
+        // sure that they are same for updated for both nvm and dram interfaces
+        nvm->nextBurstAt = dram->nextBurstAt;
+        nvm->nextReqTime = dram->nextReqTime;
 
     } else {
         // Update timing for NVM ranks if NVM is configured on this channel
         dram->addRankToRankDelay(cmd_at);
+        dram->nextBurstAt = nvm->nextBurstAt;
+        dram->nextReqTime = nvm->nextReqTime;
     }
 
     return cmd_at;
@@ -475,7 +481,8 @@ MemCtrl::processNextReqEvent()
             // don't transition if the writeRespQueue is full and
             // there are no other writes that can issue
             if ((totalWriteQueueSize > writeHighThreshold) &&
-               !(all_writes_nvm && nvm->writeRespQueueFull())) {
+                (readsThisTime >= minReadsPerSwitch || totalReadQueueSize == 0)
+                && !(all_writes_nvm && nvm->writeRespQueueFull())) {
                 switch_to_writes = true;
             }
 
@@ -585,7 +592,7 @@ MemCtrl::processNextReqEvent()
     // It is possible that a refresh to another rank kicks things back into
     // action before reaching this point.
     if (!nextReqEvent.scheduled())
-        schedule(nextReqEvent, std::max(nextReqTime, curTick()));
+        schedule(nextReqEvent, std::max(dram->nextReqTime, curTick()));
 
     // If there is space available and we have writes waiting then let
     // them retry. This is done here to ensure that the retry does not
