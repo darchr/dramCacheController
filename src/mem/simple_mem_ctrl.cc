@@ -87,6 +87,9 @@ SimpleMemCtrl::SimpleMemCtrl(const SimpleMemCtrlParams &p) :
 
     dram->setCtrl(this, commandWindow);
 
+    // NVM specific parameter initialization
+    dram->numWritesQueued = 0;
+
     // perform a basic check of the write thresholds
     if (p.write_low_thresh_perc >= p.write_high_thresh_perc)
         fatal("Write buffer low threshold %d must be smaller than the "
@@ -156,7 +159,6 @@ Tick
 SimpleMemCtrl::recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor)
 {
     Tick latency = recvAtomic(pkt);
-    assert(dram);
     dram->getBackdoor(backdoor);
     return latency;
 }
@@ -254,8 +256,7 @@ SimpleMemCtrl::addToReadQueue(PacketPtr pkt,
             }
 
             MemPacket* mem_pkt;
-            mem_pkt = memIntr->decodePacket(pkt, addr, size, true,
-                                            memIntr->isDramIntr);
+            mem_pkt = memIntr->decodePacket(pkt, addr, size, true);
 
             // Increment read entries of the rank (dram)
             // Increment count to trigger issue of non-deterministic read (nvm)
@@ -275,9 +276,8 @@ SimpleMemCtrl::addToReadQueue(PacketPtr pkt,
             readQueue[mem_pkt->qosValue()].push_back(mem_pkt);
 
             // log packet
-            logRequest(SimpleMemCtrl::READ,
-                       pkt->requestorId(), pkt->qosValue(),
-                       mem_pkt->addr, 1);
+            logRequest(SimpleMemCtrl::READ, pkt->requestorId(),
+                       pkt->qosValue(), mem_pkt->addr, 1);
 
             // Update stats
             stats.avgRdQLen = totalReadQueueSize + respQueue.size();
@@ -331,8 +331,7 @@ SimpleMemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
         // and enqueue it
         if (!merged) {
             MemPacket* mem_pkt;
-            mem_pkt = memIntr->decodePacket(pkt, addr, size, false,
-                                            memIntr->isDramIntr);
+            mem_pkt = memIntr->decodePacket(pkt, addr, size, false);
             // Default readyTime to Max if nvm interface;
             //will be reset once read is issued
             mem_pkt->readyTime = MaxTick;
@@ -348,9 +347,8 @@ SimpleMemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
             isInWriteQueue.insert(burstAlign(addr, memIntr));
 
             // log packet
-            logRequest(SimpleMemCtrl::WRITE,
-                       pkt->requestorId(), pkt->qosValue(),
-                       mem_pkt->addr, 1);
+            logRequest(SimpleMemCtrl::WRITE, pkt->requestorId(),
+                       pkt->qosValue(), mem_pkt->addr, 1);
 
             assert(totalWriteQueueSize == isInWriteQueue.size());
 
@@ -422,10 +420,8 @@ SimpleMemCtrl::recvTimingReq(PacketPtr pkt)
     }
     prevArrival = curTick();
 
-    if (!(dram->getAddrRange().contains(pkt->getAddr()))) {
-        panic("Can't handle address range for packet %s\n",
-              pkt->print());
-    }
+    panic_if(!(dram->getAddrRange().contains(pkt->getAddr())),
+             "Can't handle address range for packet %s\n", pkt->print());
 
     // Find out how many memory packets a pkt translates to
     // If the burst size is equal or larger than the pkt size, then a pkt
@@ -572,11 +568,9 @@ SimpleMemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
             MemPacket* mem_pkt = *(queue.begin());
             if (packetReady(mem_pkt, dram)) {
                 ret = queue.begin();
-                DPRINTF(MemCtrl,
-                "Single request, going to a free rank\n");
+                DPRINTF(MemCtrl, "Single request, going to a free rank\n");
             } else {
-                DPRINTF(MemCtrl,
-                "Single request, going to a busy rank\n");
+                DPRINTF(MemCtrl, "Single request, going to a busy rank\n");
             }
         } else if (memSchedPolicy == enums::fcfs) {
             // check if there is a packet going to a free rank
@@ -627,12 +621,9 @@ SimpleMemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
     bool needsResponse = pkt->needsResponse();
     // do the actual memory access which also turns the packet into a
     // response
-    if (mem_int->getAddrRange().contains(pkt->getAddr())) {
-        mem_int->access(pkt);
-    } else {
-        panic("Can't handle address range for packet %s\n",
-              pkt->print());
-    }
+    panic_if(mem_int->getAddrRange().contains(pkt->getAddr()),
+             "Can't handle address range for packet %s\n", pkt->print());
+    mem_int->access(pkt);
 
     // turn packet around to go back to requestor if response expected
     if (needsResponse) {
@@ -743,8 +734,7 @@ SimpleMemCtrl::verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
         second_can_issue = second_cmd_count < max_cmds_per_burst;
 
         if (!second_can_issue) {
-            DPRINTF(MemCtrl,
-            "Contention (cmd2) found on command bus at %d\n",
+            DPRINTF(MemCtrl, "Contention (cmd2) found on command bus at %d\n",
                     burst_tick);
             burst_tick += commandWindow;
             cmd_at = burst_tick;
@@ -757,8 +747,7 @@ SimpleMemCtrl::verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
              ((burst_tick - first_cmd_tick) > max_multi_cmd_split);
 
         if (!first_can_issue || (!second_can_issue && gap_violated)) {
-            DPRINTF(MemCtrl,
-            "Contention (cmd1) found on command bus at %d\n",
+            DPRINTF(MemCtrl, "Contention (cmd1) found on command bus at %d\n",
                     first_cmd_tick);
             first_cmd_tick += commandWindow;
         }
@@ -813,17 +802,13 @@ SimpleMemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int)
     std::tie(cmd_at, nextBurstAt) =
                 mem_int->doBurstAccess(mem_pkt, nextBurstAt, queue);
 
-    DPRINTF(MemCtrl,
-            "Access to %#x, ready at %lld next burst at %lld.\n",
+    DPRINTF(MemCtrl, "Access to %#x, ready at %lld next burst at %lld.\n",
             mem_pkt->addr, mem_pkt->readyTime, nextBurstAt);
 
     // Update the minimum timing between the requests, this is a
     // conservative estimate of when we have to schedule the next
     // request to not introduce any unecessary bubbles. In most cases
     // we will wake up sooner than we have to.
-    // nextReqTime = nextBurstAt - (dram ? dram->commandOffset() :
-    //                                     nvm->commandOffset());
-
     nextReqTime = nextBurstAt - dram->commandOffset();
 
     // Update the common bus stats
@@ -888,6 +873,7 @@ SimpleMemCtrl::nextReqEventLogic(MemInterface* mem_int,
             // select non-deterministic NVM read to issue
             // assume that we have the command bandwidth to issue this along
             // with additional RD/WR burst with needed bank operations
+            // DRAMInterface::readsWaitingToIssue always returns false.
             if (mem_int->readsWaitingToIssue()) {
                 // select non-deterministic NVM read to issue
                 mem_int->chooseRead(*queue);
@@ -960,9 +946,8 @@ SimpleMemCtrl::nextReqEventLogic(MemInterface* mem_int,
                 // Figure out which read request goes next
                 // If we are changing command type, incorporate the minimum
                 // bus turnaround delay which will be rank to rank delay
-                to_read = chooseNext((*queue),
-                            switched_cmd_type ? minWriteToReadDataGap() : 0,
-                            mem_int);
+                to_read = chooseNext((*queue), switched_cmd_type ?
+                                     minWriteToReadDataGap() : 0, mem_int);
 
                 if (to_read != queue->end()) {
                     // candidate read found
@@ -1100,9 +1085,8 @@ SimpleMemCtrl::nextReqEventLogic(MemInterface* mem_int,
         if (totalWriteQueueSize == 0 ||
             (below_threshold && drainState() != DrainState::Draining) ||
             (totalReadQueueSize && writesThisTime >= minWritesPerSwitch) ||
-            (totalReadQueueSize &&
-             dram->writeRespQueueFull() &&
-             all_writes_nvm)) {
+            (totalReadQueueSize && all_writes_nvm &&
+             dram->writeRespQueueFull())) {
 
             // turn the bus back around for reads again
             busStateNext = SimpleMemCtrl::READ;
@@ -1356,9 +1340,8 @@ SimpleMemCtrl::recvFunctional(PacketPtr pkt)
 {
     bool found = SimpleMemCtrl::recvFunctionalLogic(pkt, dram);
 
-    if (!found) {
-    panic("Can't handle address range for packet %s\n", pkt->print());
-    }
+    panic_if(!found, "Can't handle address range for packet %s\n",
+             pkt->print());
 }
 
 bool
@@ -1438,12 +1421,12 @@ SimpleMemCtrl::drainResume()
     isTimingMode = system()->isTimingMode();
 }
 
-std::vector<MemInterface*>
-SimpleMemCtrl::getMemInterface()
+AddrRangeList
+SimpleMemCtrl::getAddrRanges()
 {
-    std::vector<MemInterface*> intrfc;
-    intrfc.push_back(dram);
-    return intrfc;
+    AddrRangeList range;
+    range.push_back(dram->getAddrRange());
+    return range;
 }
 
 SimpleMemCtrl::MemoryPort::
@@ -1455,15 +1438,7 @@ MemoryPort(const std::string& name, SimpleMemCtrl* _ctrl)
 AddrRangeList
 SimpleMemCtrl::MemoryPort::getAddrRanges() const
 {
-    AddrRangeList ranges;
-
-    std::vector<MemInterface*> intrfc = ctrl->getMemInterface();
-
-    for (int i=0; i < intrfc.size(); i++) {
-        ranges.push_back(intrfc.at(i)->getAddrRange());
-    }
-
-    return ranges;
+    return ctrl->getAddrRanges();
 }
 
 void

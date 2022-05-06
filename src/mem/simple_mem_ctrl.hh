@@ -260,8 +260,8 @@ class SimpleMemCtrl : public qos::MemCtrl
       protected:
 
         Tick recvAtomic(PacketPtr pkt) override;
-        Tick recvAtomicBackdoor(PacketPtr pkt,
-                                MemBackdoorPtr &backdoor) override;
+        Tick recvAtomicBackdoor(
+                PacketPtr pkt, MemBackdoorPtr &backdoor) override;
 
         void recvFunctional(PacketPtr pkt) override;
 
@@ -353,7 +353,7 @@ class SimpleMemCtrl : public qos::MemCtrl
      * then pkt_count is greater than one.
      */
     void addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
-                          MemInterface* memIntr);
+                         MemInterface* memIntr);
 
     /**
      * Actually do the burst based on media specific access function.
@@ -448,7 +448,6 @@ class SimpleMemCtrl : public qos::MemCtrl
      *
      * @return An address aligned to a memory burst
      */
-    //Addr burstAlign(Addr addr, bool is_dram) const;
     Addr burstAlign(Addr addr, MemInterface* memIntr) const;
 
     /**
@@ -484,9 +483,12 @@ class SimpleMemCtrl : public qos::MemCtrl
      */
     std::unordered_multiset<Tick> burstTicks;
 
+    /**
++    * Create pointer to interface of the actual memory media when connected
++    */
     MemInterface* dram;
 
-    virtual std::vector<MemInterface*> getMemInterface();
+    virtual AddrRangeList getAddrRanges();
 
     /**
      * The following are basic design parameters of the memory
@@ -633,14 +635,6 @@ class SimpleMemCtrl : public qos::MemCtrl
      */
     void pruneBurstTick();
 
-    virtual Tick recvAtomic(PacketPtr pkt);
-    virtual Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor);
-    virtual void recvFunctional(PacketPtr pkt);
-    virtual bool recvTimingReq(PacketPtr pkt);
-
-    bool recvFunctionalLogic(PacketPtr pkt, MemInterface* mem_int);
-    Tick recvAtomicLogic(PacketPtr pkt, MemInterface* mem_int);
-
   public:
 
     SimpleMemCtrl(const SimpleMemCtrlParams &p);
@@ -731,6 +725,16 @@ class SimpleMemCtrl : public qos::MemCtrl
     virtual void init() override;
     virtual void startup() override;
     virtual void drainResume() override;
+
+  protected:
+
+    virtual Tick recvAtomic(PacketPtr pkt);
+    virtual Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor);
+    virtual void recvFunctional(PacketPtr pkt);
+    virtual bool recvTimingReq(PacketPtr pkt);
+
+    bool recvFunctionalLogic(PacketPtr pkt, MemInterface* mem_int);
+    Tick recvAtomicLogic(PacketPtr pkt, MemInterface* mem_int);
 
 };
 

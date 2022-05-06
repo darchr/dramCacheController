@@ -58,11 +58,12 @@ namespace memory
 {
 
 MemCtrl::MemCtrl(const MemCtrlParams &p) :
-    SimpleMemCtrl(p)
+    SimpleMemCtrl(p),
+    nvm(p.nvm)
 {
     DPRINTF(MemCtrl, "Setting up controller\n");
-
-    nvm = p.nvm;
+    readQueue.resize(p.qos_priorities);
+    writeQueue.resize(p.qos_priorities);
 
     fatal_if(!dram || !nvm, "Memory controller must have two interfaces");
 
@@ -77,9 +78,6 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
 
     writeHighThreshold = writeBufferSize * p.write_high_thresh_perc / 100.0;
     writeLowThreshold = writeBufferSize * p.write_low_thresh_perc / 100.0;
-
-    readQueue.resize(p.qos_priorities);
-    writeQueue.resize(p.qos_priorities);
 
     // perform a basic check of the write thresholds
     if (p.write_low_thresh_perc >= p.write_high_thresh_perc)
@@ -227,11 +225,9 @@ MemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
             MemPacket* mem_pkt = *(queue.begin());
             if (packetReady(mem_pkt, mem_pkt->isDram()? dram : nvm)) {
                 ret = queue.begin();
-                DPRINTF(MemCtrl,
-                "Single request, going to a free rank\n");
+                DPRINTF(MemCtrl, "Single request, going to a free rank\n");
             } else {
-                DPRINTF(MemCtrl,
-                "Single request, going to a busy rank\n");
+                DPRINTF(MemCtrl, "Single request, going to a busy rank\n");
             }
         } else if (memSchedPolicy == enums::fcfs) {
             // check if there is a packet going to a free rank
@@ -682,13 +678,13 @@ MemCtrl::drainResume()
     isTimingMode = system()->isTimingMode();
 }
 
-std::vector<MemInterface*>
-MemCtrl::getMemInterface()
+AddrRangeList
+MemCtrl::getAddrRanges()
 {
-    std::vector<MemInterface*> intrfc;
-    intrfc.push_back(dram);
-    intrfc.push_back(nvm);
-    return intrfc;
+    AddrRangeList ranges;
+    ranges.push_back(dram->getAddrRange());
+    ranges.push_back(nvm->getAddrRange());
+    return ranges;
 }
 
 } // namespace memory

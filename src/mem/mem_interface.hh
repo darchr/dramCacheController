@@ -165,7 +165,6 @@ class MemInterface : public AbstractMemory
      */
     Tick rankToRankDelay() const { return tBURST + tCS; }
 
-
   public:
 
     /**
@@ -183,8 +182,6 @@ class MemInterface : public AbstractMemory
      * at the memory controller's end
      */
     uint32_t numWritesQueued;
-
-    bool isDramIntr;
 
     /** Set a pointer to the controller and initialize
      * interface based on controller parameters
@@ -289,8 +286,12 @@ class MemInterface : public AbstractMemory
      * @param is_dram Is the request to a DRAM interface
      * @return A MemPacket pointer with the decoded information
      */
-    MemPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,
-                           unsigned int size, bool is_read, bool is_dram);
+    virtual MemPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,
+                           unsigned int size, bool is_read)
+    {
+      panic("MemInterface decodePacket should not be executed from here.\n");
+      return nullptr;
+    }
 
     /**
      *  Add rank to rank delay to bus timing to all banks in all ranks

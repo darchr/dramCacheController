@@ -66,7 +66,7 @@ class MemCtrl : public SimpleMemCtrl
     Tick doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int) override;
     Tick minReadToWriteDataGap() override;
     Tick minWriteToReadDataGap() override;
-    std::vector<MemInterface*> getMemInterface();
+    AddrRangeList getAddrRanges() override;
 
     void processRespondEvent() override;
     void processNextReqEvent() override;

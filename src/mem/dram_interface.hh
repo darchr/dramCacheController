@@ -665,11 +665,25 @@ class DRAMInterface : public MemInterface
     void setupRank(const uint8_t rank, const bool is_read) override;
 
     /**
+     * Address decoder to figure out physical mapping onto ranks,
+     * banks, and rows. This function is called multiple times on the same
+     * system packet if the pakcet is larger than burst of the memory. The
+     * pkt_addr is used for the offset within the packet.
+     *
+     * @param pkt The packet from the outside world
+     * @param pkt_addr The starting address of the packet
+     * @param size The size of the packet in bytes
+     * @param is_read Is the request for a read or a write to memory
+     * @param is_dram Is the request to a DRAM interface
+     * @return A MemPacket pointer with the decoded information
+     */
+    MemPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,
+                           unsigned int size, bool is_read) override;
+
+    /**
      * Iterate through dram ranks to exit self-refresh in order to drain
      */
     void drainRanks() override;
-
-    bool readsWaitingToIssue() override;
 
     /**
      * Return true once refresh is complete for all ranks and there are no
@@ -775,9 +789,12 @@ class DRAMInterface : public MemInterface
      */
     void checkRefreshState(uint8_t rank);
 
-    void chooseRead(MemPacketQueue& queue) override;
-
-    bool writeRespQueueFull() const override;
+    /**
+     * The next three functions are NVM-specific and will be ignored by DRAM.
+     */
+    bool readsWaitingToIssue() override { return false;}
+    void chooseRead(MemPacketQueue& queue) override { }
+    bool writeRespQueueFull() const override { return false;}
 
     DRAMInterface(const DRAMInterfaceParams &_p);
 };

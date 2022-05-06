@@ -74,8 +74,6 @@ NVMInterface::NVMInterface(const NVMInterfaceParams &_p)
     fatal_if(!isPowerOf2(ranksPerChannel), "NVM rank count of %d is "
              "not allowed, must be a power of two\n", ranksPerChannel);
 
-    isDramIntr = false;
-
     for (int i =0; i < ranksPerChannel; i++) {
         // Add NVM ranks to the system
         DPRINTF(NVM, "Creating NVM rank %d \n", i);
@@ -90,8 +88,6 @@ NVMInterface::NVMInterface(const NVMInterfaceParams &_p)
 
     rowsPerBank = capacity / (rowBufferSize *
                     banksPerRank * ranksPerChannel);
-    numWritesQueued = 0;
-
 }
 
 NVMInterface::Rank::Rank(const NVMInterfaceParams &_p,
@@ -120,6 +116,92 @@ void NVMInterface::setupRank(const uint8_t rank, const bool is_read)
         // increment count to track number of writes in Q
         numWritesQueued++;
     }
+}
+
+MemPacket*
+NVMInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
+                       unsigned size, bool is_read)
+{
+    // decode the address based on the address mapping scheme, with
+    // Ro, Ra, Co, Ba and Ch denoting row, rank, column, bank and
+    // channel, respectively
+    uint8_t rank;
+    uint8_t bank;
+    // use a 64-bit unsigned during the computations as the row is
+    // always the top bits, and check before creating the packet
+    uint64_t row;
+
+    // Get packed address, starting at 0
+    Addr addr = getCtrlAddr(pkt_addr);
+
+    // truncate the address to a memory burst, which makes it unique to
+    // a specific buffer, row, bank, rank and channel
+    addr = addr / burstSize;
+
+    // we have removed the lowest order address bits that denote the
+    // position within the column
+    if (addrMapping == enums::RoRaBaChCo || addrMapping == enums::RoRaBaCoCh) {
+        // the lowest order bits denote the column to ensure that
+        // sequential cache lines occupy the same row
+        addr = addr / burstsPerRowBuffer;
+
+        // after the channel bits, get the bank bits to interleave
+        // over the banks
+        bank = addr % banksPerRank;
+        addr = addr / banksPerRank;
+
+        // after the bank, we get the rank bits which thus interleaves
+        // over the ranks
+        rank = addr % ranksPerChannel;
+        addr = addr / ranksPerChannel;
+
+        // lastly, get the row bits, no need to remove them from addr
+        row = addr % rowsPerBank;
+    } else if (addrMapping == enums::RoCoRaBaCh) {
+        // with emerging technologies, could have small page size with
+        // interleaving granularity greater than row buffer
+        if (burstsPerStripe > burstsPerRowBuffer) {
+            // remove column bits which are a subset of burstsPerStripe
+            addr = addr / burstsPerRowBuffer;
+        } else {
+            // remove lower column bits below channel bits
+            addr = addr / burstsPerStripe;
+        }
+
+        // start with the bank bits, as this provides the maximum
+        // opportunity for parallelism between requests
+        bank = addr % banksPerRank;
+        addr = addr / banksPerRank;
+
+        // next get the rank bits
+        rank = addr % ranksPerChannel;
+        addr = addr / ranksPerChannel;
+
+        // next, the higher-order column bites
+        if (burstsPerStripe < burstsPerRowBuffer) {
+            addr = addr / (burstsPerRowBuffer / burstsPerStripe);
+        }
+
+        // lastly, get the row bits, no need to remove them from addr
+        row = addr % rowsPerBank;
+    } else
+        panic("Unknown address mapping policy chosen!");
+
+    assert(rank < ranksPerChannel);
+    assert(bank < banksPerRank);
+    assert(row < rowsPerBank);
+    assert(row < Bank::NO_ROW);
+
+    DPRINTF(NVM, "Address: %#x Rank %d Bank %d Row %d\n",
+            pkt_addr, rank, bank, row);
+
+    // create the corresponding memory packet with the entry time and
+    // ready time set to the current tick, the latter will be updated
+    // later
+    uint16_t bank_id = banksPerRank * rank + bank;
+
+    return new MemPacket(pkt, is_read, false, rank, bank, row, bank_id,
+                   pkt_addr, size);
 }
 
 std::pair<MemPacketQueue::iterator, Tick>
@@ -536,18 +618,6 @@ NVMInterface::isBusy(bool read_queue_empty, bool all_writes_nvm)
                  writeRespQueueFull() && read_queue_empty &&
                                          all_writes_nvm);
 }
-
-void
-NVMInterface::drainRanks()
-{ }
-
-void
-NVMInterface::suspend()
-{ }
-
-void
-NVMInterface::startup()
-{ }
 
 NVMInterface::NVMStats::NVMStats(NVMInterface &_nvm)
     : statistics::Group(&_nvm),
