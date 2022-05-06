@@ -59,6 +59,7 @@
 #include "mem/abstract_mem.hh"
 #include "mem/drampower.hh"
 #include "mem/mem_ctrl.hh"
+#include "mem/hbm_ctrl.hh"
 #include "params/DRAMInterface.hh"
 #include "params/MemInterface.hh"
 #include "params/NVMInterface.hh"
@@ -69,6 +70,8 @@ namespace gem5
 
 namespace memory
 {
+
+class HBMCtrl;
 
 /**
  * General interface to memory device
@@ -180,13 +183,27 @@ class MemInterface : public AbstractMemory
     const uint32_t readBufferSize;
     const uint32_t writeBufferSize;
 
+    uint32_t numWritesQueued;
+
+    /**
+     * Till when the controller must wait before issuing next RD/WR burst?
+     */
+    Tick nextBurstAt = 0;
+    Tick nextReqTime = 0;
+
+    /**
+     * pseudo channel number used for HBM modeling
+     */
+    uint8_t channel_num;
+
     /** Set a pointer to the controller and initialize
      * interface based on controller parameters
      * @param _ctrl pointer to the parent controller
      * @param command_window size of command window used to
      *                       check command bandwidth
+     * @param chan_num pseudo channel number
      */
-    void setCtrl(MemCtrl* _ctrl, unsigned int command_window);
+    void setCtrl(MemCtrl* _ctrl, unsigned int command_window, uint8_t chan_num);
 
     /**
      * Get an address in a dense range which starts from 0. The input
@@ -284,7 +301,7 @@ class MemInterface : public AbstractMemory
      * @return A MemPacket pointer with the decoded information
      */
     MemPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,
-                           unsigned int size, bool is_read, bool is_dram);
+                           unsigned int size, bool is_read, bool is_dram, uint8_t channel);
 
     /**
      *  Add rank to rank delay to bus timing to all banks in all ranks
@@ -294,6 +311,68 @@ class MemInterface : public AbstractMemory
      *               addition of rank-to-rank delay
      */
     virtual void addRankToRankDelay(Tick cmd_at) = 0;
+
+    virtual void respondEvent(uint8_t rank)
+    {
+      panic("MemInterface respondEvent should "
+      "not be executed from here.\n");
+    };
+
+    virtual void checkRefreshState(uint8_t rank)
+    {
+      panic("MemInterface checkRefreshState should "
+      "not be executed from here.\n");
+    };
+
+    virtual std::pair<Tick, Tick>
+    doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
+                  const std::vector<MemPacketQueue>& queue)
+    {
+      panic("MemInterface doBurstAccess (DRAM) "
+      "should not be executed from here.\n");
+    };
+
+    virtual bool isBusy()
+    {
+      panic("MemInterface isBusy (DRAM) should "
+      "not be executed from here.\n");
+    }
+
+    virtual void drainRanks()
+    {
+      panic("MemInterface drainRanks (DRAM) should "
+      "not be executed from here.\n");
+    }
+
+    virtual std::pair<Tick, Tick>
+    doBurstAccess(MemPacket* pkt, Tick next_burst_at)
+    {
+      panic("MemInterface doBurstAccess (NVM) "
+      "should not be executed from here.\n");
+    };
+
+    virtual bool readsWaitingToIssue()
+    {
+      panic("MemInterface readsWaitingToIssue (NVM) "
+      "should not be executed from here.\n");
+    };
+
+    virtual void chooseRead(MemPacketQueue& queue)
+    {
+      panic("MemInterface chooseRead (NVM) should "
+      "not be executed from here.\n");
+    };
+
+    virtual bool isBusy(bool read_queue_empty, bool all_writes_nvm)
+    {
+      panic("MemInterface isBusy (NVM) should not "
+      "be executed from here.\n");
+    }
+    virtual bool writeRespQueueFull() const
+    {
+      panic("MemInterface writeRespQueueFull (NVM) "
+      "should not be executed from here.\n");
+    }
 
     typedef MemInterfaceParams Params;
     MemInterface(const Params &_p);
@@ -730,12 +809,14 @@ class DRAMInterface : public MemInterface
     /**
      * DRAM specific timing requirements
      */
-    const Tick tCL;
+    const Tick tRL;
+    const Tick tWL;
     const Tick tBURST_MIN;
     const Tick tBURST_MAX;
     const Tick tCCD_L_WR;
     const Tick tCCD_L;
-    const Tick tRCD;
+    const Tick tRCD_RD;
+    const Tick tRCD_WR;
     const Tick tRP;
     const Tick tRAS;
     const Tick tWR;
@@ -864,7 +945,7 @@ class DRAMInterface : public MemInterface
     /*
      * @return delay between write and read commands
      */
-    Tick writeToReadDelay() const override { return tBURST + tWTR + tCL; }
+    Tick writeToReadDelay() const override { return tBURST + tWTR + tWL; }
 
     /**
      * Find which are the earliest banks ready to issue an activate
@@ -910,7 +991,7 @@ class DRAMInterface : public MemInterface
     /**
      * Iterate through dram ranks to exit self-refresh in order to drain
      */
-    void drainRanks();
+    void drainRanks() override;
 
     /**
      * Return true once refresh is complete for all ranks and there are no
@@ -931,12 +1012,15 @@ class DRAMInterface : public MemInterface
     /*
      * @return time to offset next command
      */
-    Tick commandOffset() const override { return (tRP + tRCD); }
+    Tick commandOffset() const override
+    {
+      return (tRP + std::max(tRCD_RD, tRCD_WR));
+    }
 
     /*
      * Function to calulate unloaded, closed bank access latency
      */
-    Tick accessLatency() const override { return (tRP + tRCD + tCL); }
+    Tick accessLatency() const override { return (tRP + tRCD_RD + tRL); }
 
     /**
      * For FR-FCFS policy, find first DRAM command that can issue
@@ -965,7 +1049,7 @@ class DRAMInterface : public MemInterface
      */
     std::pair<Tick, Tick>
     doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
-                  const std::vector<MemPacketQueue>& queue);
+                  const std::vector<MemPacketQueue>& queue) override;
 
     /**
      * Check if a burst operation can be issued to the DRAM
@@ -988,7 +1072,7 @@ class DRAMInterface : public MemInterface
      *
      * return boolean if all ranks are in refresh and therefore busy
      */
-    bool isBusy();
+    bool isBusy() override;
 
     /**
      *  Add rank to rank delay to bus timing to all DRAM banks in alli ranks
@@ -1006,7 +1090,7 @@ class DRAMInterface : public MemInterface
      *
      * @param rank Specifies rank associated with read burst
      */
-    void respondEvent(uint8_t rank);
+    void respondEvent(uint8_t rank) override;
 
     /**
      * Check the refresh state to determine if refresh needs
@@ -1152,7 +1236,7 @@ class NVMInterface : public MemInterface
     uint16_t numReadsToIssue;
 
     // number of writes in the writeQueue for the NVM interface
-    uint32_t numWritesQueued;
+    // uint32_t numWritesQueued;
 
     /**
      * Initialize the NVM interface and verify parameters
@@ -1201,7 +1285,7 @@ class NVMInterface : public MemInterface
      * @return true of NVM is busy
      *
      */
-    bool isBusy(bool read_queue_empty, bool all_writes_nvm);
+    bool isBusy(bool read_queue_empty, bool all_writes_nvm) override;
     /**
      * For FR-FCFS policy, find first NVM command that can issue
      * default to first command to prepped region
@@ -1227,7 +1311,7 @@ class NVMInterface : public MemInterface
     /**
      * Select read command to issue asynchronously
      */
-    void chooseRead(MemPacketQueue& queue);
+    void chooseRead(MemPacketQueue& queue) override;
 
     /*
      * Function to calulate unloaded access latency
@@ -1240,13 +1324,13 @@ class NVMInterface : public MemInterface
      * @param Return true if full
      */
     bool
-    writeRespQueueFull() const
+    writeRespQueueFull() const override
     {
         return writeRespQueue.size() == maxPendingWrites;
     }
 
     bool
-    readsWaitingToIssue() const
+    readsWaitingToIssue() override
     {
         return ((numReadsToIssue != 0) &&
                 (numPendingReads < maxPendingReads));
@@ -1261,7 +1345,7 @@ class NVMInterface : public MemInterface
      *               tick when next burst can issue
      */
     std::pair<Tick, Tick>
-    doBurstAccess(MemPacket* pkt, Tick next_burst_at);
+    doBurstAccess(MemPacket* pkt, Tick next_burst_at) override;
 
     NVMInterface(const NVMInterfaceParams &_p);
 };

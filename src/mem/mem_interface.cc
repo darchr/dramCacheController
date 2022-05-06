@@ -79,15 +79,17 @@ MemInterface::MemInterface(const MemInterfaceParams &_p)
 {}
 
 void
-MemInterface::setCtrl(MemCtrl* _ctrl, unsigned int command_window)
+MemInterface::setCtrl(MemCtrl* _ctrl, unsigned int command_window, uint8_t chan_num)
 {
     ctrl = _ctrl;
     maxCommandsPerWindow = command_window / tCK;
+    // setting the pseudo channel number for this interface
+    channel_num = chan_num;
 }
 
 MemPacket*
 MemInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
-                       unsigned size, bool is_read, bool is_dram)
+                       unsigned size, bool is_read, bool is_dram, uint8_t channel)
 {
     // decode the address based on the address mapping scheme, with
     // Ro, Ra, Co, Ba and Ch denoting row, rank, column, bank and
@@ -100,10 +102,13 @@ MemInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
 
     // Get packed address, starting at 0
     Addr addr = getCtrlAddr(pkt_addr);
+    //Addr addr = pkt_addr;
 
     // truncate the address to a memory burst, which makes it unique to
     // a specific buffer, row, bank, rank and channel
     addr = addr / burstSize;
+
+    //addr = addr >> 1;
 
     // we have removed the lowest order address bits that denote the
     // position within the column
@@ -167,7 +172,7 @@ MemInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
     // later
     uint16_t bank_id = banksPerRank * rank + bank;
 
-    return new MemPacket(pkt, is_read, is_dram, rank, bank, row, bank_id,
+    return new MemPacket(pkt, is_read, is_dram, channel, rank, bank, row, bank_id,
                    pkt_addr, size);
 }
 
@@ -203,7 +208,7 @@ DRAMInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
         MemPacket* pkt = *i;
 
         // select optimal DRAM packet in Q
-        if (pkt->isDram()) {
+        if (pkt->isDram() && (pkt->channel == this->channel_num)) {
             const Bank& bank = ranks[pkt->rank]->banks[pkt->bank];
             const Tick col_allowed_at = pkt->isRead() ? bank.rdAllowedAt :
                                                         bank.wrAllowedAt;
@@ -298,7 +303,7 @@ DRAMInterface::activateBank(Rank& rank_ref, Bank& bank_ref,
     if (twoCycleActivate)
         act_at = ctrl->verifyMultiCmd(act_tick, maxCommandsPerWindow, tAAD);
     else
-        act_at = ctrl->verifySingleCmd(act_tick, maxCommandsPerWindow);
+        act_at = ctrl->verifySingleCmd(act_tick, maxCommandsPerWindow, true);
 
     DPRINTF(DRAM, "Activate at tick %d\n", act_at);
 
@@ -329,8 +334,8 @@ DRAMInterface::activateBank(Rank& rank_ref, Bank& bank_ref,
     bank_ref.preAllowedAt = act_at + tRAS;
 
     // Respect the row-to-column command delay for both read and write cmds
-    bank_ref.rdAllowedAt = std::max(act_at + tRCD, bank_ref.rdAllowedAt);
-    bank_ref.wrAllowedAt = std::max(act_at + tRCD, bank_ref.wrAllowedAt);
+    bank_ref.rdAllowedAt = std::max(act_at + tRCD_RD, bank_ref.rdAllowedAt);
+    bank_ref.wrAllowedAt = std::max(act_at + tRCD_WR, bank_ref.wrAllowedAt);
 
     // start by enforcing tRRD
     for (int i = 0; i < banksPerRank; i++) {
@@ -416,7 +421,7 @@ DRAMInterface::prechargeBank(Rank& rank_ref, Bank& bank, Tick pre_tick,
         // Issuing an explicit PRE command
         // Verify that we have command bandwidth to issue the precharge
         // if not, shift to next burst window
-        pre_at = ctrl->verifySingleCmd(pre_tick, maxCommandsPerWindow);
+        pre_at = ctrl->verifySingleCmd(pre_tick, maxCommandsPerWindow, true);
         // enforce tPPD
         for (int i = 0; i < banksPerRank; i++) {
             rank_ref.banks[i].preAllowedAt = std::max(pre_at + tPPD,
@@ -514,10 +519,11 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
     // verify that we have command bandwidth to issue the burst
     // if not, shift to next burst window
-    if (dataClockSync && ((cmd_at - rank_ref.lastBurstTick) > clkResyncDelay))
+    Tick max_sync = clkResyncDelay + (mem_pkt->isRead() ? tRL : tWL);
+    if (dataClockSync && ((cmd_at - rank_ref.lastBurstTick) > max_sync))
         cmd_at = ctrl->verifyMultiCmd(cmd_at, maxCommandsPerWindow, tCK);
     else
-        cmd_at = ctrl->verifySingleCmd(cmd_at, maxCommandsPerWindow);
+        cmd_at = ctrl->verifySingleCmd(cmd_at, maxCommandsPerWindow, false);
 
     // if we are interleaving bursts, ensure that
     // 1) we don't double interleave on next burst issue
@@ -538,7 +544,11 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     DPRINTF(DRAM, "Schedule RD/WR burst at tick %d\n", cmd_at);
 
     // update the packet ready time
-    mem_pkt->readyTime = cmd_at + tCL + tBURST;
+    if (mem_pkt->isRead()) {
+        mem_pkt->readyTime = cmd_at + tRL + tBURST;
+    } else {
+        mem_pkt->readyTime = cmd_at + tWL + tBURST;
+    }
 
     rank_ref.lastBurstTick = cmd_at;
 
@@ -628,6 +638,14 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             // 3) make sure we are not considering the packet that we are
             //    currently dealing with
             while (!got_more_hits && p != queue[i].end()) {
+
+                if ((*p)->channel != this->channel_num)
+                    {
+                        // only look at this pkt if it belongs to this interface
+                        ++p;
+                        continue;
+                    }
+
                 if (mem_pkt != (*p)) {
                     bool same_rank_bank = (mem_pkt->rank == (*p)->rank) &&
                                           (mem_pkt->bank == (*p)->bank);
@@ -740,19 +758,21 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
     : MemInterface(_p),
       bankGroupsPerRank(_p.bank_groups_per_rank),
       bankGroupArch(_p.bank_groups_per_rank > 0),
-      tCL(_p.tCL),
+      tRL(_p.tCL),
+      tWL(_p.tCWL),
       tBURST_MIN(_p.tBURST_MIN), tBURST_MAX(_p.tBURST_MAX),
-      tCCD_L_WR(_p.tCCD_L_WR), tCCD_L(_p.tCCD_L), tRCD(_p.tRCD),
+      tCCD_L_WR(_p.tCCD_L_WR), tCCD_L(_p.tCCD_L),
+      tRCD_RD(_p.tRCD), tRCD_WR(_p.tRCD_WR),
       tRP(_p.tRP), tRAS(_p.tRAS), tWR(_p.tWR), tRTP(_p.tRTP),
       tRFC(_p.tRFC), tREFI(_p.tREFI), tRRD(_p.tRRD), tRRD_L(_p.tRRD_L),
       tPPD(_p.tPPD), tAAD(_p.tAAD),
       tXAW(_p.tXAW), tXP(_p.tXP), tXS(_p.tXS),
-      clkResyncDelay(tCL + _p.tBURST_MAX),
+      clkResyncDelay(_p.tBURST_MAX),
       dataClockSync(_p.data_clock_sync),
       burstInterleave(tBURST != tBURST_MIN),
       twoCycleActivate(_p.two_cycle_activate),
       activationLimit(_p.activation_limit),
-      wrToRdDlySameBG(tCL + _p.tBURST_MAX + _p.tWTR_L),
+      wrToRdDlySameBG(tWL + _p.tBURST_MAX + _p.tWTR_L),
       rdToWrDlySameBG(_p.tRTW + _p.tBURST_MAX),
       pageMgmt(_p.page_policy),
       maxAccessesPerRow(_p.max_accesses_per_row),
@@ -1046,10 +1066,6 @@ DRAMInterface::minBankPrep(const MemPacketQueue& queue,
     Tick min_act_at = MaxTick;
     std::vector<uint32_t> bank_mask(ranksPerChannel, 0);
 
-    // latest Tick for which ACT can occur without incurring additoinal
-    // delay on the data bus
-    const Tick hidden_act_max = std::max(min_col_at - tRCD, curTick());
-
     // Flag condition when burst can issue back-to-back with previous burst
     bool found_seamless_bank = false;
 
@@ -1061,6 +1077,9 @@ DRAMInterface::minBankPrep(const MemPacketQueue& queue,
     // bank in question
     std::vector<bool> got_waiting(ranksPerChannel * banksPerRank, false);
     for (const auto& p : queue) {
+        if (p->channel != this->channel_num)
+            continue;
+
         if (p->isDram() && ranks[p->rank]->inRefIdleState())
             got_waiting[p->bankId] = true;
     }
@@ -1082,6 +1101,11 @@ DRAMInterface::minBankPrep(const MemPacketQueue& queue,
                 Tick act_at = ranks[i]->banks[j].openRow == Bank::NO_ROW ?
                     std::max(ranks[i]->banks[j].actAllowedAt, curTick()) :
                     std::max(ranks[i]->banks[j].preAllowedAt, curTick()) + tRP;
+
+                // latest Tick for which ACT can occur without incurring additoinal
+                // delay on the data bus
+                const Tick tRCD = ctrl->inReadBusState(false) ? tRCD_RD : tRCD_WR;
+                const Tick hidden_act_max = std::max(min_col_at - tRCD, curTick());
 
                 // When is the earliest the R/W burst can issue?
                 const Tick col_allowed_at = ctrl->inReadBusState(false) ?
@@ -1317,7 +1341,8 @@ DRAMInterface::Rank::processRefreshEvent()
         // if a request is at the moment being handled and this request is
         // accessing the current rank then wait for it to finish
         if ((rank == dram.activeRank)
-            && (dram.ctrl->requestEventScheduled())) {
+            && ((dram.channel_num == 0) ? dram.ctrl->requestEventScheduled() : dynamic_cast<HBMCtrl*>(dram.ctrl)->requestEventCh1Scheduled())) {
+
             // hand control over to the request loop until it is
             // evaluated next
             DPRINTF(DRAM, "Refresh awaiting draining\n");
@@ -1678,10 +1703,15 @@ DRAMInterface::Rank::processPowerEvent()
         }
 
         // completed refresh event, ensure next request is scheduled
-        if (!dram.ctrl->requestEventScheduled()) {
+        //if (!dram.ctrl->requestEventScheduled())
+        if (!((dram.channel_num == 0) ? dram.ctrl->requestEventScheduled() : dynamic_cast<HBMCtrl*>(dram.ctrl)->requestEventCh1Scheduled())) {
             DPRINTF(DRAM, "Scheduling next request after refreshing"
                            " rank %d\n", rank);
-            dram.ctrl->restartScheduler(curTick());
+            if (dram.channel_num == 0) {
+                dram.ctrl->restartScheduler(curTick());
+            } else {
+                dynamic_cast<HBMCtrl*>(dram.ctrl)->restartSchedulerCh1(curTick());
+            }
         }
     }
 
@@ -2048,7 +2078,7 @@ NVMInterface::NVMInterface(const NVMInterfaceParams &_p)
       writeRespondEvent([this]{ processWriteRespondEvent(); }, name()),
       readReadyEvent([this]{ processReadReadyEvent(); }, name()),
       nextReadAt(0), numPendingReads(0), numReadDataReady(0),
-      numReadsToIssue(0), numWritesQueued(0)
+      numReadsToIssue(0)//, numWritesQueued(0)
 {
     DPRINTF(NVM, "Setting up NVM Interface\n");
 
@@ -2074,6 +2104,7 @@ NVMInterface::NVMInterface(const NVMInterfaceParams &_p)
 
     rowsPerBank = capacity / (rowBufferSize *
                     banksPerRank * ranksPerChannel);
+    numWritesQueued = 0;
 
 }
 
@@ -2200,7 +2231,7 @@ NVMInterface::chooseRead(MemPacketQueue& queue)
                                               maxCommandsPerWindow, tCK);
             } else {
                 cmd_at = ctrl->verifySingleCmd(cmd_at,
-                                               maxCommandsPerWindow);
+                                               maxCommandsPerWindow, false);
             }
 
             // Update delay to next read
@@ -2336,7 +2367,7 @@ NVMInterface::doBurstAccess(MemPacket* pkt, Tick next_burst_at)
     // one command cycle
     // Write command may require multiple cycles to enable larger address space
     if (pkt->isRead() || !twoCycleRdWr) {
-        cmd_at = ctrl->verifySingleCmd(cmd_at, maxCommandsPerWindow);
+        cmd_at = ctrl->verifySingleCmd(cmd_at, maxCommandsPerWindow, false);
     } else {
         cmd_at = ctrl->verifyMultiCmd(cmd_at, maxCommandsPerWindow, tCK);
     }

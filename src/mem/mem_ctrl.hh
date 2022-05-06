@@ -66,6 +66,7 @@ namespace gem5
 namespace memory
 {
 
+class MemInterface;
 class DRAMInterface;
 class NVMInterface;
 
@@ -114,6 +115,9 @@ class MemPacket
 
     /** Does this packet access DRAM?*/
     const bool dram;
+
+    /** pseudo channel num*/
+    const uint8_t channel;
 
     /** Will be populated by address decoder */
     const uint8_t rank;
@@ -199,12 +203,12 @@ class MemPacket
      */
     inline bool isDram() const { return dram; }
 
-    MemPacket(PacketPtr _pkt, bool is_read, bool is_dram, uint8_t _rank,
+    MemPacket(PacketPtr _pkt, bool is_read, bool is_dram, uint8_t _channel, uint8_t _rank,
                uint8_t _bank, uint32_t _row, uint16_t bank_id, Addr _addr,
                unsigned int _size)
         : entryTime(curTick()), readyTime(curTick()), pkt(_pkt),
           _requestorId(pkt->requestorId()),
-          read(is_read), dram(is_dram), rank(_rank), bank(_bank), row(_row),
+          read(is_read), dram(is_dram), channel(_channel), rank(_rank), bank(_bank), row(_row),
           bankId(bank_id), addr(_addr), size(_size), burstHelper(NULL),
           _qosValue(_pkt->qosValue())
     { }
@@ -241,19 +245,20 @@ typedef std::deque<MemPacket*> MemPacketQueue;
  */
 class MemCtrl : public qos::MemCtrl
 {
-  private:
+  protected:
 
     // For now, make use of a queued response port to avoid dealing with
     // flow control for the responses being sent back
     class MemoryPort : public QueuedResponsePort
     {
 
+      public:
         RespPacketQueue queue;
-        MemCtrl& ctrl;
+        MemCtrl* ctrl;
 
       public:
 
-        MemoryPort(const std::string& name, MemCtrl& _ctrl);
+        MemoryPort(const std::string& name, MemCtrl* _ctrl);
 
       protected:
 
@@ -293,9 +298,14 @@ class MemCtrl : public qos::MemCtrl
      * in these methods
      */
     void processNextReqEvent();
+    void nextReqEventLogic(MemInterface* mem_int, MemPacketQueue& resp_queue,
+                          EventFunctionWrapper& resp_event,
+                          EventFunctionWrapper& next_req_event);
     EventFunctionWrapper nextReqEvent;
 
     void processRespondEvent();
+    void respondEventLogic(MemInterface* mem_int, MemPacketQueue& queue,
+                          EventFunctionWrapper& resp_event);
     EventFunctionWrapper respondEvent;
 
     /**
@@ -304,7 +314,7 @@ class MemCtrl : public qos::MemCtrl
      * @param pkt_count The number of entries needed in the read queue
      * @return true if read queue is full, false otherwise
      */
-    bool readQueueFull(unsigned int pkt_count) const;
+    bool readQueueFull(unsigned int pkt_count);
 
     /**
      * Check if the write queue has room for more entries
@@ -325,11 +335,14 @@ class MemCtrl : public qos::MemCtrl
      *
      * @param pkt The request packet from the outside world
      * @param pkt_count The number of memory bursts the pkt
-     * @param is_dram Does this packet access DRAM?
      * translate to. If pkt size is larger then one full burst,
      * then pkt_count is greater than one.
+     * @param mem the memory interface for which the pkt is going to
+     * be added to the read queue
+     * @return if all the read pkt can be serviced by the write queue
      */
-    void addToReadQueue(PacketPtr pkt, unsigned int pkt_count, bool is_dram);
+    bool addToReadQueue(PacketPtr pkt, unsigned int pkt_count,
+                                              MemInterface* mem_int);
 
     /**
      * Decode the incoming pkt, create a mem_pkt and push to the
@@ -339,11 +352,13 @@ class MemCtrl : public qos::MemCtrl
      *
      * @param pkt The request packet from the outside world
      * @param pkt_count The number of memory bursts the pkt
-     * @param is_dram Does this packet access DRAM?
      * translate to. If pkt size is larger then one full burst,
      * then pkt_count is greater than one.
+     * @param mem the memory interface for which the pkt is going to
+     * be added to the write queue
      */
-    void addToWriteQueue(PacketPtr pkt, unsigned int pkt_count, bool is_dram);
+    void addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
+                                              MemInterface* mem_int);
 
     /**
      * Actually do the burst based on media specific access function.
@@ -351,7 +366,7 @@ class MemCtrl : public qos::MemCtrl
      *
      * @param mem_pkt The memory packet created from the outside world pkt
      */
-    void doBurstAccess(MemPacket* mem_pkt);
+    void doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int);
 
     /**
      * When a packet reaches its "readyTime" in the response Q,
@@ -361,29 +376,33 @@ class MemCtrl : public qos::MemCtrl
      *
      * @param pkt The packet from the outside world
      * @param static_latency Static latency to add before sending the packet
+     * @param mem_int memory interface which is being accessed
      */
-    void accessAndRespond(PacketPtr pkt, Tick static_latency);
+    void accessAndRespond(PacketPtr pkt, Tick static_latency,
+                                          MemInterface* mem_int);
 
     /**
      * Determine if there is a packet that can issue.
      *
      * @param pkt The packet to evaluate
      */
-    bool packetReady(MemPacket* pkt);
+    bool packetReady(MemPacket* pkt, MemInterface* mem_int);
 
     /**
      * Calculate the minimum delay used when scheduling a read-to-write
      * transision.
+     * @param mem_int memory interface of interest
      * @param return minimum delay
      */
-    Tick minReadToWriteDataGap();
+    Tick minReadToWriteDataGap(MemInterface* mem_int);
 
     /**
      * Calculate the minimum delay used when scheduling a write-to-read
      * transision.
+     * @param mem_int memory interface of interest
      * @param return minimum delay
      */
-    Tick minWriteToReadDataGap();
+    Tick minWriteToReadDataGap(MemInterface* mem_int);
 
     /**
      * The memory schduler/arbiter - picks which request needs to
@@ -394,10 +413,11 @@ class MemCtrl : public qos::MemCtrl
      *
      * @param queue Queued requests to consider
      * @param extra_col_delay Any extra delay due to a read/write switch
+     * @param mem_int memory interface of interest
      * @return an iterator to the selected packet, else queue.end()
      */
     MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
-        Tick extra_col_delay);
+        Tick extra_col_delay, MemInterface* mem_int);
 
     /**
      * For FR-FCFS policy reorder the read/write queue depending on row buffer
@@ -405,10 +425,11 @@ class MemCtrl : public qos::MemCtrl
      *
      * @param queue Queued requests to consider
      * @param extra_col_delay Any extra delay due to a read/write switch
+     * @param mem_int memory interface of interest
      * @return an iterator to the selected packet, else queue.end()
      */
     MemPacketQueue::iterator chooseNextFRFCFS(MemPacketQueue& queue,
-            Tick extra_col_delay);
+            Tick extra_col_delay, MemInterface* mem_int);
 
     /**
      * Calculate burst window aligned tick
@@ -431,7 +452,8 @@ class MemCtrl : public qos::MemCtrl
      *
      * @return An address aligned to a memory burst
      */
-    Addr burstAlign(Addr addr, bool is_dram) const;
+    //Addr burstAlign(Addr addr, bool is_dram) const;
+    Addr burstAlign(Addr addr, MemInterface* mem_int) const;
 
     /**
      * The controller's main read and write queues,
@@ -466,15 +488,22 @@ class MemCtrl : public qos::MemCtrl
      */
     std::unordered_multiset<Tick> burstTicks;
 
+    // /**
+    //  * Create pointer to interface of the actual dram media when connected
+    //  */
+    // DRAMInterface* const dram;
+
+    // /**
+    //  * Create pointer to interface of the actual nvm media when connected
+    //  */
+    // NVMInterface* const nvm;
+
     /**
      * Create pointer to interface of the actual dram media when connected
      */
-    DRAMInterface* const dram;
+    MemInterface* mem;
 
-    /**
-     * Create pointer to interface of the actual nvm media when connected
-     */
-    NVMInterface* const nvm;
+    bool isDramIntr;
 
     /**
      * The following are basic design parameters of the memory
@@ -482,11 +511,12 @@ class MemCtrl : public qos::MemCtrl
      * The rowsPerBank is determined based on the capacity, number of
      * ranks and banks, the burst size, and the row buffer size.
      */
-    const uint32_t readBufferSize;
-    const uint32_t writeBufferSize;
-    const uint32_t writeHighThreshold;
-    const uint32_t writeLowThreshold;
+    uint32_t readBufferSize = 0;
+    uint32_t writeBufferSize = 0;
+    uint32_t writeHighThreshold;
+    uint32_t writeLowThreshold;
     const uint32_t minWritesPerSwitch;
+    const uint32_t minReadsPerSwitch;
     uint32_t writesThisTime;
     uint32_t readsThisTime;
 
@@ -519,7 +549,7 @@ class MemCtrl : public qos::MemCtrl
     /**
      * Till when must we wait before issuing next RD/WR burst?
      */
-    Tick nextBurstAt;
+    //Tick nextBurstAt;
 
     Tick prevArrival;
 
@@ -529,7 +559,7 @@ class MemCtrl : public qos::MemCtrl
      * nextBurstAt. Assuming you need to precharge, open a new row,
      * and access, it is tRP + tRCD + tCL.
      */
-    Tick nextReqTime;
+    //Tick nextReqTime;
 
     struct CtrlStats : public statistics::Group
     {
@@ -610,6 +640,11 @@ class MemCtrl : public qos::MemCtrl
         return (is_read ? readQueue : writeQueue);
     };
 
+    bool respQEmpty()
+    {
+      return respQueue.empty();
+    };
+
     /**
      * Remove commands that have already issued from burstTicks
      */
@@ -641,7 +676,7 @@ class MemCtrl : public qos::MemCtrl
      *                           in a burst window
      * @return tick for command issue without contention
      */
-    Tick verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst);
+    virtual Tick verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst, bool row_cmd);
 
     /**
      * Check for command bus contention for multi-cycle (2 currently)
@@ -657,7 +692,7 @@ class MemCtrl : public qos::MemCtrl
      *                           in a burst window
      * @return tick for command issue without contention
      */
-    Tick verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
+    virtual Tick verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
                         Tick max_multi_cmd_split = 0);
 
     /**
@@ -708,10 +743,10 @@ class MemCtrl : public qos::MemCtrl
 
   protected:
 
-    Tick recvAtomic(PacketPtr pkt);
-    Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor);
-    void recvFunctional(PacketPtr pkt);
-    bool recvTimingReq(PacketPtr pkt);
+    virtual Tick recvAtomic(PacketPtr pkt);
+    virtual Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor);
+    virtual void recvFunctional(PacketPtr pkt);
+    virtual bool recvTimingReq(PacketPtr pkt);
 
 };
 
