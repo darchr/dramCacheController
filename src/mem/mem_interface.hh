@@ -177,6 +177,11 @@ class MemInterface : public AbstractMemory
     const uint32_t readBufferSize;
     const uint32_t writeBufferSize;
 
+    /**
+     * NVM specific variable, but declaring it here allows
+     * treating different interfaces in a more genral way
+     * at the memory controller's end
+     */
     uint32_t numWritesQueued;
 
     bool isDramIntr;
@@ -298,8 +303,7 @@ class MemInterface : public AbstractMemory
 
     virtual void respondEvent(uint8_t rank)
     {
-      panic("MemInterface respondEvent should "
-      "not be executed from here.\n");
+      panic("MemInterface respondEvent should not be executed from here.\n");
     };
 
     virtual void checkRefreshState(uint8_t rank)
@@ -310,11 +314,7 @@ class MemInterface : public AbstractMemory
 
     virtual std::pair<Tick, Tick>
     doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
-                  const std::vector<MemPacketQueue>& queue)
-    {
-      panic("MemInterface doBurstAccess (DRAM) "
-      "should not be executed from here.\n");
-    };
+                  const std::vector<MemPacketQueue>& queue) = 0;
 
     virtual void drainRanks()
     {
@@ -346,11 +346,8 @@ class MemInterface : public AbstractMemory
       "not be executed from here.\n");
     };
 
-    virtual bool isBusy(bool read_queue_empty, bool all_writes_nvm)
-    {
-      panic("MemInterface isBusy (NVM) should not "
-      "be executed from here.\n");
-    }
+    virtual bool isBusy(bool read_queue_empty, bool all_writes_nvm) = 0;
+
     virtual bool writeRespQueueFull() const
     {
       panic("MemInterface writeRespQueueFull (NVM) "

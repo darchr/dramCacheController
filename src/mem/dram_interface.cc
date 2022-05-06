@@ -1781,7 +1781,6 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
 
     ADD_STAT(bytesPerActivate, statistics::units::Byte::get(),
              "Bytes accessed per row activation"),
-
     ADD_STAT(bytesRead, statistics::units::Byte::get(),
             "Total bytes read"),
     ADD_STAT(bytesWritten, statistics::units::Byte::get(),

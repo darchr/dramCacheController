@@ -519,14 +519,6 @@ NVMInterface::addRankToRankDelay(Tick cmd_at)
     }
 }
 
-void
-NVMInterface::respondEvent(uint8_t rank)
-{ };
-
-void
-NVMInterface::checkRefreshState(uint8_t rank)
-{ };
-
 bool
 NVMInterface::isBusy(bool read_queue_empty, bool all_writes_nvm)
 {

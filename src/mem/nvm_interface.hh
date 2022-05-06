@@ -256,9 +256,12 @@ class NVMInterface : public MemInterface
      */
     void addRankToRankDelay(Tick cmd_at) override;
 
-    void respondEvent(uint8_t rank) override;
+    /**
+     * Following two functions are not required for nvm interface
+     */
+    void respondEvent(uint8_t rank) override { };
 
-    void checkRefreshState(uint8_t rank);
+    void checkRefreshState(uint8_t rank) override { };
 
     /**
      * Select read command to issue asynchronously
