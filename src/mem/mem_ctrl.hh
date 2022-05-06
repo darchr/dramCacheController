@@ -58,6 +58,9 @@ class MemCtrl : public SimpleMemCtrl
 {
   private:
 
+    /**
+     * Create pointer to interface of the actual nvm media when connected.
+     */
     NVMInterface* nvm;
     MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
                       Tick extra_col_delay, MemInterface* mem_int) override;
@@ -82,8 +85,8 @@ class MemCtrl : public SimpleMemCtrl
   protected:
 
     Tick recvAtomic(PacketPtr pkt) override;
-    bool recvTimingReq(PacketPtr pkt) override;
     void recvFunctional(PacketPtr pkt) override;
+    bool recvTimingReq(PacketPtr pkt) override;
 
 };
 

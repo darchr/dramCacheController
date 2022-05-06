@@ -302,53 +302,83 @@ class MemInterface : public AbstractMemory
      */
     virtual void addRankToRankDelay(Tick cmd_at) = 0;
 
+    /**
+     * This function checks if ranks are busy.
+     */
+    virtual bool isBusy(bool read_queue_empty, bool all_writes_nvm) = 0;
+
+    /**
+     * This function performs the burst and update stats.
+     */
+    virtual std::pair<Tick, Tick>
+    doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
+                  const std::vector<MemPacketQueue>& queue) = 0;
+
+    /**
+     * This function is DRAM specific.
+     */
     virtual void respondEvent(uint8_t rank)
     {
       panic("MemInterface respondEvent should not be executed from here.\n");
     };
 
+    /**
+     * This function is DRAM specific.
+     */
     virtual void checkRefreshState(uint8_t rank)
     {
-      panic("MemInterface checkRefreshState should "
+      panic("MemInterface checkRefreshState (DRAM) should "
       "not be executed from here.\n");
     };
 
-    virtual std::pair<Tick, Tick>
-    doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
-                  const std::vector<MemPacketQueue>& queue) = 0;
-
+    /**
+     * This function is DRAM specific.
+     */
     virtual void drainRanks()
     {
       panic("MemInterface drainRanks (DRAM) should "
       "not be executed from here.\n");
     }
 
+    /**
+     * This function is DRAM specific.
+     */
     virtual void suspend()
     {
       panic("MemInterface suspend (DRAM) should "
       "not be executed from here.\n");
     }
 
+    /**
+     * This function is DRAM specific.
+     */
     virtual void startup()
     {
       panic("MemInterface startup (DRAM) should "
       "not be executed from here.\n");
     }
 
+    /**
+     * This function is NVM specific.
+     */
     virtual bool readsWaitingToIssue()
     {
       panic("MemInterface readsWaitingToIssue (NVM) "
       "should not be executed from here.\n");
     };
 
+    /**
+     * This function is NVM specific.
+     */
     virtual void chooseRead(MemPacketQueue& queue)
     {
       panic("MemInterface chooseRead (NVM) should "
       "not be executed from here.\n");
     };
 
-    virtual bool isBusy(bool read_queue_empty, bool all_writes_nvm) = 0;
-
+    /**
+     * This function is NVM specific.
+     */
     virtual bool writeRespQueueFull() const
     {
       panic("MemInterface writeRespQueueFull (NVM) "

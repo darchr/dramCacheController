@@ -67,6 +67,11 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
 
     fatal_if(!dram || !nvm, "Memory controller must have two interfaces");
 
+    panic_if(dynamic_cast<DRAMInterface*>(dram) == nullptr,
+             "MemCtrl's dram interface must be of type DRAMInterface.\n");
+    panic_if(dynamic_cast<NVMInterface*>(nvm) == nullptr,
+             "MemCtrl's nvm interface must be of type NVMInterface.\n");
+
     // hook up interfaces to the controller
     dram->setCtrl(this, commandWindow);
     nvm->setCtrl(this, commandWindow);

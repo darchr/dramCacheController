@@ -621,7 +621,7 @@ SimpleMemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
     bool needsResponse = pkt->needsResponse();
     // do the actual memory access which also turns the packet into a
     // response
-    panic_if(mem_int->getAddrRange().contains(pkt->getAddr()),
+    panic_if(!mem_int->getAddrRange().contains(pkt->getAddr()),
              "Can't handle address range for packet %s\n", pkt->print());
     mem_int->access(pkt);
 
