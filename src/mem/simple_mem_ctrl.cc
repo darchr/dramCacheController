@@ -61,8 +61,10 @@ SimpleMemCtrl::SimpleMemCtrl(const SimpleMemCtrlParams &p) :
     qos::MemCtrl(p),
     port(name() + ".port", this), isTimingMode(false),
     retryRdReq(false), retryWrReq(false),
-    nextReqEvent([this]{ processNextReqEvent(); }, name()),
-    respondEvent([this]{ processRespondEvent(); }, name()),
+    nextReqEvent([this] {processNextReqEvent(dram, respQueue,
+                         respondEvent, nextReqEvent);}, name()),
+    respondEvent([this] {processRespondEvent(dram, respQueue,
+                         respondEvent); }, name()),
     dram(p.dram),
     readBufferSize(dram->readBufferSize),
     writeBufferSize(dram->writeBufferSize),
@@ -483,9 +485,13 @@ SimpleMemCtrl::recvTimingReq(PacketPtr pkt)
 }
 
 void
-SimpleMemCtrl::respondEventLogic(MemInterface* mem_int, MemPacketQueue& queue,
-                                        EventFunctionWrapper& resp_event)
+SimpleMemCtrl::processRespondEvent(MemInterface* mem_int,
+                        MemPacketQueue& queue,
+                        EventFunctionWrapper& resp_event)
 {
+
+    DPRINTF(MemCtrl,
+            "processRespondEvent(): Some req has reached its readyTime\n");
 
     MemPacket* mem_pkt = queue.front();
 
@@ -537,15 +543,7 @@ SimpleMemCtrl::respondEventLogic(MemInterface* mem_int, MemPacketQueue& queue,
     }
 
     delete mem_pkt;
-}
 
-void
-SimpleMemCtrl::processRespondEvent()
-{
-    DPRINTF(MemCtrl,
-            "processRespondEvent(): Some req has reached its readyTime\n");
-
-    respondEventLogic(dram, respQueue, respondEvent);
     // We have made a location in the queue available at this point,
     // so if there is a read that was forced to wait, retry now
     if (retryRdReq) {
@@ -828,8 +826,10 @@ SimpleMemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int)
     return cmd_at;
 }
 
+//void
+//SimpleMemCtrl::processNextReqEvent()
 void
-SimpleMemCtrl::nextReqEventLogic(MemInterface* mem_int,
+SimpleMemCtrl::processNextReqEvent(MemInterface* mem_int,
                         MemPacketQueue& resp_queue,
                         EventFunctionWrapper& resp_event,
                         EventFunctionWrapper& next_req_event) {
@@ -1101,12 +1101,12 @@ SimpleMemCtrl::nextReqEventLogic(MemInterface* mem_int,
     // action before reaching this point.
     if (!nextReqEvent.scheduled())
         schedule(next_req_event, std::max(nextReqTime, curTick()));
-}
+//}
 
-void
-SimpleMemCtrl::processNextReqEvent()
-{
-    nextReqEventLogic(dram, respQueue, respondEvent, nextReqEvent);
+//void
+//SimpleMemCtrl::processNextReqEvent()
+//{
+//    nextReqEventLogic(dram, respQueue, respondEvent, nextReqEvent);
 
     // If there is space available and we have writes waiting then let
     // them retry. This is done here to ensure that the retry does not

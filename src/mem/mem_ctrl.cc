@@ -65,6 +65,11 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     readQueue.resize(p.qos_priorities);
     writeQueue.resize(p.qos_priorities);
 
+    nextReqEvent = *(new EventFunctionWrapper([this]
+                            { processNextReqEvent(); }, name()));
+    respondEvent = *(new EventFunctionWrapper([this]
+                            { processRespondEvent(); }, name()));
+
     fatal_if(!dram || !nvm, "Memory controller must have two interfaces");
 
     panic_if(dynamic_cast<DRAMInterface*>(dram) == nullptr,
@@ -203,16 +208,9 @@ MemCtrl::processRespondEvent()
             "processRespondEvent(): Some req has reached its readyTime\n");
 
     if (respQueue.front()->isDram()) {
-        respondEventLogic(dram, respQueue, respondEvent);
+        SimpleMemCtrl::processRespondEvent(dram, respQueue, respondEvent);
     } else {
-        respondEventLogic(nvm, respQueue, respondEvent);
-    }
-
-    // We have made a location in the read queue available at this point,
-    // so if there is a read that was forced to wait, retry now
-    if (retryRdReq) {
-        retryRdReq = false;
-        port.sendRetryReq();
+        SimpleMemCtrl::processRespondEvent(nvm, respQueue, respondEvent);
     }
 }
 

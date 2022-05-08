@@ -71,8 +71,8 @@ class MemCtrl : public SimpleMemCtrl
     Tick minWriteToReadDataGap() override;
     AddrRangeList getAddrRanges() override;
 
-    void processRespondEvent() override;
-    void processNextReqEvent() override;
+    void processRespondEvent(); //override;
+    void processNextReqEvent(); // override;
 
   public:
 

@@ -294,15 +294,15 @@ class SimpleMemCtrl : public qos::MemCtrl
      * processRespondEvent is called; no parameters are allowed
      * in these methods
      */
-    virtual void processNextReqEvent();
-    void nextReqEventLogic(MemInterface* mem_int, MemPacketQueue& resp_queue,
+    virtual void processNextReqEvent(MemInterface* mem_int,
+                          MemPacketQueue& resp_queue,
                           EventFunctionWrapper& resp_event,
                           EventFunctionWrapper& next_req_event);
     EventFunctionWrapper nextReqEvent;
 
-    virtual void processRespondEvent();
-    void respondEventLogic(MemInterface* mem_int, MemPacketQueue& queue,
-                          EventFunctionWrapper& resp_event);
+    void processRespondEvent(MemInterface* mem_int,
+                        MemPacketQueue& queue,
+                        EventFunctionWrapper& resp_event);
     EventFunctionWrapper respondEvent;
 
     /**
