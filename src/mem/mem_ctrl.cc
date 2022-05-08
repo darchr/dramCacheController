@@ -81,8 +81,6 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     dram->setCtrl(this, commandWindow);
     nvm->setCtrl(this, commandWindow);
 
-    port.ctrl = this;
-
     readBufferSize = dram->readBufferSize + nvm->readBufferSize;
     writeBufferSize = dram->writeBufferSize + nvm->writeBufferSize;
 

@@ -251,11 +251,11 @@ class SimpleMemCtrl : public qos::MemCtrl
 
       public:
         RespPacketQueue queue;
-        SimpleMemCtrl* ctrl;
+        SimpleMemCtrl& ctrl;
 
       public:
 
-        MemoryPort(const std::string& name, SimpleMemCtrl* _ctrl);
+        MemoryPort(const std::string& name, SimpleMemCtrl& _ctrl);
 
       protected:
 

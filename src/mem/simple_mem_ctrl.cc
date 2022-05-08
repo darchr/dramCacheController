@@ -59,7 +59,7 @@ namespace memory
 
 SimpleMemCtrl::SimpleMemCtrl(const SimpleMemCtrlParams &p) :
     qos::MemCtrl(p),
-    port(name() + ".port", this), isTimingMode(false),
+    port(name() + ".port", *this), isTimingMode(false),
     retryRdReq(false), retryWrReq(false),
     nextReqEvent([this] {processNextReqEvent(dram, respQueue,
                          respondEvent, nextReqEvent);}, name()),
@@ -1430,27 +1430,27 @@ SimpleMemCtrl::getAddrRanges()
 }
 
 SimpleMemCtrl::MemoryPort::
-MemoryPort(const std::string& name, SimpleMemCtrl* _ctrl)
-    : QueuedResponsePort(name, _ctrl, queue), queue(*_ctrl, *this, true),
+MemoryPort(const std::string& name, SimpleMemCtrl& _ctrl)
+    : QueuedResponsePort(name, &_ctrl, queue), queue(_ctrl, *this, true),
       ctrl(_ctrl)
 { }
 
 AddrRangeList
 SimpleMemCtrl::MemoryPort::getAddrRanges() const
 {
-    return ctrl->getAddrRanges();
+    return ctrl.getAddrRanges();
 }
 
 void
 SimpleMemCtrl::MemoryPort::recvFunctional(PacketPtr pkt)
 {
-    pkt->pushLabel(ctrl->name());
+    pkt->pushLabel(ctrl.name());
 
     if (!queue.trySatisfyFunctional(pkt)) {
         // Default implementation of SimpleTimingPort::recvFunctional()
         // calls recvAtomic() and throws away the latency; we can save a
         // little here by just not calculating the latency.
-        ctrl->recvFunctional(pkt);
+        ctrl.recvFunctional(pkt);
     }
 
     pkt->popLabel();
@@ -1459,21 +1459,21 @@ SimpleMemCtrl::MemoryPort::recvFunctional(PacketPtr pkt)
 Tick
 SimpleMemCtrl::MemoryPort::recvAtomic(PacketPtr pkt)
 {
-    return ctrl->recvAtomic(pkt);
+    return ctrl.recvAtomic(pkt);
 }
 
 Tick
 SimpleMemCtrl::MemoryPort::recvAtomicBackdoor(
         PacketPtr pkt, MemBackdoorPtr &backdoor)
 {
-    return ctrl->recvAtomicBackdoor(pkt, backdoor);
+    return ctrl.recvAtomicBackdoor(pkt, backdoor);
 }
 
 bool
 SimpleMemCtrl::MemoryPort::recvTimingReq(PacketPtr pkt)
 {
     // pass it to the memory controller
-    return ctrl->recvTimingReq(pkt);
+    return ctrl.recvTimingReq(pkt);
 }
 
 } // namespace memory
