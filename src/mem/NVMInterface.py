@@ -35,7 +35,7 @@
 
 from m5.params import *
 from m5.proxy import *
-from m5.objects.MemCtrl import MemCtrl
+from m5.objects.SimpleMemCtrl import SimpleMemCtrl
 from m5.objects.MemInterface import MemInterface
 from m5.objects.DRAMInterface import AddrMap
 
@@ -72,7 +72,7 @@ class NVMInterface(MemInterface):
         Instantiate the memory controller and bind it to
         the current interface.
         """
-        controller = MemCtrl()
+        controller = SimpleMemCtrl()
         controller.nvm = self
         return controller
 

@@ -32,7 +32,7 @@ from ...utils.override import overrides
 from m5.util.convert import toMemorySize
 from ..boards.abstract_board import AbstractBoard
 from .abstract_memory_system import AbstractMemorySystem
-from m5.objects import AddrRange, DRAMInterface, MemCtrl, Port
+from m5.objects import AddrRange, DRAMInterface, SimpleMemCtrl, Port
 from typing import Type, Sequence, Tuple, List, Optional, Union
 
 
@@ -109,7 +109,7 @@ class ChanneledMemory(AbstractMemorySystem):
             for _ in range(num_channels)
         ]
         self.mem_ctrl = [
-            MemCtrl(dram=self._dram[i]) for i in range(num_channels)
+            SimpleMemCtrl(dram=self._dram[i]) for i in range(num_channels)
         ]
 
     def _get_dram_size(self, num_channels: int, dram: DRAMInterface) -> int:
@@ -160,7 +160,7 @@ class ChanneledMemory(AbstractMemorySystem):
         return [(ctrl.dram.range, ctrl.port) for ctrl in self.mem_ctrl]
 
     @overrides(AbstractMemorySystem)
-    def get_memory_controllers(self) -> List[MemCtrl]:
+    def get_memory_controllers(self) -> List[SimpleMemCtrl]:
         return [ctrl for ctrl in self.mem_ctrl]
 
     @overrides(AbstractMemorySystem)

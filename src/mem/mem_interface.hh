@@ -109,7 +109,7 @@ class MemInterface : public AbstractMemory
     };
 
     /**
-     * A pointer to the parent MemCtrl instance
+     * A pointer to the parent memory controller instance
      */
     SimpleMemCtrl* ctrl;
 

@@ -38,7 +38,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.objects.MemCtrl import MemCtrl
+from m5.objects.SimpleMemCtrl import SimpleMemCtrl
 from m5.objects.MemInterface import *
 
 # Enum for the page policy, either open, open_adaptive, close, or
@@ -261,7 +261,7 @@ class DRAMInterface(MemInterface):
         Instantiate the memory controller and bind it to
         the current interface.
         """
-        controller = MemCtrl()
+        controller = SimpleMemCtrl()
         controller.dram = self
         return controller
 
@@ -440,7 +440,7 @@ class HMC_2500_1x32(DDR3_1600_8x8):
         Instantiate the memory controller and bind it to
         the current interface.
         """
-        controller = MemCtrl(min_writes_per_switch = 8,
+        controller = SimpleMemCtrl(min_writes_per_switch = 8,
             static_backend_latency = '4ns',
             static_frontend_latency = '4ns')
         controller.dram = self

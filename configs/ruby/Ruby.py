@@ -139,7 +139,7 @@ def setup_memory_controllers(system, ruby, dir_cntrls, options):
                 int(math.log(options.num_dirs, 2)),
                 intlv_size, options.xor_low_bit)
             if issubclass(mem_type, DRAMInterface):
-                mem_ctrl = m5.objects.MemCtrl(dram = dram_intf)
+                mem_ctrl = m5.objects.SimpleMemCtrl(dram = dram_intf)
             else:
                 mem_ctrl = dram_intf
 

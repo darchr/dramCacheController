@@ -70,7 +70,7 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     respondEvent = *(new EventFunctionWrapper([this]
                             { processRespondEvent(); }, name()));
 
-    fatal_if(!dram || !nvm, "Memory controller must have two interfaces");
+    fatal_if(!dram || !nvm, "MemCtrl must have two interfaces.\n");
 
     panic_if(dynamic_cast<DRAMInterface*>(dram) == nullptr,
              "MemCtrl's dram interface must be of type DRAMInterface.\n");

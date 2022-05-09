@@ -568,7 +568,7 @@ class CHI_SNF_Base(CHI_Node):
 
     def getMemRange(self, mem_ctrl):
         # TODO need some kind of transparent API for
-        # MemCtrl+DRAM vs SimpleMemory
+        # SimpleMemCtrl+DRAM vs SimpleMemory
         if hasattr(mem_ctrl, 'range'):
             return mem_ctrl.range
         else:
