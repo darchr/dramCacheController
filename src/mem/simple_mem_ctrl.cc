@@ -263,11 +263,8 @@ SimpleMemCtrl::addToReadQueue(PacketPtr pkt,
             // Increment read entries of the rank (dram)
             // Increment count to trigger issue of non-deterministic read (nvm)
             memIntr->setupRank(mem_pkt->rank, true);
-
-            // Default readyTime to Max will be reset once read is issued
+            // Default readyTime to Max; will be reset once read is issued
             mem_pkt->readyTime = MaxTick;
-
-
             mem_pkt->burstHelper = burst_helper;
 
             assert(!readQueueFull(1));

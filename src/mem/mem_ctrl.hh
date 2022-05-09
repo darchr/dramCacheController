@@ -64,15 +64,15 @@ class MemCtrl : public SimpleMemCtrl
     NVMInterface* nvm;
     MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
                       Tick extra_col_delay, MemInterface* mem_int) override;
-    MemPacketQueue::iterator nextFRFCFS(MemPacketQueue& queue,
+    MemPacketQueue::iterator chooseNextFRFCFS(MemPacketQueue& queue,
                                               Tick extra_col_delay);
     Tick doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int) override;
     Tick minReadToWriteDataGap() override;
     Tick minWriteToReadDataGap() override;
     AddrRangeList getAddrRanges() override;
 
-    void processRespondEvent(); //override;
-    void processNextReqEvent(); // override;
+    void processRespondEvent();
+    void processNextReqEvent();
 
   public:
 

@@ -240,7 +240,7 @@ MemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
                 }
             }
         } else if (memSchedPolicy == enums::frfcfs) {
-            ret = nextFRFCFS(queue, extra_col_delay);
+            ret = chooseNextFRFCFS(queue, extra_col_delay);
         } else {
             panic("No scheduling policy chosen\n");
         }
@@ -249,7 +249,7 @@ MemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
 }
 
 MemPacketQueue::iterator
-MemCtrl::nextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay)
+MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay)
 {
 
     auto selected_pkt_it = queue.end();
@@ -258,10 +258,10 @@ MemCtrl::nextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay)
     Tick nvm_col_allowed_at = MaxTick;
 
     std::tie(selected_pkt_it, col_allowed_at) =
-            chooseNextFRFCFS(queue, extra_col_delay, dram);
+            SimpleMemCtrl::chooseNextFRFCFS(queue, extra_col_delay, dram);
 
     std::tie(nvm_pkt_it, nvm_col_allowed_at) =
-            chooseNextFRFCFS(queue, extra_col_delay, nvm);
+            SimpleMemCtrl::chooseNextFRFCFS(queue, extra_col_delay, nvm);
 
 
     // Compare DRAM and NVM and select NVM if it can issue
@@ -414,7 +414,7 @@ MemCtrl::processNextReqEvent()
                 // bus turnaround delay which will be rank to rank delay
                 to_read = chooseNext((*queue), switched_cmd_type ?
                                                minWriteToReadDataGap() : 0,
-                                                dram);
+                                               dram);
 
                 if (to_read != queue->end()) {
                     // candidate read found
@@ -506,8 +506,8 @@ MemCtrl::processNextReqEvent()
             // If we are changing command type, incorporate the minimum
             // bus turnaround delay
             to_write = chooseNext((*queue),
-                     switched_cmd_type ? minReadToWriteDataGap() : 0,
-                    dram);
+                        switched_cmd_type ? minReadToWriteDataGap() : 0,
+                        dram);
 
             if (to_write != queue->end()) {
                 write_found = true;

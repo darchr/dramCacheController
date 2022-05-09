@@ -409,7 +409,7 @@ class SimpleMemCtrl : public qos::MemCtrl
      *
      * @param queue Queued requests to consider
      * @param extra_col_delay Any extra delay due to a read/write switch
-     * @param mem_int the dram memory interface to choose from
+     * @param mem_int the memory interface to choose from
      * @return an iterator to the selected packet, else queue.end()
      */
     virtual MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
