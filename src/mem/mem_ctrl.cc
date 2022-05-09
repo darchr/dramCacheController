@@ -206,9 +206,11 @@ MemCtrl::processRespondEvent()
             "processRespondEvent(): Some req has reached its readyTime\n");
 
     if (respQueue.front()->isDram()) {
-        SimpleMemCtrl::processRespondEvent(dram, respQueue, respondEvent);
+        SimpleMemCtrl::processRespondEvent(dram, respQueue,
+                                    respondEvent, retryRdReq);
     } else {
-        SimpleMemCtrl::processRespondEvent(nvm, respQueue, respondEvent);
+        SimpleMemCtrl::processRespondEvent(nvm, respQueue,
+                                    respondEvent, retryRdReq);
     }
 }
 

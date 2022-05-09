@@ -835,7 +835,7 @@ DRAMInterface::isBusy(bool read_queue_empty, bool all_writes_nvm)
 
 MemPacket*
 DRAMInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
-                       unsigned size, bool is_read)
+                       unsigned size, bool is_read, uint8_t channel)
 {
     // decode the address based on the address mapping scheme, with
     // Ro, Ra, Co, Ba and Ch denoting row, rank, column, bank and
@@ -915,8 +915,8 @@ DRAMInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
     // later
     uint16_t bank_id = banksPerRank * rank + bank;
 
-    return new MemPacket(pkt, is_read, true, rank, bank, row, bank_id,
-                   pkt_addr, size);
+    return new MemPacket(pkt, is_read, true, channel, rank, bank, row,
+                   bank_id, pkt_addr, size);
 }
 
 void DRAMInterface::setupRank(const uint8_t rank, const bool is_read)

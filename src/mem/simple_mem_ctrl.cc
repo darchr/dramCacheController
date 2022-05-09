@@ -62,9 +62,9 @@ SimpleMemCtrl::SimpleMemCtrl(const SimpleMemCtrlParams &p) :
     port(name() + ".port", *this), isTimingMode(false),
     retryRdReq(false), retryWrReq(false),
     nextReqEvent([this] {processNextReqEvent(dram, respQueue,
-                         respondEvent, nextReqEvent);}, name()),
+                         respondEvent, nextReqEvent, retryWrReq);}, name()),
     respondEvent([this] {processRespondEvent(dram, respQueue,
-                         respondEvent); }, name()),
+                         respondEvent, retryRdReq); }, name()),
     dram(p.dram),
     readBufferSize(dram->readBufferSize),
     writeBufferSize(dram->writeBufferSize),
@@ -491,7 +491,8 @@ SimpleMemCtrl::recvTimingReq(PacketPtr pkt)
 void
 SimpleMemCtrl::processRespondEvent(MemInterface* mem_int,
                         MemPacketQueue& queue,
-                        EventFunctionWrapper& resp_event)
+                        EventFunctionWrapper& resp_event,
+                        bool& retry_rd_req)
 {
 
     DPRINTF(MemCtrl,
@@ -550,8 +551,8 @@ SimpleMemCtrl::processRespondEvent(MemInterface* mem_int,
 
     // We have made a location in the queue available at this point,
     // so if there is a read that was forced to wait, retry now
-    if (retryRdReq) {
-        retryRdReq = false;
+    if (retry_rd_req) {
+        retry_rd_req = false;
         port.sendRetryReq();
     }
 }
@@ -811,25 +812,15 @@ SimpleMemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int)
     std::tie(cmd_at, mem_int->nextBurstAt) =
                 mem_int->doBurstAccess(mem_pkt, mem_int->nextBurstAt, queue);
 
-<<<<<<< HEAD
-    DPRINTF(MemCtrl, "Access to %#x, ready at %lld next burst at %lld.\n",
-            mem_pkt->addr, mem_pkt->readyTime, nextBurstAt);
-=======
     DPRINTF(MemCtrl,
             "Access to %#x, ready at %lld next burst at %lld.\n",
             mem_pkt->addr, mem_pkt->readyTime, mem_int->nextBurstAt);
->>>>>>> mem: move nextBurstAt. and nextReqTime to memory interface
 
     // Update the minimum timing between the requests, this is a
     // conservative estimate of when we have to schedule the next
     // request to not introduce any unecessary bubbles. In most cases
     // we will wake up sooner than we have to.
-<<<<<<< HEAD
-    nextReqTime = nextBurstAt - dram->commandOffset();
-=======
-
     mem_int->nextReqTime = mem_int->nextBurstAt - dram->commandOffset();
->>>>>>> mem: move nextBurstAt. and nextReqTime to memory interface
 
     // Update the common bus stats
     if (mem_pkt->isRead()) {
@@ -848,13 +839,12 @@ SimpleMemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int)
     return cmd_at;
 }
 
-//void
-//SimpleMemCtrl::processNextReqEvent()
 void
 SimpleMemCtrl::processNextReqEvent(MemInterface* mem_int,
                         MemPacketQueue& resp_queue,
                         EventFunctionWrapper& resp_event,
-                        EventFunctionWrapper& next_req_event) {
+                        EventFunctionWrapper& next_req_event,
+                        bool& retry_wr_req) {
     // transition is handled by QoS algorithm if enabled
     if (turnPolicy) {
         // select bus state - only done if QoS algorithms are in use
@@ -1110,15 +1100,9 @@ SimpleMemCtrl::processNextReqEvent(MemInterface* mem_int,
         if (totalWriteQueueSize == 0 ||
             (below_threshold && drainState() != DrainState::Draining) ||
             (totalReadQueueSize && writesThisTime >= minWritesPerSwitch) ||
-<<<<<<< HEAD
-            (totalReadQueueSize && all_writes_nvm &&
-             dram->writeRespQueueFull())) {
-=======
             (totalReadQueueSize &&
              mem_int->writeRespQueueFull() &&
              all_writes_nvm)) {
->>>>>>> mem: some fixes for hbm ctrl
-
             // turn the bus back around for reads again
             busStateNext = SimpleMemCtrl::READ;
 
@@ -1130,30 +1114,16 @@ SimpleMemCtrl::processNextReqEvent(MemInterface* mem_int,
     }
     // It is possible that a refresh to another rank kicks things back into
     // action before reaching this point.
-<<<<<<< HEAD
-    if (!nextReqEvent.scheduled())
-<<<<<<< HEAD
-        schedule(next_req_event, std::max(nextReqTime, curTick()));
-//}
-=======
-=======
-    if (!next_req_event.scheduled())
->>>>>>> mem: some fixes for hbm ctrl
-        schedule(next_req_event, std::max(mem_int->nextReqTime, curTick()));
-}
->>>>>>> mem: move nextBurstAt. and nextReqTime to memory interface
 
-//void
-//SimpleMemCtrl::processNextReqEvent()
-//{
-//    nextReqEventLogic(dram, respQueue, respondEvent, nextReqEvent);
+    if (!next_req_event.scheduled())
+        schedule(next_req_event, std::max(mem_int->nextReqTime, curTick()));
 
     // If there is space available and we have writes waiting then let
     // them retry. This is done here to ensure that the retry does not
     // cause a nextReqEvent to be scheduled before we do so as part of
     // the next request processing
-    if (retryWrReq && totalWriteQueueSize < writeBufferSize) {
-        retryWrReq = false;
+    if (retry_wr_req && totalWriteQueueSize < writeBufferSize) {
+        retry_wr_req = false;
         port.sendRetryReq();
     }
 }

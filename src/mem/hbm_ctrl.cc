@@ -46,8 +46,13 @@ namespace memory
 HBMCtrl::HBMCtrl(const HBMCtrlParams &p) :
     SimpleMemCtrl(p),
     retryRdReqCh1(false), retryWrReqCh1(false),
-    nextReqEventCh1([this]{ processNextReqEventCh1(); }, name()),
-    respondEventCh1([this]{ processRespondEventCh1(); }, name()),
+    //nextReqEventCh1([this]{ processNextReqEventCh1(); }, name()),
+    //respondEventCh1([this]{ processRespondEventCh1(); }, name()),
+    nextReqEventCh1([this] {processNextReqEvent(ch1_int, respQueueCh1,
+                         respondEventCh1, nextReqEventCh1, retryWrReqCh1);},
+                         name()),
+    respondEventCh1([this] {processRespondEvent(ch1_int, respQueueCh1,
+                         respondEventCh1, retryRdReqCh1); }, name()),
     ch1_int(p.dram_2),
     partitionedQ(p.partitioned_q)
 {
@@ -69,8 +74,6 @@ HBMCtrl::HBMCtrl(const HBMCtrlParams &p) :
     if (ch1_int) {
         ch1_int->setCtrl(this, commandWindow, 1);
     }
-
-    port.ctrl = this;
 
     if (partitionedQ) {
         writeHighThreshold = (writeBufferSize * (p.write_high_thresh_perc/2)
@@ -357,6 +360,7 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
     return true;
 }
 
+/*
 void
 HBMCtrl::processNextReqEventCh1()
 {
@@ -386,6 +390,8 @@ HBMCtrl::processRespondEventCh1()
         SimpleMemCtrl::port.sendRetryReq();
     }
 }
+*/
+
 
 void
 HBMCtrl::pruneRowBurstTick()

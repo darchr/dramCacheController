@@ -214,7 +214,8 @@ class NVMInterface : public MemInterface
      * @return A MemPacket pointer with the decoded information
      */
     MemPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,
-                           unsigned int size, bool is_read) override;
+                           unsigned int size, bool is_read,
+                           uint8_t channel) override;
 
     /**
      * Check drain state of NVM interface

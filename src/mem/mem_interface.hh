@@ -183,10 +183,6 @@ class MemInterface : public AbstractMemory
      */
     uint32_t numWritesQueued;
 
-<<<<<<< HEAD
-=======
-    bool isDramIntr;
-
     /**
      * Till when the controller must wait before issuing next RD/WR burst?
      */
@@ -198,7 +194,6 @@ class MemInterface : public AbstractMemory
      */
     uint8_t channel_num;
 
->>>>>>> mem: Add a notion of pseudo channel in memory interface
     /** Set a pointer to the controller and initialize
      * interface based on controller parameters
      * @param _ctrl pointer to the parent controller

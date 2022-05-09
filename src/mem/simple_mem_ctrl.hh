@@ -300,12 +300,14 @@ class SimpleMemCtrl : public qos::MemCtrl
     virtual void processNextReqEvent(MemInterface* mem_int,
                           MemPacketQueue& resp_queue,
                           EventFunctionWrapper& resp_event,
-                          EventFunctionWrapper& next_req_event);
+                          EventFunctionWrapper& next_req_event,
+                          bool& retry_wr_req);
     EventFunctionWrapper nextReqEvent;
 
     void processRespondEvent(MemInterface* mem_int,
                         MemPacketQueue& queue,
-                        EventFunctionWrapper& resp_event);
+                        EventFunctionWrapper& resp_event,
+                        bool& retry_rd_req);
     EventFunctionWrapper respondEvent;
 
     /**
