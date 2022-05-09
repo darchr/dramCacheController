@@ -202,7 +202,7 @@ class MemInterface : public AbstractMemory
      * @param chan_num pseudo channel number
      */
     void setCtrl(SimpleMemCtrl* _ctrl, unsigned int command_window,
-                                                  uint8_t chan_num);
+                                                  uint8_t chan_num = 0);
 
     /**
      * Get an address in a dense range which starts from 0. The input

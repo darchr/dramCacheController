@@ -87,7 +87,7 @@ SimpleMemCtrl::SimpleMemCtrl(const SimpleMemCtrlParams &p) :
     readQueue.resize(p.qos_priorities);
     writeQueue.resize(p.qos_priorities);
 
-    dram->setCtrl(this, commandWindow, 0);
+    dram->setCtrl(this, commandWindow);
 
     // NVM specific parameter initialization
     dram->numWritesQueued = 0;

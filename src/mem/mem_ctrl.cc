@@ -78,8 +78,8 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
              "MemCtrl's nvm interface must be of type NVMInterface.\n");
 
     // hook up interfaces to the controller
-    dram->setCtrl(this, commandWindow, 0);
-    nvm->setCtrl(this, commandWindow, 0);
+    dram->setCtrl(this, commandWindow);
+    nvm->setCtrl(this, commandWindow);
 
     readBufferSize = dram->readBufferSize + nvm->readBufferSize;
     writeBufferSize = dram->writeBufferSize + nvm->writeBufferSize;
