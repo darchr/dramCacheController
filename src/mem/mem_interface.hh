@@ -283,7 +283,6 @@ class MemInterface : public AbstractMemory
      * @param pkt_addr The starting address of the packet
      * @param size The size of the packet in bytes
      * @param is_read Is the request for a read or a write to memory
-     * @param is_dram Is the request to a DRAM interface
      * @return A MemPacket pointer with the decoded information
      */
     virtual MemPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,

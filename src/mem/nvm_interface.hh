@@ -200,19 +200,6 @@ class NVMInterface : public MemInterface
      */
     void setupRank(const uint8_t rank, const bool is_read) override;
 
-    /**
-     * Address decoder to figure out physical mapping onto ranks,
-     * banks, and rows. This function is called multiple times on the same
-     * system packet if the pakcet is larger than burst of the memory. The
-     * pkt_addr is used for the offset within the packet.
-     *
-     * @param pkt The packet from the outside world
-     * @param pkt_addr The starting address of the packet
-     * @param size The size of the packet in bytes
-     * @param is_read Is the request for a read or a write to memory
-     * @param is_dram Is the request to a DRAM interface
-     * @return A MemPacket pointer with the decoded information
-     */
     MemPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,
                            unsigned int size, bool is_read) override;
 
