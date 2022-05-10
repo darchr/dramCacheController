@@ -166,7 +166,7 @@ SimpleMemCtrl::recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor)
 }
 
 bool
-SimpleMemCtrl::readQueueFull(unsigned int neededEntries)
+SimpleMemCtrl::readQueueFull(unsigned int neededEntries) const
 {
     DPRINTF(MemCtrl,
             "Read queue limit %d, current size %d, entries needed %d\n",
