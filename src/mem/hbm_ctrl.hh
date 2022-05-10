@@ -271,8 +271,9 @@ class HBMCtrl : public SimpleMemCtrl
      *
      * @return true if event is scheduled
      */
-    bool respondEventCh1Scheduled() const
-              { return respondEventCh1.scheduled(); }
+    bool respondEventCh1Scheduled() const {
+      return respondEventCh1.scheduled();
+    }
 
     /**
      * Is there a read/write burst Event scheduled?
