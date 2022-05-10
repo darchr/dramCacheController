@@ -520,12 +520,11 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             //    currently dealing with
             while (!got_more_hits && p != queue[i].end()) {
 
-                if ((*p)->channel != this->channel_num)
-                    {
-                        // only consider if this pkt belongs to this interface
-                        ++p;
-                        continue;
-                    }
+                if ((*p)->channel != this->channel_num) {
+                    // only consider if this pkt belongs to this interface
+                    ++p;
+                    continue;
+                }
 
                 if (mem_pkt != (*p)) {
                     bool same_rank_bank = (mem_pkt->rank == (*p)->rank) &&
