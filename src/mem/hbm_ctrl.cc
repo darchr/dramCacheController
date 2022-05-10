@@ -210,7 +210,7 @@ HBMCtrl::readQueueFullCh1(unsigned int neededEntries) const
 }
 
 bool
-HBMCtrl::readQueueFull(unsigned int neededEntries)
+HBMCtrl::readQueueFull(unsigned int neededEntries) const
 {
     DPRINTF(MemCtrl,
             "HBMCtrl: Read queue limit %d, entries needed %d\n",
@@ -235,8 +235,7 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
                 "Should only see read and writes at memory controller\n");
 
     // Calc avg gap between requests
-    if (prevArrival != 0)
-    {
+    if (prevArrival != 0) {
         stats.totGap += curTick() - prevArrival;
     }
     prevArrival = curTick();
@@ -245,12 +244,10 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
     bool is_ch0;
 
     // TODO: make the interleaving bit across pseudo channels a parameter
-    if (bits(pkt->getAddr(), 6) == 0)
-    {
+    if (bits(pkt->getAddr(), 6) == 0) {
         is_ch0 = true;
     }
-    else
-    {
+    else {
         is_ch0 = false;
     }
 
@@ -267,8 +264,7 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
     qosSchedule({&readQueue, &writeQueue}, burst_size, pkt);
 
     // check local buffers and do not accept if full
-    if (pkt->isWrite())
-    {
+    if (pkt->isWrite()) {
         if (is_ch0) {
             if (partitionedQ ? writeQueueFullCh0(pkt_count) :
                                         writeQueueFull(pkt_count))
@@ -279,8 +275,7 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
                 stats.numWrRetry++;
                 return false;
             }
-            else
-            {
+            else {
                 addToWriteQueue(pkt, pkt_count, ch0_int);
                 stats.writeReqs++;
                 stats.bytesWrittenSys += size;
@@ -294,17 +289,15 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
                 retryWrReqCh1 = true;
                 stats.numWrRetry++;
                 return false;
-            }
-            else
-            {
+            } else {
                 addToWriteQueue(pkt, pkt_count, ch1_int);
                 stats.writeReqs++;
                 stats.bytesWrittenSys += size;
             }
         }
     }
-    else
-    {
+    else {
+
         assert(pkt->isRead());
         assert(size != 0);
 
@@ -317,11 +310,8 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
                 retryRdReqCh1 = true;
                 stats.numRdRetry++;
                 return false;
-            }
-            else
-            {
+            } else {
                 if (!addToReadQueue(pkt, pkt_count, ch0_int)) {
-
                     if (!nextReqEvent.scheduled()) {
                         DPRINTF(MemCtrl, "Request scheduled immediately\n");
                         schedule(nextReqEvent, curTick());
@@ -333,18 +323,14 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
             }
         } else {
             if (partitionedQ ? readQueueFullCh1(pkt_count) :
-                                            HBMCtrl::readQueueFull(pkt_count))
-            {
+                                        HBMCtrl::readQueueFull(pkt_count)) {
                 DPRINTF(MemCtrl, "Read queue full, not accepting\n");
                 // remember that we have to retry this port
                 retryRdReqCh1 = true;
                 stats.numRdRetry++;
                 return false;
-            }
-            else
-            {
+            } else {
                 if (!addToReadQueue(pkt, pkt_count, ch1_int)) {
-
                     if (!nextReqEventCh1.scheduled()) {
                         DPRINTF(MemCtrl, "Request scheduled immediately\n");
                         schedule(nextReqEventCh1, curTick());
@@ -354,7 +340,6 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
                 stats.bytesReadSys += size;
             }
         }
-
     }
 
     return true;
@@ -397,11 +382,9 @@ void
 HBMCtrl::pruneRowBurstTick()
 {
     auto it = rowBurstTicks.begin();
-    while (it != rowBurstTicks.end())
-    {
+    while (it != rowBurstTicks.end()) {
         auto current_it = it++;
-        if (SimpleMemCtrl::getBurstWindow(curTick()) > *current_it)
-        {
+        if (SimpleMemCtrl::getBurstWindow(curTick()) > *current_it) {
             DPRINTF(MemCtrl, "Removing burstTick for %d\n", *current_it);
             rowBurstTicks.erase(current_it);
         }
@@ -415,8 +398,7 @@ HBMCtrl::pruneColBurstTick()
     while (it != colBurstTicks.end())
     {
         auto current_it = it++;
-        if (SimpleMemCtrl::getBurstWindow(curTick()) > *current_it)
-        {
+        if (SimpleMemCtrl::getBurstWindow(curTick()) > *current_it) {
             DPRINTF(MemCtrl, "Removing burstTick for %d\n", *current_it);
             colBurstTicks.erase(current_it);
         }
@@ -436,8 +418,7 @@ HBMCtrl::verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst, bool row_cmd)
     // if not, iterate over next window(s) until slot found
 
     if (row_cmd) {
-        while (rowBurstTicks.count(burst_tick) >= max_cmds_per_burst)
-        {
+        while (rowBurstTicks.count(burst_tick) >= max_cmds_per_burst) {
             DPRINTF(MemCtrl, "Contention found on row command bus at %d\n",
                     burst_tick);
             burst_tick += commandWindow;
@@ -448,9 +429,7 @@ HBMCtrl::verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst, bool row_cmd)
         rowBurstTicks.insert(burst_tick);
 
     } else {
-
-        while (colBurstTicks.count(burst_tick) >= max_cmds_per_burst)
-        {
+        while (colBurstTicks.count(burst_tick) >= max_cmds_per_burst) {
             DPRINTF(MemCtrl, "Contention found on col command bus at %d\n",
                     burst_tick);
             burst_tick += commandWindow;
@@ -459,8 +438,6 @@ HBMCtrl::verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst, bool row_cmd)
         DPRINTF(MemCtrl, "Now can send a col cmd_at %d\n",
                     cmd_at);
         colBurstTicks.insert(burst_tick);
-
-
     }
     return cmd_at;
 }
@@ -483,8 +460,7 @@ HBMCtrl::verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
     // find the burst at the maximum latency prior to cmd_at
     Tick burst_offset = 0;
     Tick first_cmd_offset = cmd_tick % commandWindow;
-    while (max_multi_cmd_split > (first_cmd_offset + burst_offset))
-    {
+    while (max_multi_cmd_split > (first_cmd_offset + burst_offset)) {
         burst_offset += commandWindow;
     }
     // get the earliest burst aligned address for first command
@@ -495,8 +471,7 @@ HBMCtrl::verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
     bool first_can_issue = false;
     bool second_can_issue = false;
     // verify that we have command bandwidth to issue the command(s)
-    while (!first_can_issue || !second_can_issue)
-    {
+    while (!first_can_issue || !second_can_issue) {
         bool same_burst = (burst_tick == first_cmd_tick);
         auto first_cmd_count = rowBurstTicks.count(first_cmd_tick);
         auto second_cmd_count = same_burst ?
@@ -505,8 +480,7 @@ HBMCtrl::verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
         first_can_issue = first_cmd_count < max_cmds_per_burst;
         second_can_issue = second_cmd_count < max_cmds_per_burst;
 
-        if (!second_can_issue)
-        {
+        if (!second_can_issue) {
             DPRINTF(MemCtrl, "Contention (cmd2) found on command bus at %d\n",
                     burst_tick);
             burst_tick += commandWindow;
@@ -519,8 +493,7 @@ HBMCtrl::verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
         bool gap_violated = !same_burst &&
                         ((burst_tick - first_cmd_tick) > max_multi_cmd_split);
 
-        if (!first_can_issue || (!second_can_issue && gap_violated))
-        {
+        if (!first_can_issue || (!second_can_issue && gap_violated)) {
             DPRINTF(MemCtrl, "Contention (cmd1) found on command bus at %d\n",
                     first_cmd_tick);
             first_cmd_tick += commandWindow;
@@ -548,8 +521,9 @@ HBMCtrl::drainResume()
     } else if (isTimingMode && !system()->isTimingMode()) {
         // if we switch from timing mode, stop the refresh events to
         // not cause issues with KVM
-        if (ch1_int)
+        if (ch1_int) {
             ch1_int->drainRanks();
+        }
     }
 
     // update the mode

@@ -138,7 +138,7 @@ class HBMCtrl : public SimpleMemCtrl
      */
     bool readQueueFullCh0(unsigned int pkt_count) const;
     bool readQueueFullCh1(unsigned int pkt_count) const;
-    bool readQueueFull(unsigned int pkt_count);
+    bool readQueueFull(unsigned int pkt_count) const;
 
     /**
      * Check if the write queue partition of both pseudo

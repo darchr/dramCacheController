@@ -27,6 +27,7 @@
 from m5.params import *
 from m5.proxy import *
 from m5.objects.SimpleMemCtrl import *
+from m5.objects.DRAMInterface import HBM_2000_4H_1x64
 
 # HBMCtrl manages two pseudo channels of HBM2
 
@@ -39,7 +40,7 @@ class HBMCtrl(SimpleMemCtrl):
     # `dram` as the first pseudo channel, the second
     # pseudo channel interface is following
     # HBMCtrl has been tested with two HBM_2000_4H_1x64 interfaces
-    dram_2 = Param.DRAMInterface(NULL, "Memory interface")
+    dram_2 = Param.DRAMInterface(HBM_2000_4H_1x64(), "Memory interface")
 
     # For mixed traffic, HBMCtrl with HBM_2000_4H_1x64 interfaaces
     # gives the best results with following min_r/w_per_switch
