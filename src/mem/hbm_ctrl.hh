@@ -279,15 +279,30 @@ class HBMCtrl : public SimpleMemCtrl
      *
      * @return true if event is scheduled
      */
-    bool requestEventCh1Scheduled() const
-              { return nextReqEventCh1.scheduled(); }
+    bool requestEventScheduled(uint8_t channel) const override {
+      if (channel == 0) {
+        return SimpleMemCtrl::requestEventScheduled(channel);
+      } else {
+        assert(channel == 1);
+        return nextReqEventCh1.scheduled();
+      }
+
+    }
 
     /**
-     * restart the controller scheduler for pseudo channel 1 packets
+     * restart the controller scheduler
      *
      * @param Tick to schedule next event
+     * @param channel pseudo channel number for which scheduler
+     * needs to restart
      */
-    void restartSchedulerCh1(Tick tick) { schedule(nextReqEventCh1, tick); }
+    void restartScheduler(Tick tick, uint8_t channel) override {
+      if (channel == 0) {
+        SimpleMemCtrl::restartScheduler(tick);
+      } else {
+        schedule(nextReqEventCh1, tick);
+      }
+    }
 
 
     virtual void init() override;

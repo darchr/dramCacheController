@@ -699,7 +699,10 @@ class SimpleMemCtrl : public qos::MemCtrl
      *
      * @return true if event is scheduled
      */
-    bool requestEventScheduled() const { return nextReqEvent.scheduled(); }
+    virtual bool requestEventScheduled(uint8_t channel = 0) const {
+       assert(channel == 0);
+       return nextReqEvent.scheduled();
+       }
 
     /**
      * restart the controller
@@ -707,8 +710,14 @@ class SimpleMemCtrl : public qos::MemCtrl
      * scheduler after maintainence commands complete
      *
      * @param Tick to schedule next event
+     * @param channel pseudo channel number for which scheduler
+     * needs to restart, will always be 0 for controllers which control
+     * only a single channel
      */
-    void restartScheduler(Tick tick) { schedule(nextReqEvent, tick); }
+    virtual void restartScheduler(Tick tick, uint8_t channel = 0) {
+      assert(channel == 0);
+      schedule(nextReqEvent, tick);
+    }
 
     /**
      * Check the current direction of the memory channel
