@@ -282,7 +282,7 @@ SimpleMemCtrl::addToReadQueue(PacketPtr pkt,
 
     // If all packets are serviced by write queue, we send the repsonse back
     if (pktsServicedByWrQ == pkt_count) {
-        accessAndRespond(pkt, frontendLatency);
+        accessAndRespond(pkt, frontendLatency, dram);
         return;
     }
 
@@ -368,7 +368,7 @@ SimpleMemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
     // snoop the write queue for any upcoming reads
     // @todo, if a pkt size is larger than burst size, we might need a
     // different front end latency
-    accessAndRespond(pkt, frontendLatency);
+    accessAndRespond(pkt, frontendLatency, dram);
 
     // If we are not already scheduled to get a request out of the
     // queue, do so now
@@ -494,13 +494,13 @@ SimpleMemCtrl::processRespondEvent()
             // so we can now respond to the requestor
             // @todo we probably want to have a different front end and back
             // end latency for split packets
-            accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency);
+            accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency, dram);
             delete mem_pkt->burstHelper;
             mem_pkt->burstHelper = NULL;
         }
     } else {
         // it is not a split packet
-        accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency);
+        accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency, dram);
     }
 
     respQueue.pop_front();
@@ -593,15 +593,15 @@ SimpleMemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay)
 }
 
 void
-SimpleMemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency)
+SimpleMemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency, MemInterface* mem_int)
 {
     DPRINTF(MemCtrl, "Responding to Address %#x.. \n", pkt->getAddr());
 
     bool needsResponse = pkt->needsResponse();
     // do the actual memory access which also turns the packet into a
     // response
-    if (dram->getAddrRange().contains(pkt->getAddr())) {
-        dram->access(pkt);
+    if (mem_int->getAddrRange().contains(pkt->getAddr())) {
+        mem_int->access(pkt);
     } else {
         panic("Can't handle address range for packet %s\n",
               pkt->print());
@@ -1208,7 +1208,84 @@ SimpleMemCtrl::CtrlStats::CtrlStats(SimpleMemCtrl &_ctrl)
              "Per-requestor read average memory access latency"),
     ADD_STAT(requestorWriteAvgLat, statistics::units::Rate<
                 statistics::units::Tick, statistics::units::Count>::get(),
-             "Per-requestor write average memory access latency")
+             "Per-requestor write average memory access latency"),
+
+
+    ADD_STAT(numHits,
+            "Total number of hits on DRAM cache"),
+    ADD_STAT(numMisses,
+            "Total number of misses on DRAM cache"),
+    ADD_STAT(numRdHits,
+            "Total number of read hits on DRAM cache"),
+    ADD_STAT(numWrHits,
+            "Total number of write hits on DRAM cache"),
+    ADD_STAT(numRdMisses,
+            "Total number of read misses on DRAM cache"),
+    ADD_STAT(numWrMisses,
+            "Total number of write misses on DRAM cache"),
+    ADD_STAT(numColdMisses,
+            "Total number of misses on DRAM cache due to"
+            " first reference to a cache block"),
+    ADD_STAT(numHotMisses,
+            "Total number of misses on DRAM cache that are not cold miss"),
+    ADD_STAT(numWrBacks,
+            "Total number of write backs from DRAM cache to main memory"),
+    ADD_STAT(totNumConf,
+            "Total number of packets conflicted on DRAM cache"),
+    ADD_STAT(totNumConfBufFull,
+            "Total number of packets conflicted yet couldn't "
+            "enter confBuffer"),
+
+    ADD_STAT(timeInLocRead,
+             "Total time spent in locMemRead state in ns"),
+    ADD_STAT(timeInLocWrite,
+            "Total time spent in locMemWrite state in ns"),
+    ADD_STAT(timeInFarRead,
+            "Total time spent in farMemRead state in ns"),
+    ADD_STAT(timeInFarWrite,
+            "Total time spent in farMemRWrite state in ns"),
+
+    ADD_STAT(locRdQingTime,
+            "Total time spent as loc mem read queuing time in ns"),
+    ADD_STAT(locWrQingTime,
+            "Total time spent as loc mem write queuing time in ns"),
+    ADD_STAT(farRdQingTime,
+            "Total time spent as far mem read queuing time in ns"),
+    ADD_STAT(farWrQingTime,
+            "Total time spent as far mem write queuing time in ns"),
+
+    ADD_STAT(locRdDevTime,
+            "Total time spent as loc mem read device time in Ticks"),
+    ADD_STAT(locWrDevTime,
+            "Total time spent as loc mem write device time in Ticks"),
+    ADD_STAT(farRdDevTime,
+            "Total time spent as far mem read device time in Ticks"),
+    ADD_STAT(farWrDevTime,
+            "Total time spent as far mem write device time in Ticks"),
+
+    ADD_STAT(totNumPktsLocRd,
+            "Total number of packets enterted to loc mem read state"),
+    ADD_STAT(totNumPktslocWr,
+            "Total number of packets enterted to loc mem write state"),
+    ADD_STAT(totNumPktsFarRd,
+            "Total number of packets enterted to far mem read state"),
+    ADD_STAT(totNumPktsFarWr,
+            "Total number of packets enterted to far mem write state"),
+
+    ADD_STAT(maxNumConf,
+            "Maximum number of packets conflicted on DRAM cache"),
+    ADD_STAT(maxLocRdEvQ,
+            "Maximum number of packets in locMemReadEvent concurrently"),
+    ADD_STAT(maxLocRdRespEvQ,
+            "Maximum number of packets in locMemReadRespEvent concurrently"),
+    ADD_STAT(maxLocWrEvQ,
+            "Maximum number of packets in locMemRWriteEvent concurrently"),
+    ADD_STAT(maxFarRdEvQ,
+            "Maximum number of packets in farMemReadEvent concurrently"),
+    ADD_STAT(maxFarRdRespEvQ,
+            "Maximum number of packets in farMemReadRespEvent concurrently"),
+    ADD_STAT(maxFarWrEvQ,
+            "Maximum number of packets in farMemWriteEvent concurrently")
 {
 }
 
@@ -1391,14 +1468,14 @@ SimpleMemCtrl::getMemInterface()
     return intrfc;
 }
 
-SimpleMemCtrl::MemoryPort::
-MemoryPort(const std::string& name, SimpleMemCtrl& _ctrl)
+SimpleMemCtrl::ResponsePort::
+ResponsePort(const std::string& name, SimpleMemCtrl& _ctrl)
     : QueuedResponsePort(name, &_ctrl, queue), queue(_ctrl, *this, true),
       ctrl(_ctrl)
 { }
 
 AddrRangeList
-SimpleMemCtrl::MemoryPort::getAddrRanges() const
+SimpleMemCtrl::ResponsePort::getAddrRanges() const
 {
     AddrRangeList ranges;
 
@@ -1412,7 +1489,7 @@ SimpleMemCtrl::MemoryPort::getAddrRanges() const
 }
 
 void
-SimpleMemCtrl::MemoryPort::recvFunctional(PacketPtr pkt)
+SimpleMemCtrl::ResponsePort::recvFunctional(PacketPtr pkt)
 {
     pkt->pushLabel(ctrl.name());
 
@@ -1427,20 +1504,20 @@ SimpleMemCtrl::MemoryPort::recvFunctional(PacketPtr pkt)
 }
 
 Tick
-SimpleMemCtrl::MemoryPort::recvAtomic(PacketPtr pkt)
+SimpleMemCtrl::ResponsePort::recvAtomic(PacketPtr pkt)
 {
     return ctrl.recvAtomic(pkt);
 }
 
 Tick
-SimpleMemCtrl::MemoryPort::recvAtomicBackdoor(
+SimpleMemCtrl::ResponsePort::recvAtomicBackdoor(
         PacketPtr pkt, MemBackdoorPtr &backdoor)
 {
     return ctrl.recvAtomicBackdoor(pkt, backdoor);
 }
 
 bool
-SimpleMemCtrl::MemoryPort::recvTimingReq(PacketPtr pkt)
+SimpleMemCtrl::ResponsePort::recvTimingReq(PacketPtr pkt)
 {
     // pass it to the memory controller
     return ctrl.recvTimingReq(pkt);

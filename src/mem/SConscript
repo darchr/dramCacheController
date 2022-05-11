@@ -135,7 +135,6 @@ CompoundFlag('XBar', ['BaseXBar', 'CoherentXBar', 'NoncoherentXBar',
 DebugFlag('Bridge')
 DebugFlag('CommMonitor')
 DebugFlag('MemIntr')
-DebugFlag('DCache')
 DebugFlag('DRAM')
 DebugFlag('DRAMPower')
 DebugFlag('DRAMState')

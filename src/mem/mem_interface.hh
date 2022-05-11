@@ -334,6 +334,8 @@ class MemInterface : public AbstractMemory
       "not be executed from here.\n");
     }
 
+    virtual Tick getTBurst() { return 0; }
+
     virtual bool readsWaitingToIssue()
     {
       panic("MemInterface readsWaitingToIssue (NVM) "

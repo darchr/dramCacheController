@@ -40,7 +40,7 @@
 
 /**
  * @file
- * MemCtrl declaration
+ * DCacheCtrl declaration
  */
 
 #ifndef __DCACHE_CTRL_HH__
@@ -48,6 +48,7 @@
 
 #include "mem/simple_mem_ctrl.hh"
 #include "params/DCacheCtrl.hh"
+#include <queue>
 
 namespace gem5
 {
@@ -58,89 +59,42 @@ class DCacheCtrl : public SimpleMemCtrl
 {
   private:
 
-    class DCacheReqPort : public RequestPort
+    class RequestPortDCache : public RequestPort
     {
       public:
 
-        DCacheReqPort(const std::string& _name, DCacheCtrl& _ctrl)
-            : RequestPort(_name, &_ctrl), ctrl(_ctrl)
+        RequestPortDCache(const std::string& name, DCacheCtrl& _ctrl)
+            : RequestPort(name, &_ctrl), ctrl(_ctrl)
         { }
 
       protected:
 
-        void recvReqRetry()
-        { ctrl.recvReqRetry(); }
+        void recvReqRetry() { ctrl.recvReqRetry(); }
 
         bool recvTimingResp(PacketPtr pkt)
         { return ctrl.recvTimingResp(pkt); }
 
-        void recvTimingSnoopReq(PacketPtr pkt)
-        { panic("Not supported\n"); }
+        void recvTimingSnoopReq(PacketPtr pkt) { }
 
-        void recvFunctionalSnoop(PacketPtr pkt)
-        { panic("Not supported\n"); }
+        void recvFunctionalSnoop(PacketPtr pkt) { }
 
-        Tick recvAtomicSnoop(PacketPtr pkt)
-        { return 0; }
+        Tick recvAtomicSnoop(PacketPtr pkt) { return 0; }
 
       private:
 
         DCacheCtrl& ctrl;
 
     };
-
-    class DCacheRespPort : public ResponsePort
-    {
-      public:
-        DCacheRespPort(const std::string& _name, DCacheCtrl& _ctrl)
-            : ResponsePort(_name, &_ctrl), ctrl(_ctrl)
-        { }
-
-      protected:
-
-        bool recvTimingReq(PacketPtr pkt) override
-        { return ctrl.recvTimingReq(pkt); }
-
-        bool recvTimingSnoopResp(PacketPtr pkt) override
-        { return false; }
-
-        void recvRespRetry() override
-        { panic("Not supported\n"); }
-
-        AddrRangeList getAddrRanges() const override;
-
-        bool tryTiming(PacketPtr pkt) override
-        { return false; }
-
-        void recvFunctional(PacketPtr pkt) override
-        { panic("Not supported\n"); }
-
-        Tick recvAtomic(PacketPtr pkt) override
-        { panic("Not supported\n"); }
-
-      private:
-
-        DCacheCtrl& ctrl;
-
-    };
-
-    /**
-     * Incoming port, for a multi-ported controller add a crossbar
-     * in front of it
-     */
-    DCacheRespPort respPort;
 
     /**
      * Outcoming port, for a multi-ported controller add a crossbar
      * in front of it
      */
-    DCacheReqPort reqPort;
+    //RequestPortDCache reqPort;
 
-    /**
-     * Remember if we have to retry a request when available.
-     * This is a unified retry flag for both reads and writes.
-     */
-    bool retry;
+    // A pointer to the far memory interface.
+    // Mainly used for accessAndResponse only.
+    MemInterface* farMemory;
 
     /**
      * The following are basic design parameters of the unified
@@ -148,6 +102,7 @@ class DCacheCtrl : public SimpleMemCtrl
      * The rowsPerBank is determined based on the capacity, number of
      * ranks and banks, the burst size, and the row buffer size.
      */
+
     unsigned long long dramCacheSize;
     unsigned blockSize;
     unsigned addrSize;
@@ -155,10 +110,7 @@ class DCacheCtrl : public SimpleMemCtrl
     unsigned orbSize;
     unsigned crbMaxSize;
     unsigned crbSize;
-
-    // new functions for reqPort interactions with backing memory
-    void recvReqRetry();
-    bool recvTimingResp(PacketPtr pkt);
+    unsigned farMemWriteQueueMaxSize;
 
     struct tagMetaStoreEntry
     {
@@ -169,7 +121,7 @@ class DCacheCtrl : public SimpleMemCtrl
       bool validLine = false;
       // constant to indicate that the cache line is dirty
       bool dirtyLine = false;
-      Addr backingMemAddr;
+      Addr farMemAddr;
     };
 
     /** A storage to keep the tag and metadata for the
@@ -183,8 +135,8 @@ class DCacheCtrl : public SimpleMemCtrl
      */
     enum reqState
     {
-      dCacheRead, dCacheWrite,
-      backingMemRead, backingMemWrite
+      locMemRead, locMemWrite,
+      farMemRead, farMemWrite
     };
 
     /**
@@ -209,9 +161,9 @@ class DCacheCtrl : public SimpleMemCtrl
         MemPacket* dccPkt;
 
         reqState state;
+        bool issued;
         bool isHit;
         bool conflict;
-        bool issued;
 
         Addr dirtyLineAddr;
         bool handleDirtyLine;
@@ -221,35 +173,34 @@ class DCacheCtrl : public SimpleMemCtrl
         // is the number of ticks the req spent in the proceeded state.
         // The subtract between entrance and issuance ticks for each state,
         // is the number of ticks for waiting time in that state.
-        Tick dcRdEntered;
-        Tick dcRdIssued;
-        Tick dcWrEntered;
-        Tick dcWrIssued;
-        Tick bmRdEntered;
-        Tick bmRdIssued;
-        Tick bmWrEntered;
-        Tick bmWrIssued;
+        Tick locRdEntered;
+        Tick locRdIssued;
+        Tick locWrEntered;
+        Tick locWrIssued;
+        Tick farRdEntered;
+        Tick farRdIssued;
+        Tick farRdRecvd;
 
         reqBufferEntry(
           bool _validEntry, Tick _arrivalTick,
           Addr _tagDC, Addr _indexDC,
           PacketPtr _owPkt, MemPacket* _dccPkt,
-          reqState _state,
-          bool _isHit, bool _conflict, bool _issued,
+          reqState _state,  bool _issued,
+          bool _isHit, bool _conflict,
           Addr _dirtyLineAddr, bool _handleDirtyLine,
-          Tick _dcRdEntered, Tick _dcRdIssued,
-          Tick _dcWrEntered, Tick _dcWrIssued,
-          Tick _bmRdEntered, Tick _bmWrIssued)
+          Tick _locRdEntered, Tick _locRdIssued,
+          Tick _locWrEntered, Tick _locWrIssued,
+          Tick _farRdEntered, Tick _farRdIssued, Tick _farRdRecvd)
         :
         validEntry(_validEntry), arrivalTick(_arrivalTick),
         tagDC(_tagDC), indexDC(_indexDC),
         owPkt( _owPkt), dccPkt(_dccPkt),
-        state(_state),
-        isHit(_isHit), conflict(_conflict), issued(_issued),
+        state(_state), issued(_issued),
+        isHit(_isHit), conflict(_conflict),
         dirtyLineAddr(_dirtyLineAddr), handleDirtyLine(_handleDirtyLine),
-        dcRdEntered(_dcRdEntered), dcRdIssued(_dcRdIssued),
-        dcWrEntered(_dcWrEntered), dcWrIssued(_dcWrIssued),
-        bmRdEntered(_bmRdEntered), bmWrIssued(_bmWrIssued)
+        locRdEntered(_locRdEntered), locRdIssued(_locRdIssued),
+        locWrEntered(_locWrEntered), locWrIssued(_locWrIssued),
+        farRdEntered(_farRdEntered), farRdIssued(_farRdIssued), farRdRecvd(_farRdRecvd)
         { }
     };
 
@@ -262,6 +213,7 @@ class DCacheCtrl : public SimpleMemCtrl
      * been processed in the DRAM Cache controller.
      */
     std::map<Addr,reqBufferEntry*> ORB;
+
 
     typedef std::pair<Tick, PacketPtr> confReqPair;
     /**
@@ -278,14 +230,95 @@ class DCacheCtrl : public SimpleMemCtrl
      */
     std::vector<confReqPair> CRB;
 
-    // neede be reimplemented
+    /**
+     * This is a unified retry flag for both reads and writes.
+     * It helps remember if we have to retry a request when available.
+     */
+    bool retry;
+
+    // Counters and flags to keep track of read/write switchings
+    // stallRds: A flag to stop processing reads and switching to writes
+    bool stallRds;
+    bool doLocWrite;
+    bool doFarWrite;
+    float locWrDrainPerc;
+    unsigned minLocWrPerSwitch;
+    unsigned minFarWrPerSwitch;
+    unsigned locWrCounter;
+    unsigned farWrCounter;
+
+    /**
+     * A queue for evicted dirty lines of DRAM cache,
+     * to be written back to the backing memory.
+     * These packets are not maintained in the ORB.
+     */
+    std::vector<MemPacketQueue> pktFarMemWrite;
+
+    // Maintenance Queues
+    std::vector<MemPacketQueue> pktLocMemRead;
+    std::vector<MemPacketQueue> pktLocMemWrite;
+    std::vector<MemPacketQueue> pktFarMemRead;
+
+    std::deque <Addr> addrLocRdRespReady;
+    std::deque <Addr> addrFarRdRespReady;
+
+    // Maintenance variables
+    unsigned maxConf, maxLocRdEvQ, maxLocRdRespEvQ,
+    maxLocWrEvQ, maxFarRdEvQ, maxFarRdRespEvQ, maxFarWrEvQ;
+
+    // needs be reimplemented
     bool recvTimingReq(PacketPtr pkt) override;
+
+    // new functions for reqPort interactions with backing memory
+    void recvReqRetry();
+    bool recvTimingResp(PacketPtr pkt);
+
+    // events
+    void processLocMemReadEvent();
+    EventFunctionWrapper locMemReadEvent;
+
+    void processLocMemReadRespEvent();
+    EventFunctionWrapper locMemReadRespEvent;
+
+    void processLocMemWriteEvent();
+    EventFunctionWrapper locMemWriteEvent;
+
+    void processFarMemReadEvent();
+    EventFunctionWrapper farMemReadEvent;
+
+    void processFarMemReadRespEvent();
+    EventFunctionWrapper farMemReadRespEvent;
+
+    void processFarMemWriteEvent();
+    EventFunctionWrapper farMemWriteEvent;
+
+    void processOverallWriteEvent();
+    EventFunctionWrapper overallWriteEvent;
+
+    // management functions
+    void handleRequestorPkt(PacketPtr pkt);
+    void checkHitOrMiss(reqBufferEntry* orbEntry);
+    bool checkDirty(Addr addr);
+    void handleDirtyCacheLine(reqBufferEntry* orbEntry);
+    bool checkConflictInDramCache(PacketPtr pkt);
+    void checkConflictInCRB(reqBufferEntry* orbEntry);
+    bool resumeConflictingReq(reqBufferEntry* orbEntry);
+    void logStatsDcache(reqBufferEntry* orbEntry);
+
+    Addr returnIndexDC(Addr pkt_addr, unsigned size);
+    Addr returnTagDC(Addr pkt_addr, unsigned size);
+
 
   public:
 
     DCacheCtrl(const DCacheCtrlParams &p);
 
     void init() override;
+
+    bool requestEventScheduled() override // TODO: local writes?
+          { std::cout << "here DC\n"; return /*locMemReadEvent.scheduled()*/ false; }
+    bool respondEventScheduled() override
+          { return locMemReadRespEvent.scheduled(); }
 
 };
 

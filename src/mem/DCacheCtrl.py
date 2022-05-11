@@ -47,15 +47,16 @@ class DCacheCtrl(SimpleMemCtrl):
     cxx_header = "mem/dram_cache_ctrl.hh"
     cxx_class = 'gem5::memory::DCacheCtrl'
 
-    respPort = ResponsePort("This port responds to memory requests by CPU/LLC")
-    reqPort = RequestPort("This port responds to DRAM cache controller "
-                            "requests for backing memory")
+    #req_port = RequestPort("This port responds to DRAM cache controller "
+    #                        "requests for backing memory")
+
+    far_memory = Param.MemInterface(NULL, "Far Memory interface")
 
     dram_cache_size = Param.MemorySize('512MiB',
                                         "DRAM cache block size in bytes")
-    block_size = Param.Unsigned('64',
-                                "DRAM cache block size in bytes")
-    addr_size = Param.Unsigned('64',
-                                "Addr size of the request from outside world")
+    block_size = Param.Unsigned(64, "DRAM cache block size in bytes")
+    addr_size = Param.Unsigned(64,"Addr size of the request from outside world")
     orb_max_size = Param.Unsigned(256, "Outstanding Requests Buffer size")
     crb_max_size = Param.Unsigned(64, "Conflicting Requests Buffer size")
+    far_mem_write_queue_max_size = Param.Unsigned(128, "Maximum size of "
+                                    "far memory write queue in DRAM cache controller")

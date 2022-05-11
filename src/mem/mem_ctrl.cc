@@ -58,11 +58,12 @@ namespace memory
 {
 
 MemCtrl::MemCtrl(const MemCtrlParams &p) :
-    SimpleMemCtrl(p)
+    SimpleMemCtrl(p),
+    nvm(p.nvm)
 {
     DPRINTF(MemCtrl, "Setting up controller\n");
 
-    nvm = p.nvm;
+    //nvm = p.nvm;
 
     fatal_if(!dram || !nvm, "Memory controller must have two interfaces");
 
@@ -219,13 +220,13 @@ MemCtrl::processRespondEvent()
             // so we can now respond to the requestor
             // @todo we probably want to have a different front end and back
             // end latency for split packets
-            accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency);
+            accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency, mem_pkt->isDram() ? dram : nvm);
             delete mem_pkt->burstHelper;
             mem_pkt->burstHelper = NULL;
         }
     } else {
         // it is not a split packet
-        accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency);
+        accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency, mem_pkt->isDram() ? dram : nvm);
     }
 
     respQueue.pop_front();
@@ -329,50 +330,6 @@ MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay)
     }
 
     return selected_pkt_it;
-}
-
-void
-MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency)
-{
-    DPRINTF(MemCtrl, "Responding to Address %#x.. \n", pkt->getAddr());
-
-    bool needsResponse = pkt->needsResponse();
-    // do the actual memory access which also turns the packet into a
-    // response
-    if (dram && dram->getAddrRange().contains(pkt->getAddr())) {
-        dram->access(pkt);
-    } else if (nvm && nvm->getAddrRange().contains(pkt->getAddr())) {
-        nvm->access(pkt);
-    } else {
-        panic("Can't handle address range for packet %s\n",
-              pkt->print());
-    }
-
-    // turn packet around to go back to requestor if response expected
-    if (needsResponse) {
-        // access already turned the packet into a response
-        assert(pkt->isResponse());
-        // response_time consumes the static latency and is charged also
-        // with headerDelay that takes into account the delay provided by
-        // the xbar and also the payloadDelay that takes into account the
-        // number of data beats.
-        Tick response_time = curTick() + static_latency + pkt->headerDelay +
-                             pkt->payloadDelay;
-        // Here we reset the timing of the packet before sending it out.
-        pkt->headerDelay = pkt->payloadDelay = 0;
-
-        // queue the packet in the response queue to be sent out after
-        // the static latency has passed
-        port.schedTimingResp(pkt, response_time);
-    } else {
-        // @todo the packet is going to be deleted, and the MemPacket
-        // is still having a pointer to it
-        pendingDelete.reset(pkt);
-    }
-
-    DPRINTF(MemCtrl, "Done\n");
-
-    return;
 }
 
 void

@@ -100,7 +100,7 @@ class MemPacket
   public:
 
     /** When did request enter the controller */
-    const Tick entryTime;
+    Tick entryTime;
 
     /** When will request leave the controller */
     Tick readyTime;
@@ -246,7 +246,7 @@ class SimpleMemCtrl : public qos::MemCtrl
 
     // For now, make use of a queued response port to avoid dealing with
     // flow control for the responses being sent back
-    class MemoryPort : public QueuedResponsePort
+    class ResponsePort : public QueuedResponsePort
     {
 
         RespPacketQueue queue;
@@ -254,7 +254,7 @@ class SimpleMemCtrl : public qos::MemCtrl
 
       public:
 
-        MemoryPort(const std::string& name, SimpleMemCtrl& _ctrl);
+        ResponsePort(const std::string& name, SimpleMemCtrl& _ctrl);
 
       protected:
 
@@ -270,444 +270,488 @@ class SimpleMemCtrl : public qos::MemCtrl
 
     };
 
-    /**
-     * Our incoming port, for a multi-ported controller add a crossbar
-     * in front of it
-     */
-    MemoryPort port;
+      /**
+       * Our incoming port, for a multi-ported controller add a crossbar
+       * in front of it
+       */
+      ResponsePort port;
 
-    /**
-     * Remember if the memory system is in timing mode
-     */
-    bool isTimingMode;
+      /**
+       * Remember if the memory system is in timing mode
+       */
+      bool isTimingMode;
 
-    /**
-     * Remember if we have to retry a request when available.
-     */
-    bool retryRdReq;
-    bool retryWrReq;
+      /**
+       * Remember if we have to retry a request when available.
+       */
+      bool retryRdReq;
+      bool retryWrReq;
 
-    /**
-     * Bunch of things requires to setup "events" in gem5
-     * When event "respondEvent" occurs for example, the method
-     * processRespondEvent is called; no parameters are allowed
-     * in these methods
-     */
-    virtual void processNextReqEvent();
-    EventFunctionWrapper nextReqEvent;
+      /**
+       * Bunch of things requires to setup "events" in gem5
+       * When event "respondEvent" occurs for example, the method
+       * processRespondEvent is called; no parameters are allowed
+       * in these methods
+       */
+      virtual void processNextReqEvent();
+      EventFunctionWrapper nextReqEvent;
 
-    virtual void processRespondEvent();
-    EventFunctionWrapper respondEvent;
+      virtual void processRespondEvent();
+      EventFunctionWrapper respondEvent;
 
-    /**
-     * Check if the read queue has room for more entries
-     *
-     * @param pkt_count The number of entries needed in the read queue
-     * @return true if read queue is full, false otherwise
-     */
-    bool readQueueFull(unsigned int pkt_count) const;
+      /**
+       * Check if the read queue has room for more entries
+       *
+       * @param pkt_count The number of entries needed in the read queue
+       * @return true if read queue is full, false otherwise
+       */
+      bool readQueueFull(unsigned int pkt_count) const;
 
-    /**
-     * Check if the write queue has room for more entries
-     *
-     * @param pkt_count The number of entries needed in the write queue
-     * @return true if write queue is full, false otherwise
-     */
-    bool writeQueueFull(unsigned int pkt_count) const;
+      /**
+       * Check if the write queue has room for more entries
+       *
+       * @param pkt_count The number of entries needed in the write queue
+       * @return true if write queue is full, false otherwise
+       */
+      bool writeQueueFull(unsigned int pkt_count) const;
 
-    /**
-     * When a new read comes in, first check if the write q has a
-     * pending request to the same address.\ If not, decode the
-     * address to populate rank/bank/row, create one or mutliple
-     * "mem_pkt", and push them to the back of the read queue.\
-     * If this is the only
-     * read request in the system, schedule an event to start
-     * servicing it.
-     *
-     * @param pkt The request packet from the outside world
-     * @param pkt_count The number of memory bursts the pkt
-     * @param is_dram Does this packet access DRAM?
-     * translate to. If pkt size is larger then one full burst,
-     * then pkt_count is greater than one.
-     */
-    void addToReadQueue(PacketPtr pkt, unsigned int pkt_count,
-                        MemInterface* memIntr);
-
-    /**
-     * Decode the incoming pkt, create a mem_pkt and push to the
-     * back of the write queue. \If the write q length is more than
-     * the threshold specified by the user, ie the queue is beginning
-     * to get full, stop reads, and start draining writes.
-     *
-     * @param pkt The request packet from the outside world
-     * @param pkt_count The number of memory bursts the pkt
-     * @param is_dram Does this packet access DRAM?
-     * translate to. If pkt size is larger then one full burst,
-     * then pkt_count is greater than one.
-     */
-    void addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
+      /**
+       * When a new read comes in, first check if the write q has a
+       * pending request to the same address.\ If not, decode the
+       * address to populate rank/bank/row, create one or mutliple
+       * "mem_pkt", and push them to the back of the read queue.\
+       * If this is the only
+       * read request in the system, schedule an event to start
+       * servicing it.
+       *
+       * @param pkt The request packet from the outside world
+       * @param pkt_count The number of memory bursts the pkt
+       * @param is_dram Does this packet access DRAM?
+       * translate to. If pkt size is larger then one full burst,
+       * then pkt_count is greater than one.
+       */
+      void addToReadQueue(PacketPtr pkt, unsigned int pkt_count,
                           MemInterface* memIntr);
 
-    /**
-     * Actually do the burst based on media specific access function.
-     * Update bus statistics when complete.
-     *
-     * @param mem_pkt The memory packet created from the outside world pkt
-     */
-    virtual void doBurstAccess(MemPacket* mem_pkt);
+      /**
+       * Decode the incoming pkt, create a mem_pkt and push to the
+       * back of the write queue. \If the write q length is more than
+       * the threshold specified by the user, ie the queue is beginning
+       * to get full, stop reads, and start draining writes.
+       *
+       * @param pkt The request packet from the outside world
+       * @param pkt_count The number of memory bursts the pkt
+       * @param is_dram Does this packet access DRAM?
+       * translate to. If pkt size is larger then one full burst,
+       * then pkt_count is greater than one.
+       */
+      void addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
+                            MemInterface* memIntr);
 
-    /**
-     * When a packet reaches its "readyTime" in the response Q,
-     * use the "access()" method in AbstractMemory to actually
-     * create the response packet, and send it back to the outside
-     * world requestor.
-     *
-     * @param pkt The packet from the outside world
-     * @param static_latency Static latency to add before sending the packet
-     */
-    virtual void accessAndRespond(PacketPtr pkt, Tick static_latency);
+      /**
+       * Actually do the burst based on media specific access function.
+       * Update bus statistics when complete.
+       *
+       * @param mem_pkt The memory packet created from the outside world pkt
+       */
+      virtual void doBurstAccess(MemPacket* mem_pkt);
 
-    /**
-     * Determine if there is a packet that can issue.
-     *
-     * @param pkt The packet to evaluate
-     */
-    virtual bool packetReady(MemPacket* pkt, MemInterface* memIntr);
+      /**
+       * When a packet reaches its "readyTime" in the response Q,
+       * use the "access()" method in AbstractMemory to actually
+       * create the response packet, and send it back to the outside
+       * world requestor.
+       *
+       * @param pkt The packet from the outside world
+       * @param static_latency Static latency to add before sending the packet
+       */
+      void accessAndRespond(PacketPtr pkt, Tick static_latency, MemInterface* mem_int);
 
-    /**
-     * Calculate the minimum delay used when scheduling a read-to-write
-     * transision.
-     * @param return minimum delay
-     */
-    virtual Tick minReadToWriteDataGap();
+      /**
+       * Determine if there is a packet that can issue.
+       *
+       * @param pkt The packet to evaluate
+       */
+      virtual bool packetReady(MemPacket* pkt, MemInterface* memIntr);
 
-    /**
-     * Calculate the minimum delay used when scheduling a write-to-read
-     * transision.
-     * @param return minimum delay
-     */
-    virtual Tick minWriteToReadDataGap();
+      /**
+       * Calculate the minimum delay used when scheduling a read-to-write
+       * transision.
+       * @param return minimum delay
+       */
+      virtual Tick minReadToWriteDataGap();
 
-    /**
-     * The memory schduler/arbiter - picks which request needs to
-     * go next, based on the specified policy such as FCFS or FR-FCFS
-     * and moves it to the head of the queue.
-     * Prioritizes accesses to the same rank as previous burst unless
-     * controller is switching command type.
-     *
-     * @param queue Queued requests to consider
-     * @param extra_col_delay Any extra delay due to a read/write switch
-     * @return an iterator to the selected packet, else queue.end()
-     */
-    virtual MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
-        Tick extra_col_delay);
+      /**
+       * Calculate the minimum delay used when scheduling a write-to-read
+       * transision.
+       * @param return minimum delay
+       */
+      virtual Tick minWriteToReadDataGap();
 
-    /**
-     * For FR-FCFS policy reorder the read/write queue depending on row buffer
-     * hits and earliest bursts available in memory
-     *
-     * @param queue Queued requests to consider
-     * @param extra_col_delay Any extra delay due to a read/write switch
-     * @return an iterator to the selected packet, else queue.end()
-     */
-    virtual MemPacketQueue::iterator chooseNextFRFCFS(MemPacketQueue& queue,
-            Tick extra_col_delay);
+      /**
+       * The memory schduler/arbiter - picks which request needs to
+       * go next, based on the specified policy such as FCFS or FR-FCFS
+       * and moves it to the head of the queue.
+       * Prioritizes accesses to the same rank as previous burst unless
+       * controller is switching command type.
+       *
+       * @param queue Queued requests to consider
+       * @param extra_col_delay Any extra delay due to a read/write switch
+       * @return an iterator to the selected packet, else queue.end()
+       */
+      virtual MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
+          Tick extra_col_delay);
 
-    /**
-     * Calculate burst window aligned tick
-     *
-     * @param cmd_tick Initial tick of command
-     * @return burst window aligned tick
-     */
-    Tick getBurstWindow(Tick cmd_tick);
+      /**
+       * For FR-FCFS policy reorder the read/write queue depending on row buffer
+       * hits and earliest bursts available in memory
+       *
+       * @param queue Queued requests to consider
+       * @param extra_col_delay Any extra delay due to a read/write switch
+       * @return an iterator to the selected packet, else queue.end()
+       */
+      virtual MemPacketQueue::iterator chooseNextFRFCFS(MemPacketQueue& queue,
+              Tick extra_col_delay);
 
-    /**
-     * Used for debugging to observe the contents of the queues.
-     */
-    void printQs() const;
+      /**
+       * Calculate burst window aligned tick
+       *
+       * @param cmd_tick Initial tick of command
+       * @return burst window aligned tick
+       */
+      Tick getBurstWindow(Tick cmd_tick);
 
-    /**
-     * Burst-align an address.
-     *
-     * @param addr The potentially unaligned address
-     * @param is_dram Does this packet access DRAM?
-     *
-     * @return An address aligned to a memory burst
-     */
-    //Addr burstAlign(Addr addr, bool is_dram) const;
-    Addr burstAlign(Addr addr, MemInterface* memIntr) const;
+      /**
+       * Used for debugging to observe the contents of the queues.
+       */
+      void printQs() const;
 
-    /**
-     * The controller's main read and write queues,
-     * with support for QoS reordering
-     */
-    std::vector<MemPacketQueue> readQueue;
-    std::vector<MemPacketQueue> writeQueue;
+      /**
+       * Burst-align an address.
+       *
+       * @param addr The potentially unaligned address
+       * @param is_dram Does this packet access DRAM?
+       *
+       * @return An address aligned to a memory burst
+       */
+      //Addr burstAlign(Addr addr, bool is_dram) const;
+      Addr burstAlign(Addr addr, MemInterface* memIntr) const;
 
-    /**
-     * To avoid iterating over the write queue to check for
-     * overlapping transactions, maintain a set of burst addresses
-     * that are currently queued. Since we merge writes to the same
-     * location we never have more than one address to the same burst
-     * address.
-     */
-    std::unordered_set<Addr> isInWriteQueue;
+      /**
+       * The controller's main read and write queues,
+       * with support for QoS reordering
+       */
+      std::vector<MemPacketQueue> readQueue;
+      std::vector<MemPacketQueue> writeQueue;
 
-    /**
-     * Response queue where read packets wait after we're done working
-     * with them, but it's not time to send the response yet. The
-     * responses are stored separately mostly to keep the code clean
-     * and help with events scheduling. For all logical purposes such
-     * as sizing the read queue, this and the main read queue need to
-     * be added together.
-     */
-    std::deque<MemPacket*> respQueue;
+      /**
+       * To avoid iterating over the write queue to check for
+       * overlapping transactions, maintain a set of burst addresses
+       * that are currently queued. Since we merge writes to the same
+       * location we never have more than one address to the same burst
+       * address.
+       */
+      std::unordered_set<Addr> isInWriteQueue;
 
-    /**
-     * Holds count of commands issued in burst window starting at
-     * defined Tick. This is used to ensure that the command bandwidth
-     * does not exceed the allowable media constraints.
-     */
-    std::unordered_multiset<Tick> burstTicks;
+      /**
+       * Response queue where read packets wait after we're done working
+       * with them, but it's not time to send the response yet. The
+       * responses are stored separately mostly to keep the code clean
+       * and help with events scheduling. For all logical purposes such
+       * as sizing the read queue, this and the main read queue need to
+       * be added together.
+       */
+      std::deque<MemPacket*> respQueue;
 
-    MemInterface* dram;
+      /**
+       * Holds count of commands issued in burst window starting at
+       * defined Tick. This is used to ensure that the command bandwidth
+       * does not exceed the allowable media constraints.
+       */
+      std::unordered_multiset<Tick> burstTicks;
 
-    virtual std::vector<MemInterface*> getMemInterface();
+      MemInterface* dram;
 
-    /**
-     * The following are basic design parameters of the memory
-     * controller, and are initialized based on parameter values.
-     * The rowsPerBank is determined based on the capacity, number of
-     * ranks and banks, the burst size, and the row buffer size.
-     */
-    uint32_t readBufferSize;
-    uint32_t writeBufferSize;
-    uint32_t writeHighThreshold;
-    uint32_t writeLowThreshold;
-    const uint32_t minWritesPerSwitch;
-    uint32_t writesThisTime;
-    uint32_t readsThisTime;
+      virtual std::vector<MemInterface*> getMemInterface();
 
-    /**
-     * Memory controller configuration initialized based on parameter
-     * values.
-     */
-    enums::MemSched memSchedPolicy;
+      /**
+       * The following are basic design parameters of the memory
+       * controller, and are initialized based on parameter values.
+       * The rowsPerBank is determined based on the capacity, number of
+       * ranks and banks, the burst size, and the row buffer size.
+       */
+      uint32_t readBufferSize;
+      uint32_t writeBufferSize;
+      uint32_t writeHighThreshold;
+      uint32_t writeLowThreshold;
+      const uint32_t minWritesPerSwitch;
+      uint32_t writesThisTime;
+      uint32_t readsThisTime;
 
-    /**
-     * Pipeline latency of the controller frontend. The frontend
-     * contribution is added to writes (that complete when they are in
-     * the write buffer) and reads that are serviced the write buffer.
-     */
-    const Tick frontendLatency;
+      /**
+       * Memory controller configuration initialized based on parameter
+       * values.
+       */
+      enums::MemSched memSchedPolicy;
 
-    /**
-     * Pipeline latency of the backend and PHY. Along with the
-     * frontend contribution, this latency is added to reads serviced
-     * by the memory.
-     */
-    const Tick backendLatency;
+      /**
+       * Pipeline latency of the controller frontend. The frontend
+       * contribution is added to writes (that complete when they are in
+       * the write buffer) and reads that are serviced the write buffer.
+       */
+      const Tick frontendLatency;
 
-    /**
-     * Length of a command window, used to check
-     * command bandwidth
-     */
-    const Tick commandWindow;
+      /**
+       * Pipeline latency of the backend and PHY. Along with the
+       * frontend contribution, this latency is added to reads serviced
+       * by the memory.
+       */
+      const Tick backendLatency;
 
-    /**
-     * Till when must we wait before issuing next RD/WR burst?
-     */
-    Tick nextBurstAt;
+      /**
+       * Length of a command window, used to check
+       * command bandwidth
+       */
+      const Tick commandWindow;
 
-    Tick prevArrival;
+      /**
+       * Till when must we wait before issuing next RD/WR burst?
+       */
+      Tick nextBurstAt;
 
-    /**
-     * The soonest you have to start thinking about the next request
-     * is the longest access time that can occur before
-     * nextBurstAt. Assuming you need to precharge, open a new row,
-     * and access, it is tRP + tRCD + tCL.
-     */
-    Tick nextReqTime;
+      Tick prevArrival;
 
-    struct CtrlStats : public statistics::Group
-    {
-        CtrlStats(SimpleMemCtrl &ctrl);
+      /**
+       * The soonest you have to start thinking about the next request
+       * is the longest access time that can occur before
+       * nextBurstAt. Assuming you need to precharge, open a new row,
+       * and access, it is tRP + tRCD + tCL.
+       */
+      Tick nextReqTime;
 
-        void regStats() override;
+      struct CtrlStats : public statistics::Group
+      {
+          CtrlStats(SimpleMemCtrl &ctrl);
 
-        SimpleMemCtrl &ctrl;
+          void regStats() override;
 
-        // All statistics that the model needs to capture
-        statistics::Scalar readReqs;
-        statistics::Scalar writeReqs;
-        statistics::Scalar readBursts;
-        statistics::Scalar writeBursts;
-        statistics::Scalar servicedByWrQ;
-        statistics::Scalar mergedWrBursts;
-        statistics::Scalar neitherReadNorWriteReqs;
-        // Average queue lengths
-        statistics::Average avgRdQLen;
-        statistics::Average avgWrQLen;
+          SimpleMemCtrl &ctrl;
 
-        statistics::Scalar numRdRetry;
-        statistics::Scalar numWrRetry;
-        statistics::Vector readPktSize;
-        statistics::Vector writePktSize;
-        statistics::Vector rdQLenPdf;
-        statistics::Vector wrQLenPdf;
-        statistics::Histogram rdPerTurnAround;
-        statistics::Histogram wrPerTurnAround;
+          // All statistics that the model needs to capture
+          statistics::Scalar readReqs;
+          statistics::Scalar writeReqs;
+          statistics::Scalar readBursts;
+          statistics::Scalar writeBursts;
+          statistics::Scalar servicedByWrQ;
+          statistics::Scalar mergedWrBursts;
+          statistics::Scalar neitherReadNorWriteReqs;
+          // Average queue lengths
+          statistics::Average avgRdQLen;
+          statistics::Average avgWrQLen;
 
-        statistics::Scalar bytesReadWrQ;
-        statistics::Scalar bytesReadSys;
-        statistics::Scalar bytesWrittenSys;
-        // Average bandwidth
-        statistics::Formula avgRdBWSys;
-        statistics::Formula avgWrBWSys;
+          statistics::Scalar numRdRetry;
+          statistics::Scalar numWrRetry;
+          statistics::Vector readPktSize;
+          statistics::Vector writePktSize;
+          statistics::Vector rdQLenPdf;
+          statistics::Vector wrQLenPdf;
+          statistics::Histogram rdPerTurnAround;
+          statistics::Histogram wrPerTurnAround;
 
-        statistics::Scalar totGap;
-        statistics::Formula avgGap;
+          statistics::Scalar bytesReadWrQ;
+          statistics::Scalar bytesReadSys;
+          statistics::Scalar bytesWrittenSys;
+          // Average bandwidth
+          statistics::Formula avgRdBWSys;
+          statistics::Formula avgWrBWSys;
 
-        // per-requestor bytes read and written to memory
-        statistics::Vector requestorReadBytes;
-        statistics::Vector requestorWriteBytes;
+          statistics::Scalar totGap;
+          statistics::Formula avgGap;
 
-        // per-requestor bytes read and written to memory rate
-        statistics::Formula requestorReadRate;
-        statistics::Formula requestorWriteRate;
+          // per-requestor bytes read and written to memory
+          statistics::Vector requestorReadBytes;
+          statistics::Vector requestorWriteBytes;
 
-        // per-requestor read and write serviced memory accesses
-        statistics::Vector requestorReadAccesses;
-        statistics::Vector requestorWriteAccesses;
+          // per-requestor bytes read and written to memory rate
+          statistics::Formula requestorReadRate;
+          statistics::Formula requestorWriteRate;
 
-        // per-requestor read and write total memory access latency
-        statistics::Vector requestorReadTotalLat;
-        statistics::Vector requestorWriteTotalLat;
+          // per-requestor read and write serviced memory accesses
+          statistics::Vector requestorReadAccesses;
+          statistics::Vector requestorWriteAccesses;
 
-        // per-requestor raed and write average memory access latency
-        statistics::Formula requestorReadAvgLat;
-        statistics::Formula requestorWriteAvgLat;
-    };
+          // per-requestor read and write total memory access latency
+          statistics::Vector requestorReadTotalLat;
+          statistics::Vector requestorWriteTotalLat;
 
-    CtrlStats stats;
+          // per-requestor raed and write average memory access latency
+          statistics::Formula requestorReadAvgLat;
+          statistics::Formula requestorWriteAvgLat;
 
-    /**
-     * Upstream caches need this packet until true is returned, so
-     * hold it for deletion until a subsequent call
-     */
-    std::unique_ptr<Packet> pendingDelete;
 
-    /**
-     * Select either the read or write queue
-     *
-     * @param is_read The current burst is a read, select read queue
-     * @return a reference to the appropriate queue
-     */
-    std::vector<MemPacketQueue>& selQueue(bool is_read)
-    {
-        return (is_read ? readQueue : writeQueue);
-    };
+          Stats::Scalar numHits;
+          Stats::Scalar numMisses;
+          Stats::Scalar numRdHits;
+          Stats::Scalar numWrHits;
+          Stats::Scalar numRdMisses;
+          Stats::Scalar numWrMisses;
+          Stats::Scalar numColdMisses;
+          Stats::Scalar numHotMisses;
+          Stats::Scalar numWrBacks;
+          Stats::Scalar totNumConf;
+          Stats::Scalar totNumConfBufFull;
 
-    /**
-     * Remove commands that have already issued from burstTicks
-     */
-    void pruneBurstTick();
+          Stats::Scalar timeInLocRead;
+          Stats::Scalar timeInLocWrite;
+          Stats::Scalar timeInFarRead;
+          Stats::Scalar timeInFarWrite;
 
-    virtual Tick recvAtomic(PacketPtr pkt);
-    virtual Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor);
-    virtual void recvFunctional(PacketPtr pkt);
-    virtual bool recvTimingReq(PacketPtr pkt);
+          Stats::Scalar locRdQingTime;
+          Stats::Scalar locWrQingTime;
+          Stats::Scalar farRdQingTime;
+          Stats::Scalar farWrQingTime;
 
-  public:
+          Stats::Scalar locRdDevTime;
+          Stats::Scalar locWrDevTime;
+          Stats::Scalar farRdDevTime;
+          Stats::Scalar farWrDevTime;
 
-    SimpleMemCtrl(const SimpleMemCtrlParams &p);
+          Stats::Scalar totNumPktsLocRd;
+          Stats::Scalar totNumPktslocWr;
+          Stats::Scalar totNumPktsFarRd;
+          Stats::Scalar totNumPktsFarWr;
 
-    /**
-     * Ensure that all interfaced have drained commands
-     *
-     * @return bool flag, set once drain complete
-     */
-    virtual bool allIntfDrained() const;
+          Stats::Scalar maxNumConf;
+          Stats::Scalar maxLocRdEvQ;
+          Stats::Scalar maxLocRdRespEvQ;
+          Stats::Scalar maxLocWrEvQ;
+          Stats::Scalar maxFarRdEvQ;
+          Stats::Scalar maxFarRdRespEvQ;
+          Stats::Scalar maxFarWrEvQ;
 
-    DrainState drain() override;
+          Stats::Scalar rdToWrTurnAround;
+          Stats::Scalar wrToRdTurnAround;
+      };
 
-    /**
-     * Check for command bus contention for single cycle command.
-     * If there is contention, shift command to next burst.
-     * Check verifies that the commands issued per burst is less
-     * than a defined max number, maxCommandsPerWindow.
-     * Therefore, contention per cycle is not verified and instead
-     * is done based on a burst window.
-     *
-     * @param cmd_tick Initial tick of command, to be verified
-     * @param max_cmds_per_burst Number of commands that can issue
-     *                           in a burst window
-     * @return tick for command issue without contention
-     */
-    Tick verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst);
+      CtrlStats stats;
 
-    /**
-     * Check for command bus contention for multi-cycle (2 currently)
-     * command. If there is contention, shift command(s) to next burst.
-     * Check verifies that the commands issued per burst is less
-     * than a defined max number, maxCommandsPerWindow.
-     * Therefore, contention per cycle is not verified and instead
-     * is done based on a burst window.
-     *
-     * @param cmd_tick Initial tick of command, to be verified
-     * @param max_multi_cmd_split Maximum delay between commands
-     * @param max_cmds_per_burst Number of commands that can issue
-     *                           in a burst window
-     * @return tick for command issue without contention
-     */
-    Tick verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
-                        Tick max_multi_cmd_split = 0);
+      /**
+       * Upstream caches need this packet until true is returned, so
+       * hold it for deletion until a subsequent call
+       */
+      std::unique_ptr<Packet> pendingDelete;
 
-    /**
-     * Is there a respondEvent scheduled?
-     *
-     * @return true if event is scheduled
-     */
-    bool respondEventScheduled() const { return respondEvent.scheduled(); }
+      /**
+       * Select either the read or write queue
+       *
+       * @param is_read The current burst is a read, select read queue
+       * @return a reference to the appropriate queue
+       */
+      std::vector<MemPacketQueue>& selQueue(bool is_read)
+      {
+          return (is_read ? readQueue : writeQueue);
+      };
 
-    /**
-     * Is there a read/write burst Event scheduled?
-     *
-     * @return true if event is scheduled
-     */
-    bool requestEventScheduled() const { return nextReqEvent.scheduled(); }
+      /**
+       * Remove commands that have already issued from burstTicks
+       */
+      void pruneBurstTick();
 
-    /**
-     * restart the controller
-     * This can be used by interfaces to restart the
-     * scheduler after maintainence commands complete
-     *
-     * @param Tick to schedule next event
-     */
-    void restartScheduler(Tick tick) { schedule(nextReqEvent, tick); }
+      virtual Tick recvAtomic(PacketPtr pkt);
+      virtual Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor);
+      virtual void recvFunctional(PacketPtr pkt);
+      virtual bool recvTimingReq(PacketPtr pkt);
 
-    /**
-     * Check the current direction of the memory channel
-     *
-     * @param next_state Check either the current or next bus state
-     * @return True when bus is currently in a read state
-     */
-    bool inReadBusState(bool next_state) const;
+    public:
 
-    /**
-     * Check the current direction of the memory channel
-     *
-     * @param next_state Check either the current or next bus state
-     * @return True when bus is currently in a write state
-     */
-    bool inWriteBusState(bool next_state) const;
+      SimpleMemCtrl(const SimpleMemCtrlParams &p);
 
-    Port &getPort(const std::string &if_name,
-                  PortID idx=InvalidPortID) override;
+      /**
+       * Ensure that all interfaced have drained commands
+       *
+       * @return bool flag, set once drain complete
+       */
+      virtual bool allIntfDrained() const;
 
-    virtual void init() override;
-    virtual void startup() override;
-    virtual void drainResume() override;
+      DrainState drain() override;
+
+      /**
+       * Check for command bus contention for single cycle command.
+       * If there is contention, shift command to next burst.
+       * Check verifies that the commands issued per burst is less
+       * than a defined max number, maxCommandsPerWindow.
+       * Therefore, contention per cycle is not verified and instead
+       * is done based on a burst window.
+       *
+       * @param cmd_tick Initial tick of command, to be verified
+       * @param max_cmds_per_burst Number of commands that can issue
+       *                           in a burst window
+       * @return tick for command issue without contention
+       */
+      Tick verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst);
+
+      /**
+       * Check for command bus contention for multi-cycle (2 currently)
+       * command. If there is contention, shift command(s) to next burst.
+       * Check verifies that the commands issued per burst is less
+       * than a defined max number, maxCommandsPerWindow.
+       * Therefore, contention per cycle is not verified and instead
+       * is done based on a burst window.
+       *
+       * @param cmd_tick Initial tick of command, to be verified
+       * @param max_multi_cmd_split Maximum delay between commands
+       * @param max_cmds_per_burst Number of commands that can issue
+       *                           in a burst window
+       * @return tick for command issue without contention
+       */
+      Tick verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
+                          Tick max_multi_cmd_split = 0);
+
+      /**
+       * Is there a respondEvent scheduled?
+       *
+       * @return true if event is scheduled
+       */
+      virtual bool respondEventScheduled() { return respondEvent.scheduled(); }
+
+      /**
+       * Is there a read/write burst Event scheduled?
+       *
+       * @return true if event is scheduled
+       */
+      virtual bool requestEventScheduled() { std::cout << "here SMC\n"; return /*nextReqEvent.scheduled()*/ false; }
+
+      /**
+       * restart the controller
+       * This can be used by interfaces to restart the
+       * scheduler after maintainence commands complete
+       *
+       * @param Tick to schedule next event
+       */
+      void restartScheduler(Tick tick) { schedule(nextReqEvent, tick); }
+
+      /**
+       * Check the current direction of the memory channel
+       *
+       * @param next_state Check either the current or next bus state
+       * @return True when bus is currently in a read state
+       */
+      bool inReadBusState(bool next_state) const;
+
+      /**
+       * Check the current direction of the memory channel
+       *
+       * @param next_state Check either the current or next bus state
+       * @return True when bus is currently in a write state
+       */
+      bool inWriteBusState(bool next_state) const;
+
+      Port &getPort(const std::string &if_name,
+                    PortID idx=InvalidPortID) override;
+
+      virtual void init() override;
+      virtual void startup() override;
+      virtual void drainResume() override;
 
 };
 

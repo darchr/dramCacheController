@@ -63,7 +63,6 @@ class MemCtrl : public SimpleMemCtrl
                                         Tick extra_col_delay) override;
     MemPacketQueue::iterator chooseNextFRFCFS(MemPacketQueue& queue,
                                               Tick extra_col_delay) override;
-    void accessAndRespond(PacketPtr pkt, Tick static_latency) override;
     void doBurstAccess(MemPacket* mem_pkt) override;
     Tick minReadToWriteDataGap() override;
     Tick minWriteToReadDataGap() override;
