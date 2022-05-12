@@ -117,7 +117,7 @@ class MemPacket
     const bool dram;
 
     /** pseudo channel num*/
-    const uint8_t channel;
+    const uint8_t pseudoChannel;
 
     /** Will be populated by address decoder */
     const uint8_t rank;
@@ -208,7 +208,7 @@ class MemPacket
                Addr _addr, unsigned int _size)
         : entryTime(curTick()), readyTime(curTick()), pkt(_pkt),
           _requestorId(pkt->requestorId()),
-          read(is_read), dram(is_dram), channel(_channel), rank(_rank),
+          read(is_read), dram(is_dram), pseudoChannel(_channel), rank(_rank),
           bank(_bank), row(_row), bankId(bank_id), addr(_addr), size(_size),
           burstHelper(NULL), _qosValue(_pkt->qosValue())
     { }

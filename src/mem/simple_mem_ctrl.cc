@@ -260,7 +260,7 @@ SimpleMemCtrl::addToReadQueue(PacketPtr pkt,
             MemPacket* mem_pkt;
 
             mem_pkt = memIntr->decodePacket(pkt, addr, size, true,
-                                            memIntr->channel_num);
+                                            memIntr->pseudoChannel);
 
             // Increment read entries of the rank (dram)
             // Increment count to trigger issue of non-deterministic read (nvm)
@@ -334,7 +334,7 @@ SimpleMemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
             MemPacket* mem_pkt;
 
             mem_pkt = memIntr->decodePacket(pkt, addr, size, false,
-                                            memIntr->channel_num);
+                                            memIntr->pseudoChannel);
 
             // Default readyTime to Max if nvm interface;
             //will be reset once read is issued
@@ -570,7 +570,7 @@ SimpleMemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
             // available rank corresponds to state refresh idle
             MemPacket* mem_pkt = *(queue.begin());
 
-            if (mem_pkt->channel != mem_int->channel_num) {
+            if (mem_pkt->pseudoChannel != mem_int->pseudoChannel) {
                 return ret;
             }
 

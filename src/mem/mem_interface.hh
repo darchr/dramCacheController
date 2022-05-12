@@ -192,17 +192,17 @@ class MemInterface : public AbstractMemory
     /**
      * pseudo channel number used for HBM modeling
      */
-    uint8_t channel_num;
+    uint8_t pseudoChannel;
 
     /** Set a pointer to the controller and initialize
      * interface based on controller parameters
      * @param _ctrl pointer to the parent controller
      * @param command_window size of command window used to
      *                       check command bandwidth
-     * @param chan_num pseudo channel number
+     * @param pseudo_channel pseudo channel number
      */
     void setCtrl(SimpleMemCtrl* _ctrl, unsigned int command_window,
-                                                  uint8_t chan_num = 0);
+                                                uint8_t pseudo_channel = 0);
 
     /**
      * Get an address in a dense range which starts from 0. The input
@@ -297,12 +297,12 @@ class MemInterface : public AbstractMemory
      * @param size The size of the packet in bytes
      * @param is_read Is the request for a read or a write to memory
      * @param is_dram Is the request to a DRAM interface
-     * @param channel pseudo channel number of the packet
+     * @param pseudo_channel pseudo channel number of the packet
      * @return A MemPacket pointer with the decoded information
      */
     virtual MemPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,
                                     unsigned int size, bool is_read,
-                                    uint8_t channel)
+                                    uint8_t pseudo_channel)
     {
       panic("MemInterface decodePacket should not be executed from here.\n");
       return nullptr;
