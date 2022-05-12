@@ -122,10 +122,7 @@ class HBMCtrl : public SimpleMemCtrl
      * NextReq and Respond events for second pseudo channel
      *
      */
-    //void processNextReqEventCh1();
     EventFunctionWrapper nextReqEventCh1;
-
-    //void processRespondEventCh1();
     EventFunctionWrapper respondEventCh1;
 
     /**

@@ -46,8 +46,6 @@ namespace memory
 HBMCtrl::HBMCtrl(const HBMCtrlParams &p) :
     SimpleMemCtrl(p),
     retryRdReqCh1(false), retryWrReqCh1(false),
-    //nextReqEventCh1([this]{ processNextReqEventCh1(); }, name()),
-    //respondEventCh1([this]{ processRespondEventCh1(); }, name()),
     nextReqEventCh1([this] {processNextReqEvent(ch1_int, respQueueCh1,
                          respondEventCh1, nextReqEventCh1, retryWrReqCh1);},
                          name()),
@@ -344,39 +342,6 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
 
     return true;
 }
-
-/*
-void
-HBMCtrl::processNextReqEventCh1()
-{
-    SimpleMemCtrl::nextReqEventLogic(ch1_int, respQueueCh1,
-                                respondEventCh1, nextReqEventCh1);
-
-    // If there is space available and we have writes waiting then let
-    // them retry. This is done here to ensure that the retry does not
-    // cause a nextReqEvent to be scheduled before we do so as part of
-    // the next request processing
-    if (retryWrReqCh1 && totalWriteQueueSize < writeBufferSize) {
-        retryWrReqCh1 = false;
-        SimpleMemCtrl::port.sendRetryReq();
-    }
-}
-
-void
-HBMCtrl::processRespondEventCh1()
-{
-    DPRINTF(MemCtrl,
-            "processRespondEventCh1(): Some req has reached its readyTime\n");
-    SimpleMemCtrl::respondEventLogic(ch1_int, respQueueCh1, respondEventCh1);
-    // We have made a location in the queue available at this point,
-    // so if there is a read that was forced to wait, retry now
-    if (retryRdReqCh1) {
-        retryRdReqCh1 = false;
-        SimpleMemCtrl::port.sendRetryReq();
-    }
-}
-*/
-
 
 void
 HBMCtrl::pruneRowBurstTick()
