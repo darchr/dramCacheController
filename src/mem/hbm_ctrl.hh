@@ -252,8 +252,8 @@ class HBMCtrl : public SimpleMemCtrl
     /**
      * Pointers to interfaces of the two pseudo channels
      */
-    DRAMInterface* ch0_int;
-    DRAMInterface* ch1_int;
+    DRAMInterface* ch0Int;
+    DRAMInterface* ch1Int;
 
     /**
      * This indicates if the R/W queues will be partitioned among

@@ -46,32 +46,28 @@ namespace memory
 HBMCtrl::HBMCtrl(const HBMCtrlParams &p) :
     SimpleMemCtrl(p),
     retryRdReqCh1(false), retryWrReqCh1(false),
-    nextReqEventCh1([this] {processNextReqEvent(ch1_int, respQueueCh1,
+    nextReqEventCh1([this] {processNextReqEvent(ch1Int, respQueueCh1,
                          respondEventCh1, nextReqEventCh1, retryWrReqCh1);},
                          name()),
-    respondEventCh1([this] {processRespondEvent(ch1_int, respQueueCh1,
+    respondEventCh1([this] {processRespondEvent(ch1Int, respQueueCh1,
                          respondEventCh1, retryRdReqCh1); }, name()),
-    ch1_int(p.dram_2),
+    ch1Int(p.dram_2),
     partitionedQ(p.partitioned_q)
 {
     DPRINTF(MemCtrl, "Setting up HBM controller\n");
 
-    ch0_int = dynamic_cast<DRAMInterface*>(dram);
+    ch0Int = dynamic_cast<DRAMInterface*>(dram);
 
     assert(dynamic_cast<DRAMInterface*>(p.dram_2) != nullptr);
 
-    readBufferSize = ch0_int->readBufferSize + ch1_int->readBufferSize;
-    writeBufferSize = ch0_int->writeBufferSize + ch1_int->writeBufferSize;
+    readBufferSize = ch0Int->readBufferSize + ch1Int->readBufferSize;
+    writeBufferSize = ch0Int->writeBufferSize + ch1Int->writeBufferSize;
 
-    fatal_if(!ch0_int, "Memory controller must have ch0 interface");
-    fatal_if(!ch1_int, "Memory controller must have ch1 interface");
+    fatal_if(!ch0Int, "Memory controller must have ch0 interface");
+    fatal_if(!ch1Int, "Memory controller must have ch1 interface");
 
-    if (ch0_int) {
-        ch0_int->setCtrl(this, commandWindow, 0);
-    }
-    if (ch1_int) {
-        ch1_int->setCtrl(this, commandWindow, 1);
-    }
+    ch0Int->setCtrl(this, commandWindow, 0);
+    ch1Int->setCtrl(this, commandWindow, 1);
 
     if (partitionedQ) {
         writeHighThreshold = (writeBufferSize * (p.write_high_thresh_perc/2)
@@ -84,8 +80,6 @@ HBMCtrl::HBMCtrl(const HBMCtrlParams &p) :
         writeLowThreshold = (writeBufferSize * p.write_low_thresh_perc
                             / 100.0);
     }
-
-
 }
 
 void
@@ -106,7 +100,7 @@ HBMCtrl::startup()
         // have to worry about negative values when computing the time for
         // the next request, this will add an insignificant bubble at the
         // start of simulation
-        ch1_int->nextBurstAt = curTick() + ch1_int->commandOffset();
+        ch1Int->nextBurstAt = curTick() + ch1Int->commandOffset();
     }
 }
 
@@ -115,10 +109,10 @@ HBMCtrl::recvAtomic(PacketPtr pkt)
 {
     Tick latency = 0;
 
-    if (ch0_int->getAddrRange().contains(pkt->getAddr())) {
-        latency = SimpleMemCtrl::recvAtomicLogic(pkt, ch0_int);
-    } else if (ch1_int->getAddrRange().contains(pkt->getAddr())) {
-        latency = SimpleMemCtrl::recvAtomicLogic(pkt, ch1_int);
+    if (ch0Int->getAddrRange().contains(pkt->getAddr())) {
+        latency = SimpleMemCtrl::recvAtomicLogic(pkt, ch0Int);
+    } else if (ch1Int->getAddrRange().contains(pkt->getAddr())) {
+        latency = SimpleMemCtrl::recvAtomicLogic(pkt, ch1Int);
     } else {
         panic("Can't handle address range for packet %s\n", pkt->print());
     }
@@ -131,10 +125,10 @@ HBMCtrl::recvFunctional(PacketPtr pkt)
 {
     bool found;
 
-    found = SimpleMemCtrl::recvFunctionalLogic(pkt, ch0_int);
+    found = SimpleMemCtrl::recvFunctionalLogic(pkt, ch0Int);
 
     if (!found) {
-        found = SimpleMemCtrl::recvFunctionalLogic(pkt, ch1_int);
+        found = SimpleMemCtrl::recvFunctionalLogic(pkt, ch1Int);
     }
 
     if (!found) {
@@ -148,10 +142,10 @@ HBMCtrl::recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor)
 {
     Tick latency = recvAtomic(pkt);
 
-    if (ch0_int && ch0_int->getAddrRange().contains(pkt->getAddr())) {
-        ch0_int->getBackdoor(backdoor);
-    } else if (ch1_int && ch1_int->getAddrRange().contains(pkt->getAddr())) {
-        ch1_int->getBackdoor(backdoor);
+    if (ch0Int && ch0Int->getAddrRange().contains(pkt->getAddr())) {
+        ch0Int->getBackdoor(backdoor);
+    } else if (ch1Int && ch1Int->getAddrRange().contains(pkt->getAddr())) {
+        ch1Int->getBackdoor(backdoor);
     }
     else {
         panic("Can't handle address range for packet %s\n",
@@ -244,8 +238,7 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
     // TODO: make the interleaving bit across pseudo channels a parameter
     if (bits(pkt->getAddr(), 6) == 0) {
         is_ch0 = true;
-    }
-    else {
+    } else {
         is_ch0 = false;
     }
 
@@ -254,7 +247,7 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
     // translates to only one memory packet. Otherwise, a pkt translates to
     // multiple memory packets
     unsigned size = pkt->getSize();
-    uint32_t burst_size = ch0_int->bytesPerBurst();
+    uint32_t burst_size = ch0Int->bytesPerBurst();
     unsigned offset = pkt->getAddr() & (burst_size - 1);
     unsigned int pkt_count = divCeil(offset + size, burst_size);
 
@@ -272,9 +265,8 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
                 SimpleMemCtrl::retryWrReq = true;
                 stats.numWrRetry++;
                 return false;
-            }
-            else {
-                addToWriteQueue(pkt, pkt_count, ch0_int);
+            } else {
+                addToWriteQueue(pkt, pkt_count, ch0Int);
                 stats.writeReqs++;
                 stats.bytesWrittenSys += size;
             }
@@ -288,28 +280,26 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
                 stats.numWrRetry++;
                 return false;
             } else {
-                addToWriteQueue(pkt, pkt_count, ch1_int);
+                addToWriteQueue(pkt, pkt_count, ch1Int);
                 stats.writeReqs++;
                 stats.bytesWrittenSys += size;
             }
         }
-    }
-    else {
+    } else {
 
         assert(pkt->isRead());
         assert(size != 0);
 
         if (is_ch0) {
             if (partitionedQ ? readQueueFullCh0(pkt_count) :
-                                        HBMCtrl::readQueueFull(pkt_count))
-            {
+                                        HBMCtrl::readQueueFull(pkt_count)) {
                 DPRINTF(MemCtrl, "Read queue full, not accepting\n");
                 // remember that we have to retry this port
                 retryRdReqCh1 = true;
                 stats.numRdRetry++;
                 return false;
             } else {
-                if (!addToReadQueue(pkt, pkt_count, ch0_int)) {
+                if (!addToReadQueue(pkt, pkt_count, ch0Int)) {
                     if (!nextReqEvent.scheduled()) {
                         DPRINTF(MemCtrl, "Request scheduled immediately\n");
                         schedule(nextReqEvent, curTick());
@@ -328,7 +318,7 @@ HBMCtrl::recvTimingReq(PacketPtr pkt)
                 stats.numRdRetry++;
                 return false;
             } else {
-                if (!addToReadQueue(pkt, pkt_count, ch1_int)) {
+                if (!addToReadQueue(pkt, pkt_count, ch1Int)) {
                     if (!nextReqEventCh1.scheduled()) {
                         DPRINTF(MemCtrl, "Request scheduled immediately\n");
                         schedule(nextReqEventCh1, curTick());
@@ -360,8 +350,7 @@ void
 HBMCtrl::pruneColBurstTick()
 {
     auto it = colBurstTicks.begin();
-    while (it != colBurstTicks.end())
-    {
+    while (it != colBurstTicks.end()) {
         auto current_it = it++;
         if (SimpleMemCtrl::getBurstWindow(curTick()) > *current_it) {
             DPRINTF(MemCtrl, "Removing burstTick for %d\n", *current_it);
@@ -482,12 +471,12 @@ HBMCtrl::drainResume()
         // if we switched to timing mode, kick things into action,
         // and behave as if we restored from a checkpoint
         startup();
-        ch1_int->startup();
+        ch1Int->startup();
     } else if (isTimingMode && !system()->isTimingMode()) {
         // if we switch from timing mode, stop the refresh events to
         // not cause issues with KVM
-        if (ch1_int) {
-            ch1_int->drainRanks();
+        if (ch1Int) {
+            ch1Int->drainRanks();
         }
     }
 
