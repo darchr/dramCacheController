@@ -68,7 +68,7 @@ class HBMCtrl : public SimpleMemCtrl
 
     bool respQEmpty()
     {
-      return (respQueue.empty() && respQueueCh1.empty());
+        return (respQueue.empty() && respQueueCh1.empty());
     };
 
   private:
@@ -271,8 +271,9 @@ class HBMCtrl : public SimpleMemCtrl
      *
      * @return true if event is scheduled
      */
-    bool respondEventCh1Scheduled() const {
-      return respondEventCh1.scheduled();
+    bool respondEventCh1Scheduled() const
+    {
+        return respondEventCh1.scheduled();
     }
 
     /**
@@ -280,14 +281,14 @@ class HBMCtrl : public SimpleMemCtrl
      *
      * @return true if event is scheduled
      */
-    bool requestEventScheduled(uint8_t channel) const override {
-      if (channel == 0) {
-        return SimpleMemCtrl::requestEventScheduled(channel);
-      } else {
-        assert(channel == 1);
-        return nextReqEventCh1.scheduled();
-      }
-
+    bool requestEventScheduled(uint8_t channel) const override
+    {
+        if (channel == 0) {
+            return SimpleMemCtrl::requestEventScheduled(channel);
+        } else {
+            assert(channel == 1);
+            return nextReqEventCh1.scheduled();
+        }
     }
 
     /**
@@ -297,12 +298,13 @@ class HBMCtrl : public SimpleMemCtrl
      * @param channel pseudo channel number for which scheduler
      * needs to restart
      */
-    void restartScheduler(Tick tick, uint8_t channel) override {
-      if (channel == 0) {
-        SimpleMemCtrl::restartScheduler(tick);
-      } else {
-        schedule(nextReqEventCh1, tick);
-      }
+    void restartScheduler(Tick tick, uint8_t channel) override
+    {
+        if (channel == 0) {
+            SimpleMemCtrl::restartScheduler(tick);
+        } else {
+            schedule(nextReqEventCh1, tick);
+        }
     }
 
 
