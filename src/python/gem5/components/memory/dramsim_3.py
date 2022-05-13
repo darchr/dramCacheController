@@ -2,7 +2,7 @@ import m5
 import os
 import configparser
 
-from m5.objects import DRAMsim3, AddrRange, Port, SimpleMemCtrl
+from m5.objects import DRAMsim3, AddrRange, Port, MemCtrl
 from m5.util.convert import toMemorySize
 
 from ...utils.override import overrides
@@ -111,7 +111,7 @@ class SingleChannel(AbstractMemorySystem):
         return [(self.mem_ctrl.range, self.mem_ctrl.port)]
 
     @overrides(AbstractMemorySystem)
-    def get_memory_controllers(self) -> List[SimpleMemCtrl]:
+    def get_memory_controllers(self) -> List[MemCtrl]:
         return [self.mem_ctrl]
 
     @overrides(AbstractMemorySystem)

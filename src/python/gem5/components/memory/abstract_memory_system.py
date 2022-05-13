@@ -30,7 +30,7 @@ from typing import Tuple, Sequence, List
 
 from ..boards.abstract_board import AbstractBoard
 
-from m5.objects import AddrRange, Port, SubSystem, SimpleMemCtrl
+from m5.objects import AddrRange, Port, SubSystem, MemCtrl
 
 
 class AbstractMemorySystem(SubSystem):
@@ -51,7 +51,7 @@ class AbstractMemorySystem(SubSystem):
         raise NotImplementedError
 
     @abstractmethod
-    def get_memory_controllers(self) -> List[SimpleMemCtrl]:
+    def get_memory_controllers(self) -> List[MemCtrl]:
         """Get all of the memory controllers in this memory system"""
         raise NotImplementedError
 

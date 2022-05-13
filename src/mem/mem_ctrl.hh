@@ -40,11 +40,11 @@
 
 /**
  * @file
- * SimpleMemCtrl declaration
+ * MemCtrl declaration
  */
 
-#ifndef __SIMPLE_MEM_CTRL_HH__
-#define __SIMPLE_MEM_CTRL_HH__
+#ifndef __MEM_CTRL_HH__
+#define __MEM_CTRL_HH__
 
 #include <deque>
 #include <string>
@@ -57,7 +57,7 @@
 #include "enums/MemSched.hh"
 #include "mem/qos/mem_ctrl.hh"
 #include "mem/qport.hh"
-#include "params/SimpleMemCtrl.hh"
+#include "params/MemCtrl.hh"
 #include "sim/eventq.hh"
 
 namespace gem5
@@ -240,7 +240,7 @@ typedef std::deque<MemPacket*> MemPacketQueue;
  * please cite the paper.
  *
  */
-class SimpleMemCtrl : public qos::MemCtrl
+class MemCtrl : public qos::MemCtrl
 {
   protected:
 
@@ -251,11 +251,11 @@ class SimpleMemCtrl : public qos::MemCtrl
 
       public:
         RespPacketQueue queue;
-        SimpleMemCtrl& ctrl;
+        MemCtrl& ctrl;
 
       public:
 
-        MemoryPort(const std::string& name, SimpleMemCtrl& _ctrl);
+        MemoryPort(const std::string& name, MemCtrl& _ctrl);
 
       protected:
 
@@ -555,11 +555,11 @@ class SimpleMemCtrl : public qos::MemCtrl
 
     struct CtrlStats : public statistics::Group
     {
-        CtrlStats(SimpleMemCtrl &ctrl);
+        CtrlStats(MemCtrl &ctrl);
 
         void regStats() override;
 
-        SimpleMemCtrl &ctrl;
+        MemCtrl &ctrl;
 
         // All statistics that the model needs to capture
         statistics::Scalar readReqs;
@@ -669,7 +669,7 @@ class SimpleMemCtrl : public qos::MemCtrl
 
   public:
 
-    SimpleMemCtrl(const SimpleMemCtrlParams &p);
+    MemCtrl(const MemCtrlParams &p);
 
     /**
      * Ensure that all interfaced have drained commands
@@ -773,4 +773,4 @@ class SimpleMemCtrl : public qos::MemCtrl
 } // namespace memory
 } // namespace gem5
 
-#endif //__SIMPLE_MEM_CTRL_HH__
+#endif //__MEM_CTRL_HH__

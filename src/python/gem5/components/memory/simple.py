@@ -32,7 +32,7 @@ from m5.util.convert import toMemorySize
 from typing import List, Sequence, Tuple
 from ..boards.abstract_board import AbstractBoard
 from .abstract_memory_system import AbstractMemorySystem
-from m5.objects import AddrRange, SimpleMemCtrl, Port, SimpleMemory
+from m5.objects import AddrRange, MemCtrl, Port, SimpleMemory
 
 class SingleChannelSimpleMemory(AbstractMemorySystem):
     """A class to implement single channel memory system using SimpleMemory
@@ -67,7 +67,7 @@ class SingleChannelSimpleMemory(AbstractMemorySystem):
         return [(self.module.range, self.module.port)]
 
     @overrides(AbstractMemorySystem)
-    def get_memory_controllers(self) -> List[SimpleMemCtrl]:
+    def get_memory_controllers(self) -> List[MemCtrl]:
         return [self.module]
 
     @overrides(AbstractMemorySystem)

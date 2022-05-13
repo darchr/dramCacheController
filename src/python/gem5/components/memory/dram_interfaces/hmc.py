@@ -43,7 +43,7 @@
 These memory "interfaces" contain the timing,energy,etc parameters for each
 memory type and are usually based on datasheets for the memory devices.
 
-You can use these interfaces in the SimpleMemCtrl object as the `dram` timing
+You can use these interfaces in the MemCtrl object as the `dram` timing
 interface.
 
 Note that HMC is configured differently than some other DRAM interfaces.
@@ -152,7 +152,7 @@ class HMC_2500_1x32(DDR3_1600_8x8):
         Instantiate the memory controller and bind it to
         the current interface.
         """
-        controller = SimpleMemCtrl(
+        controller = MemCtrl(
             min_writes_per_switch=8,
             static_backend_latency="4ns",
             static_frontend_latency="4ns",

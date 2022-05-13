@@ -111,7 +111,7 @@ class MemInterface : public AbstractMemory
     /**
      * A pointer to the parent memory controller instance
      */
-    SimpleMemCtrl* ctrl;
+    MemCtrl* ctrl;
 
     /**
      * Number of commands that can issue in the defined controller
@@ -189,7 +189,7 @@ class MemInterface : public AbstractMemory
      * @param command_window size of command window used to
      *                       check command bandwidth
      */
-    void setCtrl(SimpleMemCtrl* _ctrl, unsigned int command_window);
+    void setCtrl(MemCtrl* _ctrl, unsigned int command_window);
 
     /**
      * Get an address in a dense range which starts from 0. The input

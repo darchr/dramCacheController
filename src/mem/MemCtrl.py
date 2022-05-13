@@ -46,14 +46,14 @@ from m5.objects.QoSMemCtrl import *
 # First-Served and a First-Row Hit then First-Come First-Served
 class MemSched(Enum): vals = ['fcfs', 'frfcfs']
 
-# SimpleMemCtrl is a single-channel single-ported Memory controller model
+# MemCtrl is a single-channel single-ported Memory controller model
 # that aims to model the most important system-level performance
 # effects of a memory controller, interfacing with media specific
 # interfaces
-class SimpleMemCtrl(QoSMemCtrl):
-    type = 'SimpleMemCtrl'
-    cxx_header = "mem/simple_mem_ctrl.hh"
-    cxx_class = 'gem5::memory::SimpleMemCtrl'
+class MemCtrl(QoSMemCtrl):
+    type = 'MemCtrl'
+    cxx_header = "mem/mem_ctrl.hh"
+    cxx_class = 'gem5::memory::MemCtrl'
 
     # single-ported on the system interface side, instantiate with a
     # bus in front of the controller for multiple ports

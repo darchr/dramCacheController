@@ -46,7 +46,7 @@
 #ifndef __HETERO_MEM_CTRL_HH__
 #define __HETERO_MEM_CTRL_HH__
 
-#include "mem/simple_mem_ctrl.hh"
+#include "mem/mem_ctrl.hh"
 #include "params/HeteroMemCtrl.hh"
 
 namespace gem5
@@ -54,7 +54,7 @@ namespace gem5
 
 namespace memory
 {
-class HeteroMemCtrl : public SimpleMemCtrl
+class HeteroMemCtrl : public MemCtrl
 {
   private:
 

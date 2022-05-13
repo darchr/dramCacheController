@@ -38,7 +38,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "mem/simple_mem_ctrl.hh"
+#include "mem/mem_ctrl.hh"
 
 #include "base/trace.hh"
 #include "debug/DRAM.hh"
@@ -57,7 +57,7 @@ namespace gem5
 namespace memory
 {
 
-SimpleMemCtrl::SimpleMemCtrl(const SimpleMemCtrlParams &p) :
+MemCtrl::MemCtrl(const MemCtrlParams &p) :
     qos::MemCtrl(p),
     port(name() + ".port", *this), isTimingMode(false),
     retryRdReq(false), retryWrReq(false),
@@ -95,17 +95,17 @@ SimpleMemCtrl::SimpleMemCtrl(const SimpleMemCtrlParams &p) :
 }
 
 void
-SimpleMemCtrl::init()
+MemCtrl::init()
 {
    if (!port.isConnected()) {
-        fatal("SimpleMemCtrl %s is unconnected!\n", name());
+        fatal("MemCtrl %s is unconnected!\n", name());
     } else {
         port.sendRangeChange();
     }
 }
 
 void
-SimpleMemCtrl::startup()
+MemCtrl::startup()
 {
     // remember the memory system mode of operation
     isTimingMode = system()->isTimingMode();
@@ -120,7 +120,7 @@ SimpleMemCtrl::startup()
 }
 
 Tick
-SimpleMemCtrl::recvAtomic(PacketPtr pkt)
+MemCtrl::recvAtomic(PacketPtr pkt)
 {
     if (!dram->getAddrRange().contains(pkt->getAddr())) {
         panic("Can't handle address range for packet %s\n", pkt->print());
@@ -131,7 +131,7 @@ SimpleMemCtrl::recvAtomic(PacketPtr pkt)
 
 
 Tick
-SimpleMemCtrl::recvAtomicLogic(PacketPtr pkt, MemInterface* mem_intr)
+MemCtrl::recvAtomicLogic(PacketPtr pkt, MemInterface* mem_intr)
 {
     DPRINTF(MemCtrl, "recvAtomic: %s 0x%x\n",
                      pkt->cmdString(), pkt->getAddr());
@@ -153,7 +153,7 @@ SimpleMemCtrl::recvAtomicLogic(PacketPtr pkt, MemInterface* mem_intr)
 }
 
 Tick
-SimpleMemCtrl::recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor)
+MemCtrl::recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor)
 {
     Tick latency = recvAtomic(pkt);
     dram->getBackdoor(backdoor);
@@ -161,7 +161,7 @@ SimpleMemCtrl::recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor)
 }
 
 bool
-SimpleMemCtrl::readQueueFull(unsigned int neededEntries) const
+MemCtrl::readQueueFull(unsigned int neededEntries) const
 {
     DPRINTF(MemCtrl,
             "Read queue limit %d, current size %d, entries needed %d\n",
@@ -173,7 +173,7 @@ SimpleMemCtrl::readQueueFull(unsigned int neededEntries) const
 }
 
 bool
-SimpleMemCtrl::writeQueueFull(unsigned int neededEntries) const
+MemCtrl::writeQueueFull(unsigned int neededEntries) const
 {
     DPRINTF(MemCtrl,
             "Write queue limit %d, current size %d, entries needed %d\n",
@@ -184,7 +184,7 @@ SimpleMemCtrl::writeQueueFull(unsigned int neededEntries) const
 }
 
 bool
-SimpleMemCtrl::addToReadQueue(PacketPtr pkt,
+MemCtrl::addToReadQueue(PacketPtr pkt,
                 unsigned int pkt_count, MemInterface* mem_intr)
 {
     // only add to the read queue here. whenever the request is
@@ -270,7 +270,7 @@ SimpleMemCtrl::addToReadQueue(PacketPtr pkt,
             readQueue[mem_pkt->qosValue()].push_back(mem_pkt);
 
             // log packet
-            logRequest(SimpleMemCtrl::READ, pkt->requestorId(),
+            logRequest(MemCtrl::READ, pkt->requestorId(),
                        pkt->qosValue(), mem_pkt->addr, 1);
 
             // Update stats
@@ -296,7 +296,7 @@ SimpleMemCtrl::addToReadQueue(PacketPtr pkt,
 }
 
 void
-SimpleMemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
+MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
                                 MemInterface* mem_intr)
 {
     // only add to the write queue here. whenever the request is
@@ -341,7 +341,7 @@ SimpleMemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
             isInWriteQueue.insert(burstAlign(addr, mem_intr));
 
             // log packet
-            logRequest(SimpleMemCtrl::WRITE, pkt->requestorId(),
+            logRequest(MemCtrl::WRITE, pkt->requestorId(),
                        pkt->qosValue(), mem_pkt->addr, 1);
 
             assert(totalWriteQueueSize == isInWriteQueue.size());
@@ -371,7 +371,7 @@ SimpleMemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
 }
 
 void
-SimpleMemCtrl::printQs() const
+MemCtrl::printQs() const
 {
 #if TRACING_ON
     DPRINTF(MemCtrl, "===READ QUEUE===\n\n");
@@ -396,7 +396,7 @@ SimpleMemCtrl::printQs() const
 }
 
 bool
-SimpleMemCtrl::recvTimingReq(PacketPtr pkt)
+MemCtrl::recvTimingReq(PacketPtr pkt)
 {
     // This is where we enter from the outside world
     DPRINTF(MemCtrl, "recvTimingReq: request %s addr %#x size %d\n",
@@ -477,7 +477,7 @@ SimpleMemCtrl::recvTimingReq(PacketPtr pkt)
 }
 
 void
-SimpleMemCtrl::processRespondEvent(MemInterface* mem_intr,
+MemCtrl::processRespondEvent(MemInterface* mem_intr,
                         MemPacketQueue& queue,
                         EventFunctionWrapper& resp_event)
 {
@@ -545,7 +545,7 @@ SimpleMemCtrl::processRespondEvent(MemInterface* mem_intr,
 }
 
 MemPacketQueue::iterator
-SimpleMemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
+MemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
                                                 MemInterface* mem_intr)
 {
     // This method does the arbitration between requests.
@@ -583,7 +583,7 @@ SimpleMemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
 }
 
 std::pair<MemPacketQueue::iterator, Tick>
-SimpleMemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
+MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
                                 MemInterface* mem_intr)
 {
     auto selected_pkt_it = queue.end();
@@ -603,7 +603,7 @@ SimpleMemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
 }
 
 void
-SimpleMemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
+MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
                                                 MemInterface* mem_intr)
 {
     DPRINTF(MemCtrl, "Responding to Address %#x.. \n", pkt->getAddr());
@@ -643,7 +643,7 @@ SimpleMemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
 }
 
 void
-SimpleMemCtrl::pruneBurstTick()
+MemCtrl::pruneBurstTick()
 {
     auto it = burstTicks.begin();
     while (it != burstTicks.end()) {
@@ -656,7 +656,7 @@ SimpleMemCtrl::pruneBurstTick()
 }
 
 Tick
-SimpleMemCtrl::getBurstWindow(Tick cmd_tick)
+MemCtrl::getBurstWindow(Tick cmd_tick)
 {
     // get tick aligned to burst window
     Tick burst_offset = cmd_tick % commandWindow;
@@ -664,7 +664,7 @@ SimpleMemCtrl::getBurstWindow(Tick cmd_tick)
 }
 
 Tick
-SimpleMemCtrl::verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst)
+MemCtrl::verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst)
 {
     // start with assumption that there is no contention on command bus
     Tick cmd_at = cmd_tick;
@@ -687,7 +687,7 @@ SimpleMemCtrl::verifySingleCmd(Tick cmd_tick, Tick max_cmds_per_burst)
 }
 
 Tick
-SimpleMemCtrl::verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
+MemCtrl::verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
                          Tick max_multi_cmd_split)
 {
     // start with assumption that there is no contention on command bus
@@ -751,33 +751,33 @@ SimpleMemCtrl::verifyMultiCmd(Tick cmd_tick, Tick max_cmds_per_burst,
 }
 
 bool
-SimpleMemCtrl::inReadBusState(bool next_state) const
+MemCtrl::inReadBusState(bool next_state) const
 {
     // check the bus state
     if (next_state) {
         // use busStateNext to get the state that will be used
         // for the next burst
-        return (busStateNext == SimpleMemCtrl::READ);
+        return (busStateNext == MemCtrl::READ);
     } else {
-        return (busState == SimpleMemCtrl::READ);
+        return (busState == MemCtrl::READ);
     }
 }
 
 bool
-SimpleMemCtrl::inWriteBusState(bool next_state) const
+MemCtrl::inWriteBusState(bool next_state) const
 {
     // check the bus state
     if (next_state) {
         // use busStateNext to get the state that will be used
         // for the next burst
-        return (busStateNext == SimpleMemCtrl::WRITE);
+        return (busStateNext == MemCtrl::WRITE);
     } else {
-        return (busState == SimpleMemCtrl::WRITE);
+        return (busState == MemCtrl::WRITE);
     }
 }
 
 Tick
-SimpleMemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
+MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
 {
     // first clean up the burstTick set, removing old entries
     // before adding new entries for next burst
@@ -819,7 +819,7 @@ SimpleMemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
 }
 
 bool
-SimpleMemCtrl::memBusy(MemInterface* mem_intr) {
+MemCtrl::memBusy(MemInterface* mem_intr) {
 
     // check ranks for refresh/wakeup - uses busStateNext, so done after
     // turnaround decisions
@@ -840,14 +840,14 @@ SimpleMemCtrl::memBusy(MemInterface* mem_intr) {
 }
 
 bool
-SimpleMemCtrl::nvmWriteBlock(MemInterface* mem_intr) {
+MemCtrl::nvmWriteBlock(MemInterface* mem_intr) {
 
     bool all_writes_nvm = mem_intr->numWritesQueued == totalWriteQueueSize;
     return (mem_intr->writeRespQueueFull() && all_writes_nvm);
 }
 
 void
-SimpleMemCtrl::nonDetermReads(MemInterface* mem_intr) {
+MemCtrl::nonDetermReads(MemInterface* mem_intr) {
 
     for (auto queue = readQueue.rbegin();
             queue != readQueue.rend(); ++queue) {
@@ -862,7 +862,7 @@ SimpleMemCtrl::nonDetermReads(MemInterface* mem_intr) {
 }
 
 void
-SimpleMemCtrl::processNextReqEvent(MemInterface* mem_intr,
+MemCtrl::processNextReqEvent(MemInterface* mem_intr,
                         MemPacketQueue& resp_queue,
                         EventFunctionWrapper& resp_event,
                         EventFunctionWrapper& next_req_event) {
@@ -878,11 +878,11 @@ SimpleMemCtrl::processNextReqEvent(MemInterface* mem_intr,
     recordTurnaroundStats();
 
     DPRINTF(MemCtrl, "QoS Turnarounds selected state %s %s\n",
-            (busState==SimpleMemCtrl::READ)?"READ":"WRITE",
+            (busState==MemCtrl::READ)?"READ":"WRITE",
             switched_cmd_type?"[turnaround triggered]":"");
 
     if (switched_cmd_type) {
-        if (busState == SimpleMemCtrl::READ) {
+        if (busState == MemCtrl::READ) {
             DPRINTF(MemCtrl,
                     "Switching to writes after %d reads with %d reads "
                     "waiting\n", readsThisTime, totalReadQueueSize);
@@ -931,7 +931,7 @@ SimpleMemCtrl::processNextReqEvent(MemInterface* mem_intr,
                 if (drainState() == DrainState::Draining &&
                     respQEmpty() && allIntfDrained()) {
 
-                    DPRINTF(Drain, "SimpleMemCtrl controller done draining\n");
+                    DPRINTF(Drain, "MemCtrl controller done draining\n");
                     signalDrainDone();
                 }
 
@@ -989,7 +989,7 @@ SimpleMemCtrl::processNextReqEvent(MemInterface* mem_intr,
             assert(mem_pkt->readyTime >= curTick());
 
             // log the response
-            logResponse(SimpleMemCtrl::READ, (*to_read)->requestorId(),
+            logResponse(MemCtrl::READ, (*to_read)->requestorId(),
                         mem_pkt->qosValue(), mem_pkt->getAddr(), 1,
                         mem_pkt->readyTime - mem_pkt->entryTime);
 
@@ -1074,7 +1074,7 @@ SimpleMemCtrl::processNextReqEvent(MemInterface* mem_intr,
         isInWriteQueue.erase(burstAlign(mem_pkt->addr, mem_intr));
 
         // log the response
-        logResponse(SimpleMemCtrl::WRITE, mem_pkt->requestorId(),
+        logResponse(MemCtrl::WRITE, mem_pkt->requestorId(),
                     mem_pkt->qosValue(), mem_pkt->getAddr(), 1,
                     mem_pkt->readyTime - mem_pkt->entryTime);
 
@@ -1099,7 +1099,7 @@ SimpleMemCtrl::processNextReqEvent(MemInterface* mem_intr,
             (totalReadQueueSize && (nvmWriteBlock(mem_intr)))) {
 
             // turn the bus back around for reads again
-            busStateNext = SimpleMemCtrl::READ;
+            busStateNext = MemCtrl::READ;
 
             // note that the we switch back to reads also in the idle
             // case, which eventually will check for any draining and
@@ -1119,36 +1119,36 @@ SimpleMemCtrl::processNextReqEvent(MemInterface* mem_intr,
 }
 
 bool
-SimpleMemCtrl::packetReady(MemPacket* pkt, MemInterface* mem_intr)
+MemCtrl::packetReady(MemPacket* pkt, MemInterface* mem_intr)
 {
     return mem_intr->burstReady(pkt);
 }
 
 Tick
-SimpleMemCtrl::minReadToWriteDataGap()
+MemCtrl::minReadToWriteDataGap()
 {
     return dram->minReadToWriteDataGap();
 }
 
 Tick
-SimpleMemCtrl::minWriteToReadDataGap()
+MemCtrl::minWriteToReadDataGap()
 {
     return dram->minWriteToReadDataGap();
 }
 
 Addr
-SimpleMemCtrl::burstAlign(Addr addr, MemInterface* mem_intr) const
+MemCtrl::burstAlign(Addr addr, MemInterface* mem_intr) const
 {
     return (addr & ~(Addr(mem_intr->bytesPerBurst() - 1)));
 }
 
 bool
-SimpleMemCtrl::pktSizeCheck(MemPacket* mem_pkt, MemInterface* mem_intr) const
+MemCtrl::pktSizeCheck(MemPacket* mem_pkt, MemInterface* mem_intr) const
 {
     return (mem_pkt->size <= mem_intr->bytesPerBurst());
 }
 
-SimpleMemCtrl::CtrlStats::CtrlStats(SimpleMemCtrl &_ctrl)
+MemCtrl::CtrlStats::CtrlStats(MemCtrl &_ctrl)
     : statistics::Group(&_ctrl),
     ctrl(_ctrl),
 
@@ -1246,7 +1246,7 @@ SimpleMemCtrl::CtrlStats::CtrlStats(SimpleMemCtrl &_ctrl)
 }
 
 void
-SimpleMemCtrl::CtrlStats::regStats()
+MemCtrl::CtrlStats::regStats()
 {
     using namespace statistics;
 
@@ -1342,7 +1342,7 @@ SimpleMemCtrl::CtrlStats::regStats()
 }
 
 void
-SimpleMemCtrl::recvFunctional(PacketPtr pkt)
+MemCtrl::recvFunctional(PacketPtr pkt)
 {
     bool found = recvFunctionalLogic(pkt, dram);
 
@@ -1351,7 +1351,7 @@ SimpleMemCtrl::recvFunctional(PacketPtr pkt)
 }
 
 bool
-SimpleMemCtrl::recvFunctionalLogic(PacketPtr pkt, MemInterface* mem_intr)
+MemCtrl::recvFunctionalLogic(PacketPtr pkt, MemInterface* mem_intr)
 {
     if (mem_intr->getAddrRange().contains(pkt->getAddr())) {
         // rely on the abstract memory
@@ -1363,7 +1363,7 @@ SimpleMemCtrl::recvFunctionalLogic(PacketPtr pkt, MemInterface* mem_intr)
 }
 
 Port &
-SimpleMemCtrl::getPort(const std::string &if_name, PortID idx)
+MemCtrl::getPort(const std::string &if_name, PortID idx)
 {
     if (if_name != "port") {
         return qos::MemCtrl::getPort(if_name, idx);
@@ -1373,7 +1373,7 @@ SimpleMemCtrl::getPort(const std::string &if_name, PortID idx)
 }
 
 bool
-SimpleMemCtrl::allIntfDrained() const
+MemCtrl::allIntfDrained() const
 {
    // DRAM: ensure dram is in power down and refresh IDLE states
    // NVM: No outstanding NVM writes
@@ -1382,7 +1382,7 @@ SimpleMemCtrl::allIntfDrained() const
 }
 
 DrainState
-SimpleMemCtrl::drain()
+MemCtrl::drain()
 {
     // if there is anything in any of our internal queues, keep track
     // of that as well
@@ -1408,7 +1408,7 @@ SimpleMemCtrl::drain()
 }
 
 void
-SimpleMemCtrl::drainResume()
+MemCtrl::drainResume()
 {
     if (!isTimingMode && system()->isTimingMode()) {
         // if we switched to timing mode, kick things into action,
@@ -1426,27 +1426,27 @@ SimpleMemCtrl::drainResume()
 }
 
 AddrRangeList
-SimpleMemCtrl::getAddrRanges()
+MemCtrl::getAddrRanges()
 {
     AddrRangeList range;
     range.push_back(dram->getAddrRange());
     return range;
 }
 
-SimpleMemCtrl::MemoryPort::
-MemoryPort(const std::string& name, SimpleMemCtrl& _ctrl)
+MemCtrl::MemoryPort::
+MemoryPort(const std::string& name, MemCtrl& _ctrl)
     : QueuedResponsePort(name, &_ctrl, queue), queue(_ctrl, *this, true),
       ctrl(_ctrl)
 { }
 
 AddrRangeList
-SimpleMemCtrl::MemoryPort::getAddrRanges() const
+MemCtrl::MemoryPort::getAddrRanges() const
 {
     return ctrl.getAddrRanges();
 }
 
 void
-SimpleMemCtrl::MemoryPort::recvFunctional(PacketPtr pkt)
+MemCtrl::MemoryPort::recvFunctional(PacketPtr pkt)
 {
     pkt->pushLabel(ctrl.name());
 
@@ -1461,20 +1461,20 @@ SimpleMemCtrl::MemoryPort::recvFunctional(PacketPtr pkt)
 }
 
 Tick
-SimpleMemCtrl::MemoryPort::recvAtomic(PacketPtr pkt)
+MemCtrl::MemoryPort::recvAtomic(PacketPtr pkt)
 {
     return ctrl.recvAtomic(pkt);
 }
 
 Tick
-SimpleMemCtrl::MemoryPort::recvAtomicBackdoor(
+MemCtrl::MemoryPort::recvAtomicBackdoor(
         PacketPtr pkt, MemBackdoorPtr &backdoor)
 {
     return ctrl.recvAtomicBackdoor(pkt, backdoor);
 }
 
 bool
-SimpleMemCtrl::MemoryPort::recvTimingReq(PacketPtr pkt)
+MemCtrl::MemoryPort::recvTimingReq(PacketPtr pkt)
 {
     // pass it to the memory controller
     return ctrl.recvTimingReq(pkt);

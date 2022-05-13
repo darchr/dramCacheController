@@ -74,7 +74,7 @@ MemInterface::MemInterface(const MemInterfaceParams &_p)
 {}
 
 void
-MemInterface::setCtrl(SimpleMemCtrl* _ctrl, unsigned int command_window)
+MemInterface::setCtrl(MemCtrl* _ctrl, unsigned int command_window)
 {
     ctrl = _ctrl;
     maxCommandsPerWindow = command_window / tCK;

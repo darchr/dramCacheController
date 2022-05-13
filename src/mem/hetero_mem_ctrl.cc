@@ -58,7 +58,7 @@ namespace memory
 {
 
 HeteroMemCtrl::HeteroMemCtrl(const HeteroMemCtrlParams &p) :
-    SimpleMemCtrl(p),
+    MemCtrl(p),
     nvm(p.nvm)
 {
     DPRINTF(MemCtrl, "Setting up controller\n");
@@ -93,9 +93,9 @@ HeteroMemCtrl::recvAtomic(PacketPtr pkt)
     Tick latency = 0;
 
     if (dram->getAddrRange().contains(pkt->getAddr())) {
-        latency = SimpleMemCtrl::recvAtomicLogic(pkt, dram);
+        latency = MemCtrl::recvAtomicLogic(pkt, dram);
     } else if (nvm->getAddrRange().contains(pkt->getAddr())) {
-        latency = SimpleMemCtrl::recvAtomicLogic(pkt, nvm);
+        latency = MemCtrl::recvAtomicLogic(pkt, nvm);
     } else {
         panic("Can't handle address range for packet %s\n", pkt->print());
     }
@@ -201,9 +201,9 @@ HeteroMemCtrl::processRespondEvent(MemInterface* mem_intr,
             "processRespondEvent(): Some req has reached its readyTime\n");
 
     if (queue.front()->isDram()) {
-        SimpleMemCtrl::processRespondEvent(dram, queue, resp_event);
+        MemCtrl::processRespondEvent(dram, queue, resp_event);
     } else {
-        SimpleMemCtrl::processRespondEvent(nvm, queue, resp_event);
+        MemCtrl::processRespondEvent(nvm, queue, resp_event);
     }
 }
 
@@ -256,10 +256,10 @@ HeteroMemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
     Tick nvm_col_allowed_at = MaxTick;
 
     std::tie(selected_pkt_it, col_allowed_at) =
-            SimpleMemCtrl::chooseNextFRFCFS(queue, extra_col_delay, dram);
+            MemCtrl::chooseNextFRFCFS(queue, extra_col_delay, dram);
 
     std::tie(nvm_pkt_it, nvm_col_allowed_at) =
-            SimpleMemCtrl::chooseNextFRFCFS(queue, extra_col_delay, nvm);
+            MemCtrl::chooseNextFRFCFS(queue, extra_col_delay, nvm);
 
 
     // Compare DRAM and NVM and select NVM if it can issue
@@ -282,12 +282,12 @@ HeteroMemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
     Tick cmd_at;
 
     if (mem_pkt->isDram()) {
-        cmd_at = SimpleMemCtrl::doBurstAccess(mem_pkt, mem_intr);
+        cmd_at = MemCtrl::doBurstAccess(mem_pkt, mem_intr);
         // Update timing for NVM ranks if NVM is configured on this channel
         nvm->addRankToRankDelay(cmd_at);
 
     } else {
-        cmd_at = SimpleMemCtrl::doBurstAccess(mem_pkt, nvm);
+        cmd_at = MemCtrl::doBurstAccess(mem_pkt, nvm);
         // Update timing for NVM ranks if NVM is configured on this channel
         dram->addRankToRankDelay(cmd_at);
     }
@@ -328,8 +328,8 @@ HeteroMemCtrl::nonDetermReads(MemInterface* mem_intr)
 {
     // mem_intr by default points to dram in case
     // of HeteroMemCtrl, therefore, calling nonDetermReads
-    // from SimpleMemCtrl using nvm interace
-    SimpleMemCtrl::nonDetermReads(nvm);
+    // from MemCtrl using nvm interace
+    MemCtrl::nonDetermReads(nvm);
 }
 
 bool
@@ -337,8 +337,8 @@ HeteroMemCtrl::nvmWriteBlock(MemInterface* mem_intr)
 {
     // mem_intr by default points to dram in case
     // of HeteroMemCtrl, therefore, calling nvmWriteBlock
-    // from SimpleMemCtrl using nvm interface
-    return SimpleMemCtrl::nvmWriteBlock(nvm);
+    // from MemCtrl using nvm interface
+    return MemCtrl::nvmWriteBlock(nvm);
 }
 
 Tick
@@ -383,10 +383,10 @@ HeteroMemCtrl::recvFunctional(PacketPtr pkt)
 {
     bool found;
 
-    found = SimpleMemCtrl::recvFunctionalLogic(pkt, dram);
+    found = MemCtrl::recvFunctionalLogic(pkt, dram);
 
     if (!found) {
-        found = SimpleMemCtrl::recvFunctionalLogic(pkt, nvm);
+        found = MemCtrl::recvFunctionalLogic(pkt, nvm);
     }
 
     if (!found) {
