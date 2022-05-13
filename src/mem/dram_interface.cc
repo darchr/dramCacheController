@@ -349,6 +349,8 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 {
     DPRINTF(DRAM, "Timing access to addr %#x, rank/bank/row %d %d %d\n",
             mem_pkt->addr, mem_pkt->rank, mem_pkt->bank, mem_pkt->row);
+    
+    ctrl->dummy();
 
     // get the rank
     Rank& rank_ref = *ranks[mem_pkt->rank];
@@ -1266,6 +1268,7 @@ DRAMInterface::Rank::processWriteDoneEvent()
 void
 DRAMInterface::Rank::processRefreshEvent()
 {
+    dram.ctrl->dummy();
     // when first preparing the refresh, remember when it was due
     if ((refreshState == REF_IDLE) || (refreshState == REF_SREF_EXIT)) {
         // remember when the refresh is due

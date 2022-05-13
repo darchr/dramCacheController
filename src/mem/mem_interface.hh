@@ -357,6 +357,8 @@ class MemInterface : public AbstractMemory
         "not be executed from here.\n");
     }
 
+    virtual Tick getTBurst() { return 0; }
+
     /**
      * This function is NVM specific.
      */

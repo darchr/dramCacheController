@@ -100,7 +100,7 @@ class MemPacket
   public:
 
     /** When did request enter the controller */
-    const Tick entryTime;
+    Tick entryTime;
 
     /** When will request leave the controller */
     Tick readyTime;
@@ -601,6 +601,49 @@ class SimpleMemCtrl : public qos::MemCtrl
         // per-requestor raed and write average memory access latency
         statistics::Formula requestorReadAvgLat;
         statistics::Formula requestorWriteAvgLat;
+
+        Stats::Scalar numHits;
+        Stats::Scalar numMisses;
+        Stats::Scalar numRdHits;
+        Stats::Scalar numWrHits;
+        Stats::Scalar numRdMisses;
+        Stats::Scalar numWrMisses;
+        Stats::Scalar numColdMisses;
+        Stats::Scalar numHotMisses;
+        Stats::Scalar numWrBacks;
+        Stats::Scalar totNumConf;
+        Stats::Scalar totNumConfBufFull;
+
+        Stats::Scalar timeInLocRead;
+        Stats::Scalar timeInLocWrite;
+        Stats::Scalar timeInFarRead;
+        Stats::Scalar timeInFarWrite;
+
+        Stats::Scalar locRdQingTime;
+        Stats::Scalar locWrQingTime;
+        Stats::Scalar farRdQingTime;
+        Stats::Scalar farWrQingTime;
+
+        Stats::Scalar locRdDevTime;
+        Stats::Scalar locWrDevTime;
+        Stats::Scalar farRdDevTime;
+        Stats::Scalar farWrDevTime;
+
+        Stats::Scalar totNumPktsLocRd;
+        Stats::Scalar totNumPktslocWr;
+        Stats::Scalar totNumPktsFarRd;
+        Stats::Scalar totNumPktsFarWr;
+
+        Stats::Scalar maxNumConf;
+        Stats::Scalar maxLocRdEvQ;
+        Stats::Scalar maxLocRdRespEvQ;
+        Stats::Scalar maxLocWrEvQ;
+        Stats::Scalar maxFarRdEvQ;
+        Stats::Scalar maxFarRdRespEvQ;
+        Stats::Scalar maxFarWrEvQ;
+
+        Stats::Scalar rdToWrTurnAround;
+        Stats::Scalar wrToRdTurnAround;
     };
 
     CtrlStats stats;
@@ -683,14 +726,14 @@ class SimpleMemCtrl : public qos::MemCtrl
      *
      * @return true if event is scheduled
      */
-    bool respondEventScheduled() const { return respondEvent.scheduled(); }
+    virtual bool respondEventScheduled() const { return respondEvent.scheduled(); }
 
     /**
      * Is there a read/write burst Event scheduled?
      *
      * @return true if event is scheduled
      */
-    bool requestEventScheduled() const { return nextReqEvent.scheduled(); }
+    virtual bool requestEventScheduled() const { return nextReqEvent.scheduled(); }
 
     /**
      * restart the controller
@@ -723,6 +766,7 @@ class SimpleMemCtrl : public qos::MemCtrl
     virtual void init() override;
     virtual void startup() override;
     virtual void drainResume() override;
+    virtual void dummy() { std::cout << "SMC\n"; }
 
   protected:
 
