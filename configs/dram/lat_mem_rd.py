@@ -119,7 +119,7 @@ for ctrl in system.mem_ctrls:
 
     # the following assumes that we are using the native DRAM
     # controller, check to be sure
-    if isinstance(ctrl, m5.objects.MemCtrl):
+    if isinstance(ctrl, m5.objects.HeteroMemCtrl):
         # make the DRAM refresh interval sufficiently infinite to avoid
         # latency spikes
         ctrl.tREFI = '100s'
