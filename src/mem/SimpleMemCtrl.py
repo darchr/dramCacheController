@@ -41,6 +41,7 @@
 from m5.params import *
 from m5.proxy import *
 from m5.objects.QoSMemCtrl import *
+from m5.objects.DRAMInterface import DDR4_2400_16x4
 
 # Enum for memory scheduling algorithms, currently First-Come
 # First-Served and a First-Row Hit then First-Come First-Served
@@ -60,7 +61,8 @@ class SimpleMemCtrl(QoSMemCtrl):
     port = ResponsePort("This port responds to memory requests")
 
     # Interface to memory media
-    dram = Param.MemInterface(NULL, "Memory interface")
+    dram = Param.MemInterface(DDR4_2400_16x4(), "Memory interface,"
+                              "can be a DRAM or an NVM interface ")
 
     # read and write buffer depths are set in the interface
     # the controller will read these values when instantiated

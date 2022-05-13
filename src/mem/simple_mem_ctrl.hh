@@ -294,13 +294,13 @@ class SimpleMemCtrl : public qos::MemCtrl
      * processRespondEvent is called; no parameters are allowed
      * in these methods
      */
-    virtual void processNextReqEvent(MemInterface* mem_int,
+    virtual void processNextReqEvent(MemInterface* mem_intr,
                           MemPacketQueue& resp_queue,
                           EventFunctionWrapper& resp_event,
                           EventFunctionWrapper& next_req_event);
     EventFunctionWrapper nextReqEvent;
 
-    void processRespondEvent(MemInterface* mem_int,
+    void processRespondEvent(MemInterface* mem_intr,
                         MemPacketQueue& queue,
                         EventFunctionWrapper& resp_event);
     EventFunctionWrapper respondEvent;
@@ -332,13 +332,12 @@ class SimpleMemCtrl : public qos::MemCtrl
      *
      * @param pkt The request packet from the outside world
      * @param pkt_count The number of memory bursts the pkt
-     * @param is_dram Does this packet access DRAM?
-     * translate to. If pkt size is larger then one full burst,
-     * then pkt_count is greater than one.
+     * @param mem_intr The memory interface this pkt will
+     * eventually go to
      * @return if all the read pkts are already serviced by wrQ
      */
     bool addToReadQueue(PacketPtr pkt, unsigned int pkt_count,
-                        MemInterface* memIntr);
+                        MemInterface* mem_intr);
 
     /**
      * Decode the incoming pkt, create a mem_pkt and push to the
@@ -348,23 +347,22 @@ class SimpleMemCtrl : public qos::MemCtrl
      *
      * @param pkt The request packet from the outside world
      * @param pkt_count The number of memory bursts the pkt
-     * @param is_dram Does this packet access DRAM?
-     * translate to. If pkt size is larger then one full burst,
-     * then pkt_count is greater than one.
+     * @param mem_intr The memory interface this pkt will
+     * eventually go to
      */
     void addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
-                         MemInterface* memIntr);
+                         MemInterface* mem_intr);
 
     /**
      * Actually do the burst based on media specific access function.
      * Update bus statistics when complete.
      *
      * @param mem_pkt The memory packet created from the outside world pkt
-     * @param mem_int The memory interface to access
+     * @param mem_intr The memory interface to access
      * @return Time when the command was issued
      *
      */
-    virtual Tick doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int);
+    virtual Tick doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr);
 
     /**
      * When a packet reaches its "readyTime" in the response Q,
@@ -374,17 +372,17 @@ class SimpleMemCtrl : public qos::MemCtrl
      *
      * @param pkt The packet from the outside world
      * @param static_latency Static latency to add before sending the packet
-     * @param mem_int the memory interface to access
+     * @param mem_intr the memory interface to access
      */
     virtual void accessAndRespond(PacketPtr pkt, Tick static_latency,
-                                                MemInterface* mem_int);
+                                                MemInterface* mem_intr);
 
     /**
      * Determine if there is a packet that can issue.
      *
      * @param pkt The packet to evaluate
      */
-    virtual bool packetReady(MemPacket* pkt, MemInterface* memIntr);
+    virtual bool packetReady(MemPacket* pkt, MemInterface* mem_intr);
 
     /**
      * Calculate the minimum delay used when scheduling a read-to-write
@@ -409,11 +407,11 @@ class SimpleMemCtrl : public qos::MemCtrl
      *
      * @param queue Queued requests to consider
      * @param extra_col_delay Any extra delay due to a read/write switch
-     * @param mem_int the memory interface to choose from
+     * @param mem_intr the memory interface to choose from
      * @return an iterator to the selected packet, else queue.end()
      */
     virtual MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
-        Tick extra_col_delay, MemInterface* mem_int);
+        Tick extra_col_delay, MemInterface* mem_intr);
 
     /**
      * For FR-FCFS policy reorder the read/write queue depending on row buffer
@@ -425,7 +423,7 @@ class SimpleMemCtrl : public qos::MemCtrl
      */
     virtual std::pair<MemPacketQueue::iterator, Tick>
     chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
-                    MemInterface* mem_int);
+                    MemInterface* mem_intr);
 
     /**
      * Calculate burst window aligned tick
@@ -448,7 +446,7 @@ class SimpleMemCtrl : public qos::MemCtrl
      *
      * @return An address aligned to a memory burst
      */
-    Addr burstAlign(Addr addr, MemInterface* memIntr) const;
+    Addr burstAlign(Addr addr, MemInterface* mem_intr) const;
 
     /**
      * The controller's main read and write queues,
@@ -733,8 +731,8 @@ class SimpleMemCtrl : public qos::MemCtrl
     virtual void recvFunctional(PacketPtr pkt);
     virtual bool recvTimingReq(PacketPtr pkt);
 
-    bool recvFunctionalLogic(PacketPtr pkt, MemInterface* mem_int);
-    Tick recvAtomicLogic(PacketPtr pkt, MemInterface* mem_int);
+    bool recvFunctionalLogic(PacketPtr pkt, MemInterface* mem_intr);
+    Tick recvAtomicLogic(PacketPtr pkt, MemInterface* mem_intr);
 
 };
 

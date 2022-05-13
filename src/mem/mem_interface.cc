@@ -69,7 +69,8 @@ MemInterface::MemInterface(const MemInterfaceParams &_p)
       tRTW(_p.tRTW),
       tWTR(_p.tWTR),
       readBufferSize(_p.read_buffer_size),
-      writeBufferSize(_p.write_buffer_size)
+      writeBufferSize(_p.write_buffer_size),
+      numWritesQueued(0)
 {}
 
 void
