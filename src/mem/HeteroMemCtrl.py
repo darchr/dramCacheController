@@ -43,14 +43,14 @@ from m5.proxy import *
 from m5.objects.SimpleMemCtrl import *
 
 
-# MemCtrl controls a dram and an nvm interface
+# HeteroMemCtrl controls a dram and an nvm interface
 # Both memory interfaces share the data and command bus
-class MemCtrl(SimpleMemCtrl):
-    type = 'MemCtrl'
-    cxx_header = "mem/mem_ctrl.hh"
-    cxx_class = 'gem5::memory::MemCtrl'
+class HeteroMemCtrl(SimpleMemCtrl):
+    type = 'HeteroMemCtrl'
+    cxx_header = "mem/hetero_mem_ctrl.hh"
+    cxx_class = 'gem5::memory::HeteroMemCtrl'
 
     # Interface to nvm memory media
-    # The dram interface `dram` used by MemCtrl is defined in
+    # The dram interface `dram` used by HeteroMemCtrl is defined in
     # the SimpleMemCtrl
     nvm = Param.NVMInterface("NVM memory interface to use")

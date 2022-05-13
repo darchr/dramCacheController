@@ -38,7 +38,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "mem/mem_ctrl.hh"
+#include "mem/hetero_mem_ctrl.hh"
 
 #include "base/trace.hh"
 #include "debug/DRAM.hh"
@@ -57,7 +57,7 @@ namespace gem5
 namespace memory
 {
 
-MemCtrl::MemCtrl(const MemCtrlParams &p) :
+HeteroMemCtrl::HeteroMemCtrl(const HeteroMemCtrlParams &p) :
     SimpleMemCtrl(p),
     nvm(p.nvm)
 {
@@ -66,9 +66,9 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     writeQueue.resize(p.qos_priorities);
 
     fatal_if(dynamic_cast<DRAMInterface*>(dram) == nullptr,
-             "MemCtrl's dram interface must be of type DRAMInterface.\n");
+            "HeteroMemCtrl's dram interface must be of type DRAMInterface.\n");
     fatal_if(dynamic_cast<NVMInterface*>(nvm) == nullptr,
-             "MemCtrl's nvm interface must be of type NVMInterface.\n");
+            "HeteroMemCtrl's nvm interface must be of type NVMInterface.\n");
 
     // hook up interfaces to the controller
     dram->setCtrl(this, commandWindow);
@@ -88,7 +88,7 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
 }
 
 Tick
-MemCtrl::recvAtomic(PacketPtr pkt)
+HeteroMemCtrl::recvAtomic(PacketPtr pkt)
 {
     Tick latency = 0;
 
@@ -104,7 +104,7 @@ MemCtrl::recvAtomic(PacketPtr pkt)
 }
 
 bool
-MemCtrl::recvTimingReq(PacketPtr pkt)
+HeteroMemCtrl::recvTimingReq(PacketPtr pkt)
 {
     // This is where we enter from the outside world
     DPRINTF(MemCtrl, "recvTimingReq: request %s addr %#x size %d\n",
@@ -193,7 +193,7 @@ MemCtrl::recvTimingReq(PacketPtr pkt)
 }
 
 void
-MemCtrl::processRespondEvent(MemInterface* mem_intr,
+HeteroMemCtrl::processRespondEvent(MemInterface* mem_intr,
                         MemPacketQueue& queue,
                         EventFunctionWrapper& resp_event)
 {
@@ -208,7 +208,7 @@ MemCtrl::processRespondEvent(MemInterface* mem_intr,
 }
 
 MemPacketQueue::iterator
-MemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
+HeteroMemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
                     MemInterface* mem_int)
 {
     // This method does the arbitration between requests.
@@ -246,7 +246,7 @@ MemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
 }
 
 std::pair<MemPacketQueue::iterator, Tick>
-MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
+HeteroMemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
                           MemInterface* mem_intr)
 {
 
@@ -274,9 +274,9 @@ MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
 
 
 Tick
-MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
+HeteroMemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
 {
-    // mem_intr will be dram by default in MemCtrl
+    // mem_intr will be dram by default in HeteroMemCtrl
 
     // When was command issued?
     Tick cmd_at;
@@ -296,9 +296,9 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
 }
 
 bool
-MemCtrl::memBusy(MemInterface* mem_intr) {
+HeteroMemCtrl::memBusy(MemInterface* mem_intr) {
 
-    // mem_intr in case of MemCtrl will always be dram
+    // mem_intr in case of HeteroMemCtrl will always be dram
 
     // check ranks for refresh/wakeup - uses busStateNext, so done after
     // turnaround decisions
@@ -324,41 +324,41 @@ MemCtrl::memBusy(MemInterface* mem_intr) {
 }
 
 void
-MemCtrl::nonDetermReads(MemInterface* mem_intr)
+HeteroMemCtrl::nonDetermReads(MemInterface* mem_intr)
 {
     // mem_intr by default points to dram in case
-    // of MemCtrl, therefore, calling nonDetermReads
+    // of HeteroMemCtrl, therefore, calling nonDetermReads
     // from SimpleMemCtrl using nvm interace
     SimpleMemCtrl::nonDetermReads(nvm);
 }
 
 bool
-MemCtrl::nvmWriteBlock(MemInterface* mem_intr)
+HeteroMemCtrl::nvmWriteBlock(MemInterface* mem_intr)
 {
     // mem_intr by default points to dram in case
-    // of MemCtrl, therefore, calling nvmWriteBlock
+    // of HeteroMemCtrl, therefore, calling nvmWriteBlock
     // from SimpleMemCtrl using nvm interface
     return SimpleMemCtrl::nvmWriteBlock(nvm);
 }
 
 Tick
-MemCtrl::minReadToWriteDataGap()
+HeteroMemCtrl::minReadToWriteDataGap()
 {
     return std::min(dram->minReadToWriteDataGap(),
                     nvm->minReadToWriteDataGap());
 }
 
 Tick
-MemCtrl::minWriteToReadDataGap()
+HeteroMemCtrl::minWriteToReadDataGap()
 {
     return std::min(dram->minWriteToReadDataGap(),
                     nvm->minWriteToReadDataGap());
 }
 
 Addr
-MemCtrl::burstAlign(Addr addr, MemInterface* mem_intr) const
+HeteroMemCtrl::burstAlign(Addr addr, MemInterface* mem_intr) const
 {
-    // mem_intr will point to dram interface in MemCtrl
+    // mem_intr will point to dram interface in HeteroMemCtrl
     if (mem_intr->getAddrRange().contains(addr)) {
         return (addr & ~(Addr(mem_intr->bytesPerBurst() - 1)));
     } else {
@@ -368,9 +368,9 @@ MemCtrl::burstAlign(Addr addr, MemInterface* mem_intr) const
 }
 
 bool
-MemCtrl::pktSizeCheck(MemPacket* mem_pkt, MemInterface* mem_intr) const
+HeteroMemCtrl::pktSizeCheck(MemPacket* mem_pkt, MemInterface* mem_intr) const
 {
-    // mem_intr will point to dram interface in MemCtrl
+    // mem_intr will point to dram interface in HeteroMemCtrl
     if (mem_pkt->isDram()) {
         return (mem_pkt->size <= mem_intr->bytesPerBurst());
     } else {
@@ -379,7 +379,7 @@ MemCtrl::pktSizeCheck(MemPacket* mem_pkt, MemInterface* mem_intr) const
 }
 
 void
-MemCtrl::recvFunctional(PacketPtr pkt)
+HeteroMemCtrl::recvFunctional(PacketPtr pkt)
 {
     bool found;
 
@@ -395,7 +395,7 @@ MemCtrl::recvFunctional(PacketPtr pkt)
 }
 
 bool
-MemCtrl::allIntfDrained() const
+HeteroMemCtrl::allIntfDrained() const
 {
     // ensure dram is in power down and refresh IDLE states
     bool dram_drained = dram->allRanksDrained();
@@ -406,7 +406,7 @@ MemCtrl::allIntfDrained() const
 }
 
 DrainState
-MemCtrl::drain()
+HeteroMemCtrl::drain()
 {
     // if there is anything in any of our internal queues, keep track
     // of that as well
@@ -432,7 +432,7 @@ MemCtrl::drain()
 }
 
 void
-MemCtrl::drainResume()
+HeteroMemCtrl::drainResume()
 {
     if (!isTimingMode && system()->isTimingMode()) {
         // if we switched to timing mode, kick things into action,
@@ -450,7 +450,7 @@ MemCtrl::drainResume()
 }
 
 AddrRangeList
-MemCtrl::getAddrRanges()
+HeteroMemCtrl::getAddrRanges()
 {
     AddrRangeList ranges;
     ranges.push_back(dram->getAddrRange());

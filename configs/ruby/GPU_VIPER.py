@@ -523,7 +523,7 @@ def construct_gpudirs(options, system, ruby_system, network):
             int(math.log(options.dgpu_num_dirs, 2)), options.cacheline_size,
             xor_low_bit)
         if issubclass(mem_type, DRAMInterface):
-            mem_ctrl = m5.objects.MemCtrl(dram = dram_intf)
+            mem_ctrl = m5.objects.HeteroMemCtrl(dram = dram_intf)
         else:
             mem_ctrl = dram_intf
 

@@ -40,21 +40,21 @@
 
 /**
  * @file
- * MemCtrl declaration
+ * HeteroMemCtrl declaration
  */
 
-#ifndef __MEM_CTRL_HH__
-#define __MEM_CTRL_HH__
+#ifndef __HETERO_MEM_CTRL_HH__
+#define __HETERO_MEM_CTRL_HH__
 
 #include "mem/simple_mem_ctrl.hh"
-#include "params/MemCtrl.hh"
+#include "params/HeteroMemCtrl.hh"
 
 namespace gem5
 {
 
 namespace memory
 {
-class MemCtrl : public SimpleMemCtrl
+class HeteroMemCtrl : public SimpleMemCtrl
 {
   private:
 
@@ -120,7 +120,7 @@ class MemCtrl : public SimpleMemCtrl
 
   public:
 
-    MemCtrl(const MemCtrlParams &p);
+    HeteroMemCtrl(const HeteroMemCtrlParams &p);
 
     bool allIntfDrained() const override;
     DrainState drain() override;
@@ -137,4 +137,4 @@ class MemCtrl : public SimpleMemCtrl
 } // namespace memory
 } // namespace gem5
 
-#endif //__MEM_CTRL_HH__
+#endif //__HETERO_MEM_CTRL_HH__
