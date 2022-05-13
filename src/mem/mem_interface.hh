@@ -288,8 +288,8 @@ class MemInterface : public AbstractMemory
     virtual MemPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,
                            unsigned int size, bool is_read)
     {
-      panic("MemInterface decodePacket should not be executed from here.\n");
-      return nullptr;
+        panic("MemInterface decodePacket should not be executed from here.\n");
+        return nullptr;
     }
 
     /**
@@ -318,7 +318,7 @@ class MemInterface : public AbstractMemory
      */
     virtual void respondEvent(uint8_t rank)
     {
-      panic("MemInterface respondEvent should not be executed from here.\n");
+        panic("MemInterface respondEvent should not be executed from here.\n");
     };
 
     /**
@@ -326,8 +326,8 @@ class MemInterface : public AbstractMemory
      */
     virtual void checkRefreshState(uint8_t rank)
     {
-      panic("MemInterface checkRefreshState (DRAM) should "
-      "not be executed from here.\n");
+        panic("MemInterface checkRefreshState (DRAM) should "
+        "not be executed from here.\n");
     };
 
     /**
@@ -335,8 +335,8 @@ class MemInterface : public AbstractMemory
      */
     virtual void drainRanks()
     {
-      panic("MemInterface drainRanks (DRAM) should "
-      "not be executed from here.\n");
+        panic("MemInterface drainRanks (DRAM) should "
+        "not be executed from here.\n");
     }
 
     /**
@@ -344,8 +344,8 @@ class MemInterface : public AbstractMemory
      */
     virtual void suspend()
     {
-      panic("MemInterface suspend (DRAM) should "
-      "not be executed from here.\n");
+        panic("MemInterface suspend (DRAM) should "
+        "not be executed from here.\n");
     }
 
     /**
@@ -353,8 +353,8 @@ class MemInterface : public AbstractMemory
      */
     virtual void startup()
     {
-      panic("MemInterface startup (DRAM) should "
-      "not be executed from here.\n");
+        panic("MemInterface startup (DRAM) should "
+        "not be executed from here.\n");
     }
 
     /**
@@ -362,8 +362,8 @@ class MemInterface : public AbstractMemory
      */
     virtual bool readsWaitingToIssue()
     {
-      panic("MemInterface readsWaitingToIssue (NVM) "
-      "should not be executed from here.\n");
+        panic("MemInterface readsWaitingToIssue (NVM) "
+        "should not be executed from here.\n");
     };
 
     /**
@@ -371,8 +371,8 @@ class MemInterface : public AbstractMemory
      */
     virtual void chooseRead(MemPacketQueue& queue)
     {
-      panic("MemInterface chooseRead (NVM) should "
-      "not be executed from here.\n");
+        panic("MemInterface chooseRead (NVM) should "
+        "not be executed from here.\n");
     };
 
     /**
@@ -380,8 +380,8 @@ class MemInterface : public AbstractMemory
      */
     virtual bool writeRespQueueFull() const
     {
-      panic("MemInterface writeRespQueueFull (NVM) "
-      "should not be executed from here.\n");
+        panic("MemInterface writeRespQueueFull (NVM) "
+        "should not be executed from here.\n");
     }
 
     typedef MemInterfaceParams Params;
