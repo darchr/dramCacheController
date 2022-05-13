@@ -57,7 +57,7 @@
 #include "enums/AddrMap.hh"
 #include "enums/PageManage.hh"
 #include "mem/abstract_mem.hh"
-#include "mem/simple_mem_ctrl.hh"
+#include "mem/mem_ctrl.hh"
 #include "params/MemInterface.hh"
 #include "sim/eventq.hh"
 
