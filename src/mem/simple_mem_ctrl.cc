@@ -82,6 +82,8 @@ SimpleMemCtrl::SimpleMemCtrl(const SimpleMemCtrlParams &p) :
 {
     DPRINTF(MemCtrl, "Setting up controller\n");
 
+    fatal_if(!dram, "Memory controller must have an interface");
+
     readQueue.resize(p.qos_priorities);
     writeQueue.resize(p.qos_priorities);
 
