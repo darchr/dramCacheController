@@ -779,7 +779,7 @@ class DRAMInterface : public MemInterface
     /**
      * The next three functions are NVM-specific and will be ignored by DRAM.
      */
-    bool readsWaitingToIssue() override { return false;}
+    bool readsWaitingToIssue() const override { return false;}
     void chooseRead(MemPacketQueue& queue) override { }
     bool writeRespQueueFull() const override { return false;}
 

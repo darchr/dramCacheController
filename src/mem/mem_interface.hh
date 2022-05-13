@@ -360,7 +360,7 @@ class MemInterface : public AbstractMemory
     /**
      * This function is NVM specific.
      */
-    virtual bool readsWaitingToIssue()
+    virtual bool readsWaitingToIssue() const
     {
         panic("MemInterface readsWaitingToIssue (NVM) "
         "should not be executed from here.\n");

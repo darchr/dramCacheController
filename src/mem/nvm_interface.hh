@@ -288,7 +288,7 @@ class NVMInterface : public MemInterface
     }
 
     bool
-    readsWaitingToIssue() override
+    readsWaitingToIssue() const override
     {
         return ((numReadsToIssue != 0) &&
                 (numPendingReads < maxPendingReads));
