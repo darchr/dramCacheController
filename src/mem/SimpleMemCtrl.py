@@ -41,7 +41,6 @@
 from m5.params import *
 from m5.proxy import *
 from m5.objects.QoSMemCtrl import *
-from m5.objects.DRAMInterface import DDR4_2400_16x4
 
 # Enum for memory scheduling algorithms, currently First-Come
 # First-Served and a First-Row Hit then First-Come First-Served
