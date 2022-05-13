@@ -72,9 +72,9 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
 
     fatal_if(!dram || !nvm, "MemCtrl must have two interfaces.\n");
 
-    panic_if(dynamic_cast<DRAMInterface*>(dram) == nullptr,
+    fatal_if(dynamic_cast<DRAMInterface*>(dram) == nullptr,
              "MemCtrl's dram interface must be of type DRAMInterface.\n");
-    panic_if(dynamic_cast<NVMInterface*>(nvm) == nullptr,
+    fatal_if(dynamic_cast<NVMInterface*>(nvm) == nullptr,
              "MemCtrl's nvm interface must be of type NVMInterface.\n");
 
     // hook up interfaces to the controller
@@ -446,8 +446,8 @@ MemCtrl::processNextReqEvent()
 
             // sanity check
             assert(mem_pkt->size <= (mem_pkt->isDram() ?
-                                        dram->bytesPerBurst() :
-                                        nvm->bytesPerBurst()));
+                                       dram->bytesPerBurst() :
+                                       nvm->bytesPerBurst()));
             assert(mem_pkt->readyTime >= curTick());
 
             // log the response
