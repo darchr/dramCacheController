@@ -315,10 +315,10 @@ class DCacheCtrl : public SimpleMemCtrl
 
     void init() override;
 
-    bool requestEventScheduled() override // TODO: local writes?
-          { std::cout << "here DC\n"; return /*locMemReadEvent.scheduled()*/ false; }
-    bool respondEventScheduled() override
-          { return locMemReadRespEvent.scheduled(); }
+    // TODO: write events
+    bool requestEventScheduled() override { return locMemReadEvent.scheduled(); }
+    bool respondEventScheduled() override { return locMemReadRespEvent.scheduled(); }
+    unsigned val = 22;
 
 };
 

@@ -350,6 +350,10 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 {
     DPRINTF(DRAM, "Timing access to addr %#x, rank/bank/row %d %d %d\n",
             mem_pkt->addr, mem_pkt->rank, mem_pkt->bank, mem_pkt->row);
+    
+    std::cout << curTick() << " // ";
+    ctrl->dummy();
+    std::cout << "\n";
 
     // get the rank
     Rank& rank_ref = *ranks[mem_pkt->rank];
@@ -1186,7 +1190,6 @@ DRAMInterface::Rank::processRefreshEvent()
 {
     // when first preparing the refresh, remember when it was due
     if ((refreshState == REF_IDLE) || (refreshState == REF_SREF_EXIT)) {
-        std::cout << "in 1\n";
         // remember when the refresh is due
         refreshDueAt = curTick();
 
@@ -1204,48 +1207,39 @@ DRAMInterface::Rank::processRefreshEvent()
     // after which it will
     // hand control back to this event loop
     if (refreshState == REF_DRAIN) {
-        std::cout << "in 2\n";
         // if a request is at the moment being handled and this request is
         // accessing the current rank then wait for it to finish
-        std::cout << (&dram) << " / " << (&dram.ctrl) << "\n";
-        std::cout << dynamic_cast<DCacheCtrl*>(dram.ctrl)->requestEventScheduled() << "\n";
+        std::cout << dram.ctrl << "\n";
+        std::cout << dram.ctrl->val << "\n";
         if ((rank == dram.activeRank)
             && (dram.ctrl->requestEventScheduled())) {
-                std::cout << "in 3\n";
             // hand control over to the request loop until it is
             // evaluated next
             DPRINTF(DRAM, "Refresh awaiting draining\n");
-            std::cout << "in 2 out\n";
             return;
         } else {
-            std::cout << "in 4\n";
             refreshState = REF_PD_EXIT;
         }
     }
 
     // at this point, ensure that rank is not in a power-down state
     if (refreshState == REF_PD_EXIT) {
-        std::cout << "in 5\n";
         // if rank was sleeping and we have't started exit process,
         // wake-up for refresh
         if (inLowPowerState) {
-            std::cout << "in 6\n";
             DPRINTF(DRAM, "Wake Up for refresh\n");
             // save state and return after refresh completes
             scheduleWakeUpEvent(dram.tXP);
             return;
         } else {
-            std::cout << "in 7\n";
             refreshState = REF_PRE;
         }
     }
 
     // at this point, ensure that all banks are precharged
     if (refreshState == REF_PRE) {
-        std::cout << "in 8\n";
         // precharge any active bank
         if (numBanksActive != 0) {
-            std::cout << "in 9\n";
             // at the moment, we use a precharge all even if there is
             // only a single bank open
             DPRINTF(DRAM, "Precharging all\n");
@@ -1259,7 +1253,6 @@ DRAMInterface::Rank::processRefreshEvent()
                 // (auto) precharge scheduled
                 pre_at = std::max(b.preAllowedAt, pre_at);
             }
-            std::cout << "in 10\n";
 
             // make sure all banks per rank are precharged, and for those that
             // already are, update their availability
@@ -1273,7 +1266,6 @@ DRAMInterface::Rank::processRefreshEvent()
                     b.preAllowedAt = std::max(b.preAllowedAt, pre_at);
                 }
             }
-            std::cout << "in 11\n";
 
             // precharge all banks in rank
             cmdList.push_back(Command(MemCommand::PREA, 0, pre_at));
@@ -1282,7 +1274,6 @@ DRAMInterface::Rank::processRefreshEvent()
                     divCeil(pre_at, dram.tCK) -
                             dram.timeStampOffset, rank);
         } else if ((pwrState == PWR_IDLE) && (outstandingEvents == 1))  {
-            std::cout << "in 12\n";
             // Banks are closed, have transitioned to IDLE state, and
             // no outstanding ACT,RD/WR,Auto-PRE sequence scheduled
             DPRINTF(DRAM, "All banks already precharged, starting refresh\n");
@@ -1291,7 +1282,6 @@ DRAMInterface::Rank::processRefreshEvent()
             // we are already idle
             schedulePowerEvent(PWR_REF, curTick());
         } else {
-            std::cout << "in 13\n";
             // banks state is closed but haven't transitioned pwrState to IDLE
             // or have outstanding ACT,RD/WR,Auto-PRE sequence scheduled
             // should have outstanding precharge or read response event
@@ -1309,13 +1299,11 @@ DRAMInterface::Rank::processRefreshEvent()
         // the refresh event loop going again
         // Similarly, when read response completes, if all banks are
         // precharged, will call this method to get loop re-started
-        std::cout << "out1\n";
         return;
     }
 
     // last but not least we perform the actual refresh
     if (refreshState == REF_START) {
-        std::cout << "in 14\n";
         // should never get here with any banks active
         assert(numBanksActive == 0);
         assert(pwrState == PWR_REF);
@@ -1325,7 +1313,6 @@ DRAMInterface::Rank::processRefreshEvent()
         for (auto &b : banks) {
             b.actAllowedAt = ref_done_at;
         }
-        std::cout << "in 15\n";
 
         // at the moment this affects all ranks
         cmdList.push_back(Command(MemCommand::REF, 0, curTick()));
@@ -1349,12 +1336,10 @@ DRAMInterface::Rank::processRefreshEvent()
         // when refresh completes
         refreshState = REF_RUN;
         schedule(refreshEvent, ref_done_at);
-        std::cout << "out2\n";
         return;
     }
 
     if (refreshState == REF_RUN) {
-        std::cout << "in 16\n";
         // should never get here with any banks active
         assert(numBanksActive == 0);
         assert(pwrState == PWR_REF);
@@ -1363,16 +1348,13 @@ DRAMInterface::Rank::processRefreshEvent()
 
         if ((dram.ctrl->drainState() == DrainState::Draining) ||
             (dram.ctrl->drainState() == DrainState::Drained)) {
-                std::cout << "in 17\n";
             // if draining, do not re-enter low-power mode.
             // simply go to IDLE and wait
             schedulePowerEvent(PWR_IDLE, curTick());
         } else {
-            std::cout << "in 18\n";
             // At the moment, we sleep when the refresh ends and wait to be
             // woken up again if previously in a low-power state.
             if (pwrStatePostRefresh != PWR_IDLE) {
-                std::cout << "in 19\n";
                 // power State should be power Refresh
                 assert(pwrState == PWR_REF);
                 DPRINTF(DRAMState, "Rank %d sleeping after refresh and was in "
@@ -1383,7 +1365,6 @@ DRAMInterface::Rank::processRefreshEvent()
             // Force PRE power-down if there are no outstanding commands
             // in Q after refresh.
             } else if (isQueueEmpty() && dram.enableDRAMPowerdown) {
-                std::cout << "in 20\n";
                 // still have refresh event outstanding but there should
                 // be no other events outstanding
                 assert(outstandingEvents == 1);
@@ -1392,7 +1373,6 @@ DRAMInterface::Rank::processRefreshEvent()
                 powerDownSleep(PWR_PRE_PDN, curTick());
 
             } else {
-                std::cout << "in 21\n";
                 // move to the idle power state once the refresh is done, this
                 // will also move the refresh state machine to the refresh
                 // idle state
@@ -1409,7 +1389,6 @@ DRAMInterface::Rank::processRefreshEvent()
 
         DPRINTF(DRAMState, "Refresh done at %llu and next refresh"
                 " at %llu\n", curTick(), refreshDueAt);
-        std::cout << "out3\n";
     }
 }
 

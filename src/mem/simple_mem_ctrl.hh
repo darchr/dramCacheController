@@ -719,7 +719,9 @@ class SimpleMemCtrl : public qos::MemCtrl
        *
        * @return true if event is scheduled
        */
-      virtual bool requestEventScheduled() { std::cout << "here SMC\n"; return /*nextReqEvent.scheduled()*/ false; }
+      virtual bool requestEventScheduled() { return nextReqEvent.scheduled(); }
+
+      unsigned val = 11;
 
       /**
        * restart the controller

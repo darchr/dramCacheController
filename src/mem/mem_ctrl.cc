@@ -63,8 +63,6 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
 {
     DPRINTF(MemCtrl, "Setting up controller\n");
 
-    //nvm = p.nvm;
-
     fatal_if(!dram || !nvm, "Memory controller must have two interfaces");
 
     // hook up interfaces to the controller
