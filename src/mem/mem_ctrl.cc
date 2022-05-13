@@ -65,8 +65,6 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     readQueue.resize(p.qos_priorities);
     writeQueue.resize(p.qos_priorities);
 
-    fatal_if(!dram || !nvm, "MemCtrl must have two interfaces.\n");
-
     fatal_if(dynamic_cast<DRAMInterface*>(dram) == nullptr,
              "MemCtrl's dram interface must be of type DRAMInterface.\n");
     fatal_if(dynamic_cast<NVMInterface*>(nvm) == nullptr,

@@ -53,4 +53,4 @@ class MemCtrl(SimpleMemCtrl):
     # Interface to nvm memory media
     # The dram interface `dram` used by MemCtrl is defined in
     # the SimpleMemCtrl
-    nvm = Param.NVMInterface(NULL, "Memory interface")
+    nvm = Param.NVMInterface("NVM memory interface to use")
