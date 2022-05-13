@@ -357,6 +357,29 @@ MemCtrl::minWriteToReadDataGap()
                     nvm->minWriteToReadDataGap());
 }
 
+Addr
+MemCtrl::burstAlign(Addr addr, MemInterface* mem_intr) const
+{
+    // mem_intr will point to dram interface in MemCtrl
+    if (mem_intr->getAddrRange().contains(addr)) {
+        return (addr & ~(Addr(mem_intr->bytesPerBurst() - 1)));
+    } else {
+        assert(nvm->getAddrRange().contains(addr));
+        return (addr & ~(Addr(nvm->bytesPerBurst() - 1)));
+    }
+}
+
+bool
+MemCtrl::pktSizeCheck(MemPacket* mem_pkt, MemInterface* mem_intr) const
+{
+    // mem_intr will point to dram interface in MemCtrl
+    if (mem_pkt->isDram()) {
+        return (mem_pkt->size <= mem_intr->bytesPerBurst());
+    } else {
+        return (mem_pkt->size <= nvm->bytesPerBurst());
+    }
+}
+
 void
 MemCtrl::recvFunctional(PacketPtr pkt)
 {

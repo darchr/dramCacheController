@@ -446,7 +446,17 @@ class SimpleMemCtrl : public qos::MemCtrl
      *
      * @return An address aligned to a memory burst
      */
-    Addr burstAlign(Addr addr, MemInterface* mem_intr) const;
+    virtual Addr burstAlign(Addr addr, MemInterface* mem_intr) const;
+
+    /**
+     * Check if mem pkt's size is sane
+     *
+     * @param mem_pkt memory packet
+     * @param mem_intr memory interface
+     * @return An address aligned to a memory burst
+     */
+    virtual bool pktSizeCheck(MemPacket* mem_pkt,
+                              MemInterface* mem_intr) const;
 
     /**
      * The controller's main read and write queues,

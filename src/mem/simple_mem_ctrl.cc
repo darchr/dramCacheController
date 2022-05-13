@@ -987,7 +987,7 @@ SimpleMemCtrl::processNextReqEvent(MemInterface* mem_intr,
             "Command for %#x, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
             // sanity check
-            assert(mem_pkt->size <= mem_intr->bytesPerBurst());
+            assert(pktSizeCheck(mem_pkt, mem_intr));
             assert(mem_pkt->readyTime >= curTick());
 
             // log the response
@@ -1067,7 +1067,7 @@ SimpleMemCtrl::processNextReqEvent(MemInterface* mem_intr,
         auto mem_pkt = *to_write;
 
         // sanity check
-        assert(mem_pkt->size <= dram->bytesPerBurst());
+        assert(pktSizeCheck(mem_pkt, mem_intr));
 
         Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
         DPRINTF(MemCtrl,
@@ -1142,6 +1142,12 @@ Addr
 SimpleMemCtrl::burstAlign(Addr addr, MemInterface* mem_intr) const
 {
     return (addr & ~(Addr(mem_intr->bytesPerBurst() - 1)));
+}
+
+bool
+SimpleMemCtrl::pktSizeCheck(MemPacket* mem_pkt, MemInterface* mem_intr) const
+{
+    return (mem_pkt->size <= mem_intr->bytesPerBurst());
 }
 
 SimpleMemCtrl::CtrlStats::CtrlStats(SimpleMemCtrl &_ctrl)

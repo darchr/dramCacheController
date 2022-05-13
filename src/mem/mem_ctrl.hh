@@ -72,6 +72,26 @@ class MemCtrl : public SimpleMemCtrl
     Tick minWriteToReadDataGap() override;
     AddrRangeList getAddrRanges() override;
 
+    /**
+     * Burst-align an address.
+     *
+     * @param addr The potentially unaligned address
+     * @param is_dram Does this packet access DRAM?
+     *
+     * @return An address aligned to a memory burst
+     */
+    virtual Addr burstAlign(Addr addr, MemInterface* mem_intr) const override;
+
+    /**
+     * Check if mem pkt's size is sane
+     *
+     * @param mem_pkt memory packet
+     * @param mem_intr memory interface
+     * @return An address aligned to a memory burst
+     */
+    virtual bool
+    pktSizeCheck(MemPacket* mem_pkt, MemInterface* mem_intr) const override;
+
     virtual void processRespondEvent(MemInterface* mem_intr,
                         MemPacketQueue& queue,
                         EventFunctionWrapper& resp_event) override;
