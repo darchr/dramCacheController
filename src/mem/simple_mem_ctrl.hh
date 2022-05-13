@@ -300,7 +300,7 @@ class SimpleMemCtrl : public qos::MemCtrl
                           EventFunctionWrapper& next_req_event);
     EventFunctionWrapper nextReqEvent;
 
-    void processRespondEvent(MemInterface* mem_intr,
+    virtual void processRespondEvent(MemInterface* mem_intr,
                         MemPacketQueue& queue,
                         EventFunctionWrapper& resp_event);
     EventFunctionWrapper respondEvent;
@@ -627,6 +627,30 @@ class SimpleMemCtrl : public qos::MemCtrl
         return respQueue.empty();
     }
 
+    /**
+     * Checks if the memory interface is already busy
+     *
+     * @param mem_intr memory interface to check
+     * @return a boolean indicating if memory is busy
+     */
+    virtual bool memBusy(MemInterface* mem_intr);
+
+    /**
+     * Will access memory interface and select non-deterministic
+     * reads to issue
+     * @param mem_intr memory interface to use
+     */
+    virtual void nonDetermReads(MemInterface* mem_intr);
+
+    /**
+     * Will check if all writes are for nvm interface
+     * and nvm's write resp queue is full. The generic mem_intr is
+     * used as the same function can be called for a dram interface,
+     * in which case dram functions will eventually return false
+     * @param mem_intr memory interface to use
+     * @return a boolean showing if nvm is blocked with writes
+     */
+    virtual bool nvmWriteBlock(MemInterface* mem_intr);
 
     /**
      * Remove commands that have already issued from burstTicks

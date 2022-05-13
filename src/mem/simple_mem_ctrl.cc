@@ -586,7 +586,7 @@ SimpleMemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
 
 std::pair<MemPacketQueue::iterator, Tick>
 SimpleMemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
-                                                        MemInterface* mem_intr)
+                                MemInterface* mem_intr)
 {
     auto selected_pkt_it = queue.end();
     Tick col_allowed_at = MaxTick;
@@ -820,6 +820,49 @@ SimpleMemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
     return cmd_at;
 }
 
+bool
+SimpleMemCtrl::memBusy(MemInterface* mem_intr) {
+
+    // check ranks for refresh/wakeup - uses busStateNext, so done after
+    // turnaround decisions
+    // Default to busy status and update based on interface specifics
+    // Default state of unused interface is 'true'
+    bool mem_busy = true;
+    bool all_writes_nvm = mem_intr->numWritesQueued == totalWriteQueueSize;
+    bool read_queue_empty = totalReadQueueSize == 0;
+    mem_busy = mem_intr->isBusy(read_queue_empty, all_writes_nvm);
+    if (mem_busy) {
+        // if all ranks are refreshing wait for them to finish
+        // and stall this state machine without taking any further
+        // action, and do not schedule a new nextReqEvent
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool
+SimpleMemCtrl::nvmWriteBlock(MemInterface* mem_intr) {
+
+    bool all_writes_nvm = mem_intr->numWritesQueued == totalWriteQueueSize;
+    return (mem_intr->writeRespQueueFull() && all_writes_nvm);
+}
+
+void
+SimpleMemCtrl::nonDetermReads(MemInterface* mem_intr) {
+
+    for (auto queue = readQueue.rbegin();
+            queue != readQueue.rend(); ++queue) {
+            // select non-deterministic NVM read to issue
+            // assume that we have the command bandwidth to issue this along
+            // with additional RD/WR burst with needed bank operations
+            if (mem_intr->readsWaitingToIssue()) {
+                // select non-deterministic NVM read to issue
+                mem_intr->chooseRead(*queue);
+            }
+    }
+}
+
 void
 SimpleMemCtrl::processNextReqEvent(MemInterface* mem_intr,
                         MemPacketQueue& resp_queue,
@@ -859,31 +902,9 @@ SimpleMemCtrl::processNextReqEvent(MemInterface* mem_intr,
     // updates current state
     busState = busStateNext;
 
-    // NVM interface specific
-    for (auto queue = readQueue.rbegin();
-            queue != readQueue.rend(); ++queue) {
-            // select non-deterministic NVM read to issue
-            // assume that we have the command bandwidth to issue this along
-            // with additional RD/WR burst with needed bank operations
-            // DRAMInterface::readsWaitingToIssue always returns false.
-            if (mem_intr->readsWaitingToIssue()) {
-                // select non-deterministic NVM read to issue
-                mem_intr->chooseRead(*queue);
-            }
-    }
+    nonDetermReads(mem_intr);
 
-    // check ranks for refresh/wakeup - uses busStateNext, so done after
-    // turnaround decisions
-    // Default to busy status and update based on interface specifics
-    // Default state of unused interface is 'true'
-    bool mem_busy = true;
-    bool all_writes_nvm = mem_intr->numWritesQueued == totalWriteQueueSize;
-    bool read_queue_empty = totalReadQueueSize == 0;
-    mem_busy = mem_intr->isBusy(read_queue_empty, all_writes_nvm);
-    if (mem_busy) {
-        // if all ranks are refreshing wait for them to finish
-        // and stall this state machine without taking any further
-        // action, and do not schedule a new nextReqEvent
+    if (memBusy(mem_intr)) {
         return;
     }
 
@@ -991,7 +1012,7 @@ SimpleMemCtrl::processNextReqEvent(MemInterface* mem_intr,
             // don't transition if the writeRespQueue is full and
             // there are no other writes that can issue
             if ((totalWriteQueueSize > writeHighThreshold) &&
-               !(all_writes_nvm && dram->writeRespQueueFull())) {
+               !(nvmWriteBlock(mem_intr))) {
                 switch_to_writes = true;
             }
 
@@ -1077,8 +1098,7 @@ SimpleMemCtrl::processNextReqEvent(MemInterface* mem_intr,
         if (totalWriteQueueSize == 0 ||
             (below_threshold && drainState() != DrainState::Draining) ||
             (totalReadQueueSize && writesThisTime >= minWritesPerSwitch) ||
-            (totalReadQueueSize && all_writes_nvm &&
-             dram->writeRespQueueFull())) {
+            (totalReadQueueSize && (nvmWriteBlock(mem_intr)))) {
 
             // turn the bus back around for reads again
             busStateNext = SimpleMemCtrl::READ;

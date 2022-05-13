@@ -64,15 +64,39 @@ class MemCtrl : public SimpleMemCtrl
     NVMInterface* nvm;
     MemPacketQueue::iterator chooseNext(MemPacketQueue& queue,
                       Tick extra_col_delay, MemInterface* mem_int) override;
-    MemPacketQueue::iterator chooseNextFRFCFS(MemPacketQueue& queue,
-                                              Tick extra_col_delay);
+    virtual std::pair<MemPacketQueue::iterator, Tick>
+    chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
+                    MemInterface* mem_intr) override;
     Tick doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int) override;
     Tick minReadToWriteDataGap() override;
     Tick minWriteToReadDataGap() override;
     AddrRangeList getAddrRanges() override;
 
-    void processRespondEvent();
-    void processNextReqEvent();
+    virtual void processRespondEvent(MemInterface* mem_intr,
+                        MemPacketQueue& queue,
+                        EventFunctionWrapper& resp_event) override;
+
+    /**
+     * Checks if the memory interface is already busy
+     *
+     * @param mem_intr memory interface to check
+     * @return a boolean indicating if memory is busy
+     */
+    virtual bool memBusy(MemInterface* mem_intr) override;
+
+    /**
+     * Will access nvm memory interface and select non-deterministic
+     * reads to issue
+     */
+    virtual void nonDetermReads(MemInterface* mem_intr) override;
+
+    /**
+     * Will check if all writes are for nvm interface
+     * and nvm's write resp queue is full.
+     * @param mem_intr memory interface to use
+     * @return a boolean showing if nvm is blocked with writes
+     */
+    virtual bool nvmWriteBlock(MemInterface* mem_intr) override;
 
   public:
 

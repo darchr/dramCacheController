@@ -65,11 +65,6 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     readQueue.resize(p.qos_priorities);
     writeQueue.resize(p.qos_priorities);
 
-    nextReqEvent = *(new EventFunctionWrapper([this]
-                            { processNextReqEvent(); }, name()));
-    respondEvent = *(new EventFunctionWrapper([this]
-                            { processRespondEvent(); }, name()));
-
     fatal_if(!dram || !nvm, "MemCtrl must have two interfaces.\n");
 
     fatal_if(dynamic_cast<DRAMInterface*>(dram) == nullptr,
@@ -200,15 +195,17 @@ MemCtrl::recvTimingReq(PacketPtr pkt)
 }
 
 void
-MemCtrl::processRespondEvent()
+MemCtrl::processRespondEvent(MemInterface* mem_intr,
+                        MemPacketQueue& queue,
+                        EventFunctionWrapper& resp_event)
 {
     DPRINTF(MemCtrl,
             "processRespondEvent(): Some req has reached its readyTime\n");
 
-    if (respQueue.front()->isDram()) {
-        SimpleMemCtrl::processRespondEvent(dram, respQueue, respondEvent);
+    if (queue.front()->isDram()) {
+        SimpleMemCtrl::processRespondEvent(dram, queue, resp_event);
     } else {
-        SimpleMemCtrl::processRespondEvent(nvm, respQueue, respondEvent);
+        SimpleMemCtrl::processRespondEvent(nvm, queue, resp_event);
     }
 }
 
@@ -240,7 +237,9 @@ MemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
                 }
             }
         } else if (memSchedPolicy == enums::frfcfs) {
-            ret = chooseNextFRFCFS(queue, extra_col_delay);
+            Tick col_allowed_at;
+            std::tie(ret, col_allowed_at)
+                    = chooseNextFRFCFS(queue, extra_col_delay, mem_int);
         } else {
             panic("No scheduling policy chosen\n");
         }
@@ -248,8 +247,9 @@ MemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
     return ret;
 }
 
-MemPacketQueue::iterator
-MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay)
+std::pair<MemPacketQueue::iterator, Tick>
+MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
+                          MemInterface* mem_intr)
 {
 
     auto selected_pkt_it = queue.end();
@@ -268,24 +268,28 @@ MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay)
     // earlier than the DRAM packet
     if (col_allowed_at > nvm_col_allowed_at) {
         selected_pkt_it = nvm_pkt_it;
+        col_allowed_at = nvm_col_allowed_at;
     }
 
-    return selected_pkt_it;
+    return std::make_pair(selected_pkt_it, col_allowed_at);
 }
 
 
 Tick
-MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int)
+MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
 {
+    // mem_intr will be dram by default in MemCtrl
 
     // When was command issued?
-    Tick cmd_at = SimpleMemCtrl::doBurstAccess(mem_pkt, mem_int);
+    Tick cmd_at;
 
     if (mem_pkt->isDram()) {
+        cmd_at = SimpleMemCtrl::doBurstAccess(mem_pkt, mem_intr);
         // Update timing for NVM ranks if NVM is configured on this channel
         nvm->addRankToRankDelay(cmd_at);
 
     } else {
+        cmd_at = SimpleMemCtrl::doBurstAccess(mem_pkt, nvm);
         // Update timing for NVM ranks if NVM is configured on this channel
         dram->addRankToRankDelay(cmd_at);
     }
@@ -293,60 +297,17 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_int)
     return cmd_at;
 }
 
-void
-MemCtrl::processNextReqEvent()
-{
-    // transition is handled by QoS algorithm if enabled
-    if (turnPolicy) {
-        // select bus state - only done if QoS algorithms are in use
-        busStateNext = selectNextBusState();
-    }
+bool
+MemCtrl::memBusy(MemInterface* mem_intr) {
 
-    // detect bus state change
-    bool switched_cmd_type = (busState != busStateNext);
-    // record stats
-    recordTurnaroundStats();
-
-    DPRINTF(MemCtrl, "QoS Turnarounds selected state %s %s\n",
-            (busState==MemCtrl::READ)?"READ":"WRITE",
-            switched_cmd_type?"[turnaround triggered]":"");
-
-    if (switched_cmd_type) {
-        if (busState == MemCtrl::READ) {
-            DPRINTF(MemCtrl,
-                    "Switching to writes after %d reads with %d reads "
-                    "waiting\n", readsThisTime, totalReadQueueSize);
-            stats.rdPerTurnAround.sample(readsThisTime);
-            readsThisTime = 0;
-        } else {
-            DPRINTF(MemCtrl,
-                    "Switching to reads after %d writes with %d writes "
-                    "waiting\n", writesThisTime, totalWriteQueueSize);
-            stats.wrPerTurnAround.sample(writesThisTime);
-            writesThisTime = 0;
-        }
-    }
-
-    // updates current state
-    busState = busStateNext;
-
-    for (auto queue = readQueue.rbegin();
-            queue != readQueue.rend(); ++queue) {
-            // select non-deterministic NVM read to issue
-            // assume that we have the command bandwidth to issue this along
-            // with additional RD/WR burst with needed bank operations
-            if (nvm->readsWaitingToIssue()) {
-                // select non-deterministic NVM read to issue
-                nvm->chooseRead(*queue);
-            }
-    }
+    // mem_intr in case of MemCtrl will always be dram
 
     // check ranks for refresh/wakeup - uses busStateNext, so done after
     // turnaround decisions
     // Default to busy status and update based on interface specifics
     bool dram_busy, nvm_busy = true;
     // DRAM
-    dram_busy = dram->isBusy(false, false);
+    dram_busy = mem_intr->isBusy(false, false);
     // NVM
     bool read_queue_empty = totalReadQueueSize == 0;
     bool all_writes_nvm = nvm->numWritesQueued == totalWriteQueueSize;
@@ -358,240 +319,28 @@ MemCtrl::processNextReqEvent()
         // if all ranks are refreshing wait for them to finish
         // and stall this state machine without taking any further
         // action, and do not schedule a new nextReqEvent
-        return;
-    }
-
-    // when we get here it is either a read or a write
-    if (busState == READ) {
-
-        // track if we should switch or not
-        bool switch_to_writes = false;
-
-        if (read_queue_empty) {
-            // In the case there is no read request to go next,
-            // trigger writes if we have passed the low threshold (or
-            // if we are draining)
-            if (!(totalWriteQueueSize == 0) &&
-                (drainState() == DrainState::Draining ||
-                 totalWriteQueueSize > writeLowThreshold)) {
-
-                DPRINTF(MemCtrl,
-                        "Switching to writes due to read queue empty\n");
-                switch_to_writes = true;
-            } else {
-                // check if we are drained
-                // not done draining until in PWR_IDLE state
-                // ensuring all banks are closed and
-                // have exited low power states
-                if (drainState() == DrainState::Draining &&
-                    respQueue.empty() && allIntfDrained()) {
-
-                    DPRINTF(Drain, "MemCtrl controller done draining\n");
-                    signalDrainDone();
-                }
-
-                // nothing to do, not even any point in scheduling an
-                // event for the next request
-                return;
-            }
-        } else {
-
-            bool read_found = false;
-            MemPacketQueue::iterator to_read;
-            uint8_t prio = numPriorities();
-
-            for (auto queue = readQueue.rbegin();
-                 queue != readQueue.rend(); ++queue) {
-
-                prio--;
-
-                DPRINTF(QOS,
-                        "Checking READ queue [%d] priority [%d elements]\n",
-                        prio, queue->size());
-
-                // Figure out which read request goes next
-                // If we are changing command type, incorporate the minimum
-                // bus turnaround delay which will be rank to rank delay
-                to_read = chooseNext((*queue), switched_cmd_type ?
-                                               minWriteToReadDataGap() : 0,
-                                               dram);
-
-                if (to_read != queue->end()) {
-                    // candidate read found
-                    read_found = true;
-                    break;
-                }
-            }
-
-            // if no read to an available rank is found then return
-            // at this point. There could be writes to the available ranks
-            // which are above the required threshold. However, to
-            // avoid adding more complexity to the code, return and wait
-            // for a refresh event to kick things into action again.
-            if (!read_found) {
-                DPRINTF(MemCtrl, "No Reads Found - exiting\n");
-                return;
-            }
-
-            auto mem_pkt = *to_read;
-            Tick cmd_at;
-            if (mem_pkt->isDram()) {
-                cmd_at = doBurstAccess(mem_pkt, dram);
-            } else {
-                cmd_at = doBurstAccess(mem_pkt, nvm);
-            }
-
-            DPRINTF(MemCtrl,
-            "Command for %#x, issued at %lld.\n", mem_pkt->addr, cmd_at);
-
-            // sanity check
-            assert(mem_pkt->size <= (mem_pkt->isDram() ?
-                                       dram->bytesPerBurst() :
-                                       nvm->bytesPerBurst()));
-            assert(mem_pkt->readyTime >= curTick());
-
-            // log the response
-            logResponse(MemCtrl::READ, (*to_read)->requestorId(),
-                        mem_pkt->qosValue(), mem_pkt->getAddr(), 1,
-                        mem_pkt->readyTime - mem_pkt->entryTime);
-
-
-            // Insert into response queue. It will be sent back to the
-            // requestor at its readyTime
-            if (respQueue.empty()) {
-                assert(!respondEvent.scheduled());
-                schedule(respondEvent, mem_pkt->readyTime);
-            } else {
-                assert(respQueue.back()->readyTime <= mem_pkt->readyTime);
-                assert(respondEvent.scheduled());
-            }
-
-            respQueue.push_back(mem_pkt);
-
-            // we have so many writes that we have to transition
-            // don't transition if the writeRespQueue is full and
-            // there are no other writes that can issue
-            if ((totalWriteQueueSize > writeHighThreshold) &&
-               !(all_writes_nvm && nvm->writeRespQueueFull())) {
-                switch_to_writes = true;
-            }
-
-            // remove the request from the queue
-            // the iterator is no longer valid .
-            readQueue[mem_pkt->qosValue()].erase(to_read);
-        }
-
-        // switching to writes, either because the read queue is empty
-        // and the writes have passed the low threshold (or we are
-        // draining), or because the writes hit the hight threshold
-        if (switch_to_writes) {
-            // transition to writing
-            busStateNext = WRITE;
-        }
+        return true;
     } else {
-
-        bool write_found = false;
-        MemPacketQueue::iterator to_write;
-        uint8_t prio = numPriorities();
-
-        for (auto queue = writeQueue.rbegin();
-             queue != writeQueue.rend(); ++queue) {
-
-            prio--;
-
-            DPRINTF(QOS,
-                    "Checking WRITE queue [%d] priority [%d elements]\n",
-                    prio, queue->size());
-
-            // If we are changing command type, incorporate the minimum
-            // bus turnaround delay
-            to_write = chooseNext((*queue),
-                        switched_cmd_type ? minReadToWriteDataGap() : 0,
-                        dram);
-
-            if (to_write != queue->end()) {
-                write_found = true;
-                break;
-            }
-        }
-
-        // if there are no writes to a rank that is available to service
-        // requests (i.e. rank is in refresh idle state) are found then
-        // return. There could be reads to the available ranks. However, to
-        // avoid adding more complexity to the code, return at this point and
-        // wait for a refresh event to kick things into action again.
-        if (!write_found) {
-            DPRINTF(MemCtrl, "No Writes Found - exiting\n");
-            return;
-        }
-
-        auto mem_pkt = *to_write;
-
-        // sanity check
-        assert(mem_pkt->size <= (mem_pkt->isDram() ?
-                                    dram->bytesPerBurst() :
-                                    nvm->bytesPerBurst()));
-        Tick cmd_at;
-        if (mem_pkt->isDram()) {
-            cmd_at = doBurstAccess(mem_pkt, dram);
-        } else {
-            cmd_at = doBurstAccess(mem_pkt, nvm);
-        }
-
-        DPRINTF(MemCtrl,
-        "Command for %#x, issued at %lld.\n", mem_pkt->addr, cmd_at);
-
-        isInWriteQueue.erase(burstAlign(mem_pkt->addr,
-                    mem_pkt->isDram() ? dram : nvm));
-
-        // log the response
-        logResponse(MemCtrl::WRITE, mem_pkt->requestorId(),
-                    mem_pkt->qosValue(), mem_pkt->getAddr(), 1,
-                    mem_pkt->readyTime - mem_pkt->entryTime);
-
-
-        // remove the request from the queue - the iterator is no longer valid
-        writeQueue[mem_pkt->qosValue()].erase(to_write);
-
-        delete mem_pkt;
-
-        // If we emptied the write queue, or got sufficiently below the
-        // threshold (using the minWritesPerSwitch as the hysteresis) and
-        // are not draining, or we have reads waiting and have done enough
-        // writes, then switch to reads.
-        // If we are interfacing to NVM and have filled the writeRespQueue,
-        // with only NVM writes in Q, then switch to reads
-        bool below_threshold =
-            totalWriteQueueSize + minWritesPerSwitch < writeLowThreshold;
-
-        if (totalWriteQueueSize == 0 ||
-            (below_threshold && drainState() != DrainState::Draining) ||
-            (totalReadQueueSize && writesThisTime >= minWritesPerSwitch) ||
-            (totalReadQueueSize && nvm->writeRespQueueFull() &&
-             all_writes_nvm)) {
-
-            // turn the bus back around for reads again
-            busStateNext = MemCtrl::READ;
-
-            // note that the we switch back to reads also in the idle
-            // case, which eventually will check for any draining and
-            // also pause any further scheduling if there is really
-            // nothing to do
-        }
+        return false;
     }
-    // It is possible that a refresh to another rank kicks things back into
-    // action before reaching this point.
-    if (!nextReqEvent.scheduled())
-        schedule(nextReqEvent, std::max(nextReqTime, curTick()));
+}
 
-    // If there is space available and we have writes waiting then let
-    // them retry. This is done here to ensure that the retry does not
-    // cause a nextReqEvent to be scheduled before we do so as part of
-    // the next request processing
-    if (retryWrReq && totalWriteQueueSize < writeBufferSize) {
-        retryWrReq = false;
-        port.sendRetryReq();
-    }
+void
+MemCtrl::nonDetermReads(MemInterface* mem_intr)
+{
+    // mem_intr by default points to dram in case
+    // of MemCtrl, therefore, calling nonDetermReads
+    // from SimpleMemCtrl using nvm interace
+    SimpleMemCtrl::nonDetermReads(nvm);
+}
+
+bool
+MemCtrl::nvmWriteBlock(MemInterface* mem_intr)
+{
+    // mem_intr by default points to dram in case
+    // of MemCtrl, therefore, calling nvmWriteBlock
+    // from SimpleMemCtrl using nvm interface
+    return SimpleMemCtrl::nvmWriteBlock(nvm);
 }
 
 Tick
