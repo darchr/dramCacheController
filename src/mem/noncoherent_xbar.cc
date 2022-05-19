@@ -59,8 +59,10 @@ NoncoherentXBar::NoncoherentXBar(const NoncoherentXBarParams &p)
     // create the ports based on the size of the memory-side port and
     // CPU-side port vector ports, and the presence of the default port,
     // the ports are enumerated starting from zero
+    std::cout << " ((((((( " << p.port_mem_side_ports_connection_count << "\n";
     for (int i = 0; i < p.port_mem_side_ports_connection_count; ++i) {
         std::string portName = csprintf("%s.mem_side_port[%d]", name(), i);
+        std::cout << "******** " << portName << "\n";
         RequestPort* bp = new NoncoherentXBarRequestPort(portName, *this, i);
         memSidePorts.push_back(bp);
         reqLayers.push_back(new ReqLayer(*bp, *this,

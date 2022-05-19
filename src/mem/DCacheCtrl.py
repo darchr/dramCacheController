@@ -47,8 +47,8 @@ class DCacheCtrl(SimpleMemCtrl):
     cxx_header = "mem/dram_cache_ctrl.hh"
     cxx_class = 'gem5::memory::DCacheCtrl'
 
-    #req_port = RequestPort("This port responds to DRAM cache controller "
-    #                        "requests for backing memory")
+    req_port = RequestPort("This port responds to DRAM cache controller "
+                            "requests for backing memory")
 
     far_memory = Param.MemInterface(NULL, "Far Memory interface")
 

@@ -766,7 +766,6 @@ class SimpleMemCtrl : public qos::MemCtrl
     virtual void init() override;
     virtual void startup() override;
     virtual void drainResume() override;
-    virtual void dummy() { std::cout << "SMC\n"; }
 
   protected:
 

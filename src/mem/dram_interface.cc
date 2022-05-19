@@ -59,6 +59,7 @@ namespace memory
 std::pair<MemPacketQueue::iterator, Tick>
 DRAMInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
 {
+    std::cout << "...dcn " << curTick() << "\n";
     std::vector<uint32_t> earliest_banks(ranksPerChannel, 0);
 
     // Has minBankPrep been called to populate earliest_banks?
@@ -349,8 +350,6 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 {
     DPRINTF(DRAM, "Timing access to addr %#x, rank/bank/row %d %d %d\n",
             mem_pkt->addr, mem_pkt->rank, mem_pkt->bank, mem_pkt->row);
-    
-    ctrl->dummy();
 
     // get the rank
     Rank& rank_ref = *ranks[mem_pkt->rank];
@@ -1268,7 +1267,6 @@ DRAMInterface::Rank::processWriteDoneEvent()
 void
 DRAMInterface::Rank::processRefreshEvent()
 {
-    dram.ctrl->dummy();
     // when first preparing the refresh, remember when it was due
     if ((refreshState == REF_IDLE) || (refreshState == REF_SREF_EXIT)) {
         // remember when the refresh is due
@@ -1642,6 +1640,8 @@ DRAMInterface::Rank::processPowerEvent()
         // REF complete, decrement count and go back to IDLE
         --outstandingEvents;
         refreshState = REF_IDLE;
+
+        //std::cout << " here: " << \n";
 
         DPRINTF(DRAMState, "Was refreshing for %llu ticks\n", duration);
         // if moving back to power-down after refresh

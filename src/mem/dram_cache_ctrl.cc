@@ -57,7 +57,7 @@ namespace memory
 
 DCacheCtrl::DCacheCtrl(const DCacheCtrlParams &p):
     SimpleMemCtrl(p),
-    //reqPort(name() + ".req_port", *this),
+    reqPort(name() + ".req_port", *this),
     farMemory(p.far_memory),
     dramCacheSize(p.dram_cache_size),
     blockSize(p.block_size),
@@ -124,10 +124,11 @@ DCacheCtrl::init()
 {
    if (!port.isConnected()) {
         fatal("DCacheCtrl %s is unconnected!\n", name());
-    } /*else if (!reqPort.isConnected()) {
+    } else if (!reqPort.isConnected()) {
         fatal("DCacheCtrl %s is unconnected!\n", name());
-    }*/ else {
+    } else {
         port.sendRangeChange();
+        //reqPort.recvRangeChange();
     }
 }
 
@@ -135,6 +136,7 @@ DCacheCtrl::init()
 bool
 DCacheCtrl::recvTimingReq(PacketPtr pkt)
 {
+    std::cout << "recvTimingReq in\n";
     // This is where we enter from the outside world
     DPRINTF(DCacheCtrl, "recvTimingReq: request %s addr %lld size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getSize());
@@ -360,7 +362,10 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
 void
 DCacheCtrl::processLocMemReadEvent()
 {
+    std::cout << "processLocMemReadEvent in " << curTick() << "\n";
+
     if (stallRds) {
+        std::cout << "stall \n";
         return;
     }
 
@@ -371,7 +376,7 @@ DCacheCtrl::processLocMemReadEvent()
     bool read_found = false;
 
     bool switched_cmd_type = (busState == DCacheCtrl::WRITE);
-
+    std::cout << pktLocMemRead[0].size() << "\n";
     for (auto queue = pktLocMemRead.rbegin();
                  queue != pktLocMemRead.rend(); ++queue) {
         to_read = SimpleMemCtrl::chooseNext((*queue), switched_cmd_type ?
@@ -384,6 +389,7 @@ DCacheCtrl::processLocMemReadEvent()
     }
 
     if (!read_found) {
+        std::cout << "!read_found \n";
         schedule(locMemReadEvent,
                  std::max(nextReqTime, curTick() + dram->getTBurst()));
         return;
@@ -495,11 +501,14 @@ DCacheCtrl::processLocMemReadEvent()
             schedule(overallWriteEvent, std::max(nextReqTime, curTick()));
         }
     }
+
+    std::cout << "processLocMemReadEvent out " << "\n";
 }
 
 void
 DCacheCtrl::processLocMemReadRespEvent()
 {
+    std::cout << "processLocMemReadRespEvent\n";
     assert(!addrLocRdRespReady.empty());
 
     reqBufferEntry* orbEntry = ORB.at(addrLocRdRespReady.front());
@@ -749,6 +758,23 @@ DCacheCtrl::recvTimingResp(PacketPtr pkt)
 {
     return false;
 }
+
+Port &
+DCacheCtrl::getPort(const std::string &if_name, PortID idx)
+{
+    panic_if(idx != InvalidPortID, "This object doesn't support vector ports");
+
+    // This is the name from the Python SimObject declaration (SimpleMemobj.py)
+    if (if_name == "port") {
+        return port;
+    } else if (if_name == "req_port") {
+        return reqPort;
+    } else {
+        // pass it along to our super class
+        return qos::MemCtrl::getPort(if_name, idx);
+    }
+}
+
 
 /////////////////////////////////////////////////////////////////////////////////////////
 

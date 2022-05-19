@@ -90,7 +90,7 @@ class DCacheCtrl : public SimpleMemCtrl
      * Outcoming port, for a multi-ported controller add a crossbar
      * in front of it
      */
-    //RequestPortDCache reqPort;
+    RequestPortDCache reqPort;
 
     // A pointer to the far memory interface.
     // Mainly used for accessAndResponse only.
@@ -315,10 +315,12 @@ class DCacheCtrl : public SimpleMemCtrl
 
     void init() override;
 
+    Port &getPort(const std::string &if_name,
+                  PortID idx=InvalidPortID) override;
+
     // TODO: write events
     bool requestEventScheduled() const override { return locMemReadEvent.scheduled(); }
     bool respondEventScheduled() const override { return locMemReadRespEvent.scheduled(); }
-    void dummy() override { std::cout << "DC\n"; }
 
 };
 

@@ -81,7 +81,6 @@ class MemCtrl : public SimpleMemCtrl
     bool allIntfDrained() const override;
     DrainState drain() override;
     void drainResume() override;
-    void dummy() override { std::cout << "MC\n"; }
 
   protected:
 
