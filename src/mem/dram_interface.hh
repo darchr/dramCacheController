@@ -693,7 +693,7 @@ class DRAMInterface : public MemInterface
      */
     Tick commandOffset() const override { return (tRP + tRCD); }
 
-    Tick getTBurst() override { return tBURST; }
+    Tick getTBurst() override { return tRFC; }
 
     /*
      * Function to calulate unloaded, closed bank access latency

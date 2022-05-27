@@ -239,13 +239,12 @@ class DCacheCtrl : public SimpleMemCtrl
     // Counters and flags to keep track of read/write switchings
     // stallRds: A flag to stop processing reads and switching to writes
     bool stallRds;
-    bool doLocWrite;
-    bool doFarWrite;
+    bool rescheduleLocRead;
+    bool rescheduleLocWrite;
     float locWrDrainPerc;
     unsigned minLocWrPerSwitch;
     unsigned minFarWrPerSwitch;
     unsigned locWrCounter;
-    unsigned farWrCounter;
 
     /**
      * A queue for evicted dirty lines of DRAM cache,
@@ -292,9 +291,6 @@ class DCacheCtrl : public SimpleMemCtrl
     void processFarMemWriteEvent();
     EventFunctionWrapper farMemWriteEvent;
 
-    void processOverallWriteEvent();
-    EventFunctionWrapper overallWriteEvent;
-
     // management functions
     void handleRequestorPkt(PacketPtr pkt);
     void checkHitOrMiss(reqBufferEntry* orbEntry);
@@ -319,7 +315,8 @@ class DCacheCtrl : public SimpleMemCtrl
                   PortID idx=InvalidPortID) override;
 
     // TODO: write events
-    bool requestEventScheduled() const override { return locMemReadEvent.scheduled(); }
+    bool requestEventScheduled() const override;
+    void restartScheduler(Tick tick) override;
     bool respondEventScheduled() const override { return locMemReadRespEvent.scheduled(); }
 
 };

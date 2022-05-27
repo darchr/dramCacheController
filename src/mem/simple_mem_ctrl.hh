@@ -742,7 +742,7 @@ class SimpleMemCtrl : public qos::MemCtrl
      *
      * @param Tick to schedule next event
      */
-    void restartScheduler(Tick tick) { schedule(nextReqEvent, tick); }
+    virtual void restartScheduler(Tick tick) { schedule(nextReqEvent, tick); }
 
     /**
      * Check the current direction of the memory channel
