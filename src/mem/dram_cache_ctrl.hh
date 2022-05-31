@@ -251,7 +251,7 @@ class DCacheCtrl : public SimpleMemCtrl
      * to be written back to the backing memory.
      * These packets are not maintained in the ORB.
      */
-    std::vector<MemPacketQueue> pktFarMemWrite;
+    std::vector<PacketPtr> pktFarMemWrite;
 
     // Maintenance Queues
     std::vector<MemPacketQueue> pktLocMemRead;
@@ -268,9 +268,12 @@ class DCacheCtrl : public SimpleMemCtrl
     // needs be reimplemented
     bool recvTimingReq(PacketPtr pkt) override;
 
+    void accessAndRespond(PacketPtr pkt, Tick static_latency,
+                                                MemInterface* mem_intr) override;
+
     // new functions for reqPort interactions with backing memory
-    void recvReqRetry();
-    bool recvTimingResp(PacketPtr pkt);
+    // void recvReqRetry();
+    // bool recvTimingResp(PacketPtr pkt);
 
     // events
     void processLocMemReadEvent();
@@ -300,9 +303,45 @@ class DCacheCtrl : public SimpleMemCtrl
     void checkConflictInCRB(reqBufferEntry* orbEntry);
     bool resumeConflictingReq(reqBufferEntry* orbEntry);
     void logStatsDcache(reqBufferEntry* orbEntry);
+    PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd,
+                   Request::FlagsType flags = 0);
 
     Addr returnIndexDC(Addr pkt_addr, unsigned size);
     Addr returnTagDC(Addr pkt_addr, unsigned size);
+
+
+    // port management
+    void recvReqRetry();
+
+    void retryReq();
+
+    bool recvTimingResp(PacketPtr pkt);
+
+    /** Packet waiting to be sent. */
+    PacketPtr retryPkt;
+
+    /** Tick when the stalled packet was meant to be sent. */
+    Tick retryPktTick;
+
+    /** Reqs waiting for response **/
+    std::unordered_map<RequestPtr,Tick> waitingResp;
+
+    unsigned maxOutstandingReqs = 0;
+
+    /**
+     * Puts this packet in the waitingResp list and returns true if
+     * we are above the maximum number of oustanding requests.
+     */
+    bool allocateWaitingRespSlot(PacketPtr pkt)
+    {
+        assert(waitingResp.find(pkt->req) == waitingResp.end());
+        assert(pkt->needsResponse());
+
+        waitingResp[pkt->req] = curTick();
+
+        return (maxOutstandingReqs > 0) &&
+               (waitingResp.size() > maxOutstandingReqs);
+    }
 
 
   public:
