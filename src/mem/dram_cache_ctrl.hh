@@ -69,16 +69,19 @@ class DCacheCtrl : public SimpleMemCtrl
 
       protected:
 
-        void recvReqRetry() { ctrl.recvReqRetry(); }
+        void recvReqRetry()
+        { ctrl.recvReqRetry(); }
 
         bool recvTimingResp(PacketPtr pkt)
         { return ctrl.recvTimingResp(pkt); }
 
-        void recvTimingSnoopReq(PacketPtr pkt) { }
+        // to send timing requests it calls bool sendTimingReq(PacketPtr pkt);
 
-        void recvFunctionalSnoop(PacketPtr pkt) { }
+        // void recvTimingSnoopReq(PacketPtr pkt) { }
 
-        Tick recvAtomicSnoop(PacketPtr pkt) { return 0; }
+        // void recvFunctionalSnoop(PacketPtr pkt) { }
+
+        // Tick recvAtomicSnoop(PacketPtr pkt) { return 0; }
 
       private:
 
@@ -110,7 +113,6 @@ class DCacheCtrl : public SimpleMemCtrl
     unsigned orbSize;
     unsigned crbMaxSize;
     unsigned crbSize;
-    unsigned farMemWriteQueueMaxSize;
 
     struct tagMetaStoreEntry
     {
@@ -214,7 +216,6 @@ class DCacheCtrl : public SimpleMemCtrl
      */
     std::map<Addr,reqBufferEntry*> ORB;
 
-
     typedef std::pair<Tick, PacketPtr> confReqPair;
     /**
      * This is the second important data structure
@@ -239,27 +240,31 @@ class DCacheCtrl : public SimpleMemCtrl
     // Counters and flags to keep track of read/write switchings
     // stallRds: A flag to stop processing reads and switching to writes
     bool stallRds;
+    bool sendFarRdReq;
+    bool waitingForRetryReqPort;
     bool rescheduleLocRead;
     bool rescheduleLocWrite;
     float locWrDrainPerc;
     unsigned minLocWrPerSwitch;
     unsigned minFarWrPerSwitch;
     unsigned locWrCounter;
+    unsigned farWrCounter;
 
     /**
      * A queue for evicted dirty lines of DRAM cache,
      * to be written back to the backing memory.
      * These packets are not maintained in the ORB.
      */
-    std::vector<PacketPtr> pktFarMemWrite;
+    std::deque <PacketPtr> pktFarMemWrite; 
 
     // Maintenance Queues
-    std::vector<MemPacketQueue> pktLocMemRead;
-    std::vector<MemPacketQueue> pktLocMemWrite;
-    std::vector<MemPacketQueue> pktFarMemRead;
+    std::vector <MemPacketQueue> pktLocMemRead;
+    std::vector <MemPacketQueue> pktLocMemWrite;
+    std::deque <PacketPtr> pktFarMemRead;
+    std::deque <PacketPtr> pktFarMemReadResp;
 
     std::deque <Addr> addrLocRdRespReady;
-    std::deque <Addr> addrFarRdRespReady;
+    //std::deque <Addr> addrFarRdRespReady;
 
     // Maintenance variables
     unsigned maxConf, maxLocRdEvQ, maxLocRdRespEvQ,
@@ -270,10 +275,6 @@ class DCacheCtrl : public SimpleMemCtrl
 
     void accessAndRespond(PacketPtr pkt, Tick static_latency,
                                                 MemInterface* mem_intr) override;
-
-    // new functions for reqPort interactions with backing memory
-    // void recvReqRetry();
-    // bool recvTimingResp(PacketPtr pkt);
 
     // events
     void processLocMemReadEvent();
@@ -303,12 +304,11 @@ class DCacheCtrl : public SimpleMemCtrl
     void checkConflictInCRB(reqBufferEntry* orbEntry);
     bool resumeConflictingReq(reqBufferEntry* orbEntry);
     void logStatsDcache(reqBufferEntry* orbEntry);
-    PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd,
-                   Request::FlagsType flags = 0);
+    //reqBufferEntry* makeOrbEntry(reqBufferEntry* orbEntry, PacketPtr copyOwPkt);
+    PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd, Request::FlagsType flags = 0);
 
     Addr returnIndexDC(Addr pkt_addr, unsigned size);
     Addr returnTagDC(Addr pkt_addr, unsigned size);
-
 
     // port management
     void recvReqRetry();
@@ -321,7 +321,7 @@ class DCacheCtrl : public SimpleMemCtrl
     PacketPtr retryPkt;
 
     /** Tick when the stalled packet was meant to be sent. */
-    Tick retryPktTick;
+    // Tick retryPktTick;
 
     /** Reqs waiting for response **/
     std::unordered_map<RequestPtr,Tick> waitingResp;
