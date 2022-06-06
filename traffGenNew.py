@@ -81,6 +81,7 @@ system.farMem_ctrl = SimpleMemCtrl()
 system.dcache_ctrl.dram = eval(options.device)(range=AddrRange('8GB'),
                                                 in_addr_map=False)
 system.dcache_ctrl.far_memory = DDR4_2400_16x4(range=AddrRange('8GB'))
+# system.dcache_ctrl.far_memory = NVM_2400_1x64(range=AddrRange('8GB'))
 system.farMem_ctrl.dram = system.dcache_ctrl.far_memory
 
 system.dcache_ctrl.far_memory.tREFI = "8000"
