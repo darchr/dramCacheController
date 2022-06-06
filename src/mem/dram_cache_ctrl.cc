@@ -458,7 +458,7 @@ DCacheCtrl::processLocMemReadEvent()
     SimpleMemCtrl::doBurstAccess(orbEntry->dccPkt, dram);
 
     // sanity check
-    assert(orbEntry->dccPkt->size <= dram->bytesPerBurst());
+    //assert(orbEntry->dccPkt->size <= dram->bytesPerBurst());
     assert(orbEntry->dccPkt->readyTime >= curTick());
 
     if (orbEntry->owPkt->isRead() && orbEntry->isHit) {
@@ -773,7 +773,7 @@ DCacheCtrl::processLocMemWriteEvent()
     }
     assert(orbEntry->dccPkt->isDram());
     assert(orbEntry->state == locMemWrite);
-    assert(orbEntry->dccPkt->size <= dram->bytesPerBurst());
+    //assert(orbEntry->dccPkt->size <= dram->bytesPerBurst());
 
     busState = DCacheCtrl::WRITE;
 
