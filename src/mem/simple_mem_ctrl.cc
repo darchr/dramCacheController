@@ -400,6 +400,7 @@ SimpleMemCtrl::printQs() const
 bool
 SimpleMemCtrl::recvTimingReq(PacketPtr pkt)
 {
+    stats.enter++;
     // This is where we enter from the outside world
     DPRINTF(MemCtrl, "recvTimingReq: request %s addr %#x size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getSize());
@@ -474,6 +475,7 @@ SimpleMemCtrl::recvTimingReq(PacketPtr pkt)
             stats.bytesReadSys += size;
         }
     }
+    stats.exit++;
     return true;
 }
 
@@ -1218,6 +1220,10 @@ SimpleMemCtrl::CtrlStats::CtrlStats(SimpleMemCtrl &_ctrl)
                 statistics::units::Tick, statistics::units::Count>::get(),
              "Per-requestor write average memory access latency"),
 
+    ADD_STAT(enter,
+            "Total number of hits on DRAM cache"),
+    ADD_STAT(exit,
+            "Total number of hits on DRAM cache"),
     ADD_STAT(numHits,
             "Total number of hits on DRAM cache"),
     ADD_STAT(numMisses,
@@ -1292,7 +1298,15 @@ SimpleMemCtrl::CtrlStats::CtrlStats(SimpleMemCtrl &_ctrl)
     ADD_STAT(maxFarRdRespEvQ,
             "Maximum number of packets in farMemReadRespEvent concurrently"),
     ADD_STAT(maxFarWrEvQ,
-            "Maximum number of packets in farMemWriteEvent concurrently")
+            "Maximum number of packets in farMemWriteEvent concurrently"),
+    ADD_STAT(sentRdPort,
+            ""),
+    ADD_STAT(failedRdPort,
+            ""),
+    ADD_STAT(sentWrPort,
+            ""),
+    ADD_STAT(failedWrPort,
+            "")
 {
 }
 

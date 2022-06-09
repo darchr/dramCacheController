@@ -602,6 +602,9 @@ class SimpleMemCtrl : public qos::MemCtrl
         statistics::Formula requestorReadAvgLat;
         statistics::Formula requestorWriteAvgLat;
 
+        Stats::Scalar enter;
+        Stats::Scalar exit;
+
         Stats::Scalar numHits;
         Stats::Scalar numMisses;
         Stats::Scalar numRdHits;
@@ -644,6 +647,11 @@ class SimpleMemCtrl : public qos::MemCtrl
 
         Stats::Scalar rdToWrTurnAround;
         Stats::Scalar wrToRdTurnAround;
+
+        Stats::Scalar sentRdPort;
+        Stats::Scalar failedRdPort;
+        Stats::Scalar sentWrPort;
+        Stats::Scalar failedWrPort;
     };
 
     CtrlStats stats;

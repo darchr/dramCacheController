@@ -904,10 +904,13 @@ DCacheCtrl::processFarMemReadEvent()
 
     assert(!pktFarMemRead.empty());
 
-    if (reqPort.sendTimingReq(pktFarMemRead.front())) {
+    auto rdPkt = pktFarMemRead.front();
+    if (reqPort.sendTimingReq(rdPkt)) {
         pktFarMemRead.pop_front();
+        stats.sentRdPort++;
     } else {
         waitingForRetryReqPort = true;
+        stats.failedRdPort++;
         return;
     }
 
@@ -1034,15 +1037,18 @@ DCacheCtrl::processFarMemWriteEvent()
     assert(!pktFarMemWrite.empty());
     assert(!sendFarRdReq);
     assert(!waitingForRetryReqPort);
-    if (reqPort.sendTimingReq(pktFarMemWrite.front())) {
-        DPRINTF(DCacheCtrl, "FarWrSent:%lld\n", pktFarMemWrite.front()->getAddr());
+    auto wrPkt = pktFarMemWrite.front();
+    if (reqPort.sendTimingReq(wrPkt)) {
+        DPRINTF(DCacheCtrl, "FarWrSent:%lld\n", wrPkt->getAddr());
         pktFarMemWrite.pop_front();
         farWrCounter++;
         //printQSizes();
+        stats.sentWrPort++;
     } else {
         DPRINTF(DCacheCtrl, "FarWrRetry: %lld\n", pktFarMemWrite.front()->getAddr());
         waitingForRetryReqPort = true;
         // printQSizes();
+        stats.failedWrPort++;
         return;
     }
 
