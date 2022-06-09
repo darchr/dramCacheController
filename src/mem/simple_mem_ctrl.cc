@@ -409,7 +409,7 @@ SimpleMemCtrl::recvTimingReq(PacketPtr pkt)
 
     panic_if(!(pkt->isRead() || pkt->isWrite()),
              "Should only see read and writes at memory controller\n");
-
+    
     // Calc avg gap between requests
     if (prevArrival != 0) {
         stats.totGap += curTick() - prevArrival;
@@ -474,7 +474,6 @@ SimpleMemCtrl::recvTimingReq(PacketPtr pkt)
             stats.bytesReadSys += size;
         }
     }
-
     return true;
 }
 

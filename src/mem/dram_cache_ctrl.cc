@@ -64,7 +64,7 @@ DCacheCtrl::DCacheCtrl(const DCacheCtrlParams &p):
     addrSize(p.addr_size),
     orbMaxSize(p.orb_max_size), orbSize(0),
     crbMaxSize(p.crb_max_size), crbSize(0),
-    retry(false),
+    retry(false), retryFMW(false),
     stallRds(false), sendFarRdReq(true),
     waitingForRetryReqPort(false),
     rescheduleLocRead(false),
@@ -80,8 +80,6 @@ DCacheCtrl::DCacheCtrl(const DCacheCtrlParams &p):
     farMemReadRespEvent([this]{ processFarMemReadRespEvent(); }, name()),
     farMemWriteEvent([this]{ processFarMemWriteEvent(); }, name())
 {
-    DPRINTF(DCacheCtrl, "Setting up controller\n");
-
     fatal_if(!dram, "DRAM cache controller must have a DRAM interface.\n");
 
     panic_if(orbMaxSize<4, "ORB maximum size must be at least 4.\n");
@@ -90,6 +88,7 @@ DCacheCtrl::DCacheCtrl(const DCacheCtrlParams &p):
     dram->setCtrl(this, commandWindow);
 
     tagMetadataStore.resize(dramCacheSize/blockSize);
+    dirtAdrGen();
     pktLocMemRead.resize(1);
     pktLocMemWrite.resize(1);
     // pktFarMemRead.resize(1);
@@ -144,8 +143,6 @@ void
 DCacheCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
                                             MemInterface* mem_intr)
 {
-    DPRINTF(DCacheCtrl, "Responding to Address %#x.. \n", pkt->getAddr());
-
     bool needsResponse = pkt->needsResponse();
     // do the actual memory access which also turns the packet into a
     // response
@@ -177,8 +174,6 @@ DCacheCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
         pendingDelete.reset(pkt);
     }
 
-    DPRINTF(DCacheCtrl, "A & R Done\n");
-
     return;
 }
 
@@ -186,9 +181,10 @@ bool
 DCacheCtrl::recvTimingReq(PacketPtr pkt)
 {
     // This is where we enter from the outside world
-    DPRINTF(DCacheCtrl, "recvTimingReq: request %s addr %lld size %d\n",
-            pkt->cmdString(), pkt->getAddr(), pkt->getSize());
+    // DPRINTF(DCacheCtrl, "dc: got %s %lld\n", pkt->cmdString(), pkt->getAddr());
     
+    // printQSizes();
+
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
              "is responding");
 
@@ -209,6 +205,18 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
     // If the burst size is equal or larger than the pkt size, then a pkt
     // translates to only one memory packet. Otherwise, a pkt translates to
     // multiple memory packets
+
+    if (
+        ((pktFarMemWrite.size() >= (orbMaxSize/2)) || (!pktFarMemWrite.empty() && pktFarMemRead.empty())) &&
+        !waitingForRetryReqPort
+       ) {
+        //std::cout << "recTimFMWr : ";
+        //printQSizes();
+        if (!farMemWriteEvent.scheduled() && !farMemReadEvent.scheduled()) {
+            sendFarRdReq = false;
+            schedule(farMemWriteEvent, curTick()+1000);
+        }
+    }
 
     Addr addr = pkt->getAddr();
 
@@ -359,9 +367,22 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
 
         return true;
     }
-    // check if ORB is full and set retry
-    if (ORB.size() >= orbMaxSize || pktFarMemWrite.size()>= (orbMaxSize / 2)) {
+    // check if ORB or FMWB is full and set retry
+    if (pktFarMemWrite.size()>= (orbMaxSize / 2)) {
+        DPRINTF(DCacheCtrl, "FMWBfull: %lld\n", pkt->getAddr());
+        retryFMW = true;
 
+        if (pkt->isRead()) {
+            stats.numRdRetry++;
+        }
+        else {
+            stats.numWrRetry++;
+        }
+        return false;
+    }
+
+    if (ORB.size() >= orbMaxSize) {
+        DPRINTF(DCacheCtrl, "ORBfull: addr %lld\n", pkt->getAddr());
         retry = true;
 
         if (pkt->isRead()) {
@@ -381,15 +402,24 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
         isInWriteQueue.insert(pkt->getAddr());
     }
 
-    if (pktLocMemRead[0].empty() && !stallRds && !rescheduleLocRead) {
-        assert(!locMemReadEvent.scheduled());
-        schedule(locMemReadEvent, std::max(nextReqTime, curTick()));
-    } 
+    // if (pktLocMemRead[0].empty() && !stallRds && !rescheduleLocRead) {
+    //     assert(!locMemReadEvent.scheduled());
+    //     schedule(locMemReadEvent, std::max(nextReqTime, curTick()));
+    // }
+
     //else {
     //    assert(locMemReadEvent.scheduled() || stallRds || rescheduleLocRead); //dram->isBusy(false, false)
     //}
 
     pktLocMemRead[0].push_back(ORB.at(pkt->getAddr())->dccPkt);
+    // std::cout << "here0 " <<
+    // stallRds << " " <<
+    // rescheduleLocRead << " " <<
+    // locMemReadEvent.scheduled() << "\n";
+    if (!stallRds && !rescheduleLocRead && !locMemReadEvent.scheduled()) {
+        //std::cout << "here\n";
+        schedule(locMemReadEvent, std::max(nextReqTime, curTick()));
+    }
 
     ORB.at(pkt->getAddr())->locRdEntered = curTick();
 
@@ -397,6 +427,8 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
         maxLocRdEvQ = pktLocMemRead[0].size();
         stats.maxLocRdEvQ = pktLocMemRead[0].size();
     }
+
+    DPRINTF(DCacheCtrl, "dc: acc %lld\n", pkt->getAddr());
 
     return true;
 }
@@ -441,6 +473,8 @@ DCacheCtrl::processLocMemReadEvent()
     }
 
     auto orbEntry = ORB.at((*to_read)->getAddr());
+
+    DPRINTF(DCacheCtrl, "LocRd: %lld\n", orbEntry->owPkt->getAddr());
 
     // sanity check for the chosen packet
     assert(orbEntry->validEntry);
@@ -496,6 +530,9 @@ DCacheCtrl::processLocMemReadEvent()
 
     pktLocMemRead[0].erase(to_read);
 
+    // std::cout << "locMemReadEvent : ";
+    // printQSizes();
+
     unsigned rdsNum = pktLocMemRead[0].size();
     unsigned wrsNum = pktLocMemWrite[0].size();
 
@@ -508,8 +545,8 @@ DCacheCtrl::processLocMemReadEvent()
         return;
     }
 
-    if (!pktLocMemRead[0].empty()) {
-        assert(!locMemReadEvent.scheduled());
+    if (!pktLocMemRead[0].empty() && !locMemReadEvent.scheduled()) {
+        //assert(!locMemReadEvent.scheduled());
         schedule(locMemReadEvent, std::max(nextReqTime, curTick()));
     }
 }
@@ -520,6 +557,8 @@ DCacheCtrl::processLocMemReadRespEvent()
     assert(!addrLocRdRespReady.empty());
 
     reqBufferEntry* orbEntry = ORB.at(addrLocRdRespReady.front());
+
+    DPRINTF(DCacheCtrl, "LocRdResp: %lld\n", orbEntry->owPkt->getAddr());
 
     // A series of sanity check
     assert(orbEntry->validEntry);
@@ -546,6 +585,9 @@ DCacheCtrl::processLocMemReadRespEvent()
     if (orbEntry->owPkt->isRead() &&
         orbEntry->dccPkt->isDram() &&
         orbEntry->isHit) {
+
+            DPRINTF(DCacheCtrl, "Read Hit: %lld\n", orbEntry->owPkt->getAddr());
+
 
             PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
                                              false,
@@ -631,6 +673,7 @@ DCacheCtrl::processLocMemReadRespEvent()
         orbEntry->dccPkt->isRead() &&
         orbEntry->dccPkt->isDram() &&
         !orbEntry->isHit) {
+        DPRINTF(DCacheCtrl, "Read Miss: %lld\n", orbEntry->owPkt->getAddr());
         // initiate a read from far memory
         // delete the current dcc pkt which is for read from local memory
         delete orbEntry->dccPkt;
@@ -648,18 +691,22 @@ DCacheCtrl::processLocMemReadRespEvent()
         orbEntry->issued = false;
         orbEntry->farRdEntered = curTick();
 
-        if (pktFarMemRead.empty() && sendFarRdReq) {
-            assert(!farMemReadEvent.scheduled());
-            schedule(farMemReadEvent, std::max(nextReqTime, curTick()));
-        } else {
-            assert(farMemReadEvent.scheduled() || !sendFarRdReq || waitingForRetryReqPort);
-        }
+        // if (pktFarMemRead.empty() && sendFarRdReq) {
+        //     assert(!farMemReadEvent.scheduled());
+        //     schedule(farMemReadEvent, std::max(nextReqTime, curTick()));
+        // } else {
+        //     assert(farMemReadEvent.scheduled() || !sendFarRdReq || waitingForRetryReqPort);
+        // }
 
         PacketPtr copyOwPkt_2 = new Packet(orbEntry->owPkt,
                                              false,
                                              orbEntry->owPkt->isRead());
 
         pktFarMemRead.push_back(copyOwPkt_2);
+
+        if (!farMemReadEvent.scheduled() && sendFarRdReq && !waitingForRetryReqPort) {
+            schedule(farMemReadEvent, std::max(nextReqTime, curTick()));
+        }
 
         if (pktFarMemRead.size() > maxFarRdEvQ) {
             maxFarRdEvQ = pktFarMemRead.size();
@@ -704,6 +751,7 @@ DCacheCtrl::processLocMemReadRespEvent()
     if (orbEntry->owPkt->isRead() &&
         orbEntry->dccPkt->isDram() &&
         orbEntry->isHit) {
+            DPRINTF(DCacheCtrl, "resu conf: %lld\n", orbEntry->owPkt->getAddr());
             // Remove the request from the ORB and
             // bring in a conflicting req waiting
             // in the CRB, if any.
@@ -757,12 +805,13 @@ DCacheCtrl::processLocMemWriteEvent()
         // Probably dram is refreshing.
         // Simply return, let the dram device
         // reschedule again once refresh is done.
-
         rescheduleLocWrite = true;
         return;
     }
 
     auto orbEntry = ORB.at((*to_write)->getAddr());
+
+    DPRINTF(DCacheCtrl, "LocWr: %lld\n", orbEntry->owPkt->getAddr());
 
     bool canRetry = false;
 
@@ -803,6 +852,9 @@ DCacheCtrl::processLocMemWriteEvent()
         port.sendRetryReq();
     }
 
+    // std::cout << "locMemWriteEvent : ";
+    // printQSizes();
+
     if (locWrCounter < minLocWrPerSwitch && !pktLocMemWrite[0].empty()
         // && !pktLocMemRead[0].empty()
        ) {
@@ -826,12 +878,14 @@ DCacheCtrl::processLocMemWriteEvent()
             // assert(!locMemReadEvent.scheduled());
             stallRds = false;
             locWrCounter = 0;
-            //std::cout << curTick() << " ---------- " << locMemReadEvent.scheduled() << "\n";
             if (!locMemReadEvent.scheduled()) {
-                //std::cout << curTick() << " ** " << locMemReadEvent.scheduled() << "\n";
                 schedule(locMemReadEvent, std::max(nextReqTime, curTick()));
             }
             return;
+    }
+    else if (pktLocMemRead[0].empty() && pktLocMemWrite[0].empty()) {
+        stallRds = false;
+        locWrCounter = 0;
     }
 }
 
@@ -839,13 +893,16 @@ DCacheCtrl::processLocMemWriteEvent()
 void
 DCacheCtrl::processFarMemReadEvent()
 {
-    assert(!pktFarMemRead.empty());
-    assert(sendFarRdReq);
-    assert(!waitingForRetryReqPort);
+    //assert(!pktFarMemRead.empty());
+    //assert(sendFarRdReq);
+    //assert(!waitingForRetryReqPort);
 
-    // if (sendFarRdReq || waitingForRetryReqPort) {
-    //     return;
-    // }
+    if (!sendFarRdReq || waitingForRetryReqPort) {
+        // std::cout << "yup\n";
+        return;
+    }
+
+    assert(!pktFarMemRead.empty());
 
     if (reqPort.sendTimingReq(pktFarMemRead.front())) {
         pktFarMemRead.pop_front();
@@ -977,21 +1034,31 @@ DCacheCtrl::processFarMemWriteEvent()
     assert(!pktFarMemWrite.empty());
     assert(!sendFarRdReq);
     assert(!waitingForRetryReqPort);
-
     if (reqPort.sendTimingReq(pktFarMemWrite.front())) {
+        DPRINTF(DCacheCtrl, "FarWrSent:%lld\n", pktFarMemWrite.front()->getAddr());
         pktFarMemWrite.pop_front();
         farWrCounter++;
+        //printQSizes();
     } else {
+        DPRINTF(DCacheCtrl, "FarWrRetry: %lld\n", pktFarMemWrite.front()->getAddr());
         waitingForRetryReqPort = true;
+        // printQSizes();
         return;
+    }
+
+    if (retryFMW && pktFarMemWrite.size()< (orbMaxSize / 2)) {
+        // std::cout << "retryFMW port.send\n";
+        retryFMW = false;
+        port.sendRetryReq();
     }
 
     if (!pktFarMemWrite.empty() &&
         (farWrCounter < (orbMaxSize/8) || pktFarMemRead.empty())) {
 
         sendFarRdReq = false;
-
-        schedule(farMemWriteEvent, curTick()+1000);
+        if (!farMemWriteEvent.scheduled()) {
+            schedule(farMemWriteEvent, curTick()+1000);
+        }
 
         return;
     }
@@ -1014,13 +1081,11 @@ DCacheCtrl::recvReqRetry()
     waitingForRetryReqPort = false;
 
     if (sendFarRdReq) {
-        
         if (!farMemReadEvent.scheduled()) {
             schedule(farMemReadEvent, curTick());
         }
         return;
     } else {
-
         if (!farMemWriteEvent.scheduled()) {
             schedule(farMemWriteEvent, curTick());
         }
@@ -1126,35 +1191,35 @@ DCacheCtrl::checkHitOrMiss(reqBufferEntry* orbEntry)
     // access the tagMetadataStore data structure to
     // check if it's hit or miss
 
-    orbEntry->isHit =
-    tagMetadataStore.at(orbEntry->indexDC).validLine &&
-    (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
+    // orbEntry->isHit =
+    // tagMetadataStore.at(orbEntry->indexDC).validLine &&
+    // (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
 
-    if (!tagMetadataStore.at(orbEntry->indexDC).validLine &&
-        !orbEntry->isHit) {
-        stats.numColdMisses++;
-    } else if (tagMetadataStore.at(orbEntry->indexDC).validLine &&
-             !orbEntry->isHit) {
-        stats.numHotMisses++;
-    }
+    // if (!tagMetadataStore.at(orbEntry->indexDC).validLine &&
+    //     !orbEntry->isHit) {
+    //     stats.numColdMisses++;
+    // } else if (tagMetadataStore.at(orbEntry->indexDC).validLine &&
+    //          !orbEntry->isHit) {
+    //     stats.numHotMisses++;
+    // }
 
     //always hit
     // orbEntry->isHit = true;
 
     // always miss
-    // orbEntry->isHit = false;
+    orbEntry->isHit = false;
 }
 
 bool
 DCacheCtrl::checkDirty(Addr addr)
 {
-    Addr index = returnIndexDC(addr, blockSize);
-    return (tagMetadataStore.at(index).validLine &&
-            tagMetadataStore.at(index).dirtyLine);
+    // Addr index = returnIndexDC(addr, blockSize);
+    // return (tagMetadataStore.at(index).validLine &&
+    //         tagMetadataStore.at(index).dirtyLine);
 
 
     // always dirty
-    // return true;
+    return true;
 
     // always clean
     // return false;
@@ -1250,7 +1315,7 @@ DCacheCtrl::handleRequestorPkt(PacketPtr pkt)
     } else {
         tagMetadataStore.at(orbEntry->indexDC).dirtyLine = true;
     }
-
+    
     tagMetadataStore.at(orbEntry->indexDC).farMemAddr =
                         orbEntry->owPkt->getAddr();
 
@@ -1300,14 +1365,18 @@ DCacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 
                 checkConflictInCRB(ORB.at(confAddr));
 
-                if (pktLocMemRead[0].empty() && !stallRds && !rescheduleLocRead) {
-                    assert(!locMemReadEvent.scheduled());
-                    schedule(locMemReadEvent, std::max(nextReqTime, curTick()));
-                } else {
-                    assert(locMemReadEvent.scheduled() || stallRds || rescheduleLocRead);
-                }
+                // if (pktLocMemRead[0].empty() && !stallRds && !rescheduleLocRead) {
+                //     assert(!locMemReadEvent.scheduled());
+                //     schedule(locMemReadEvent, std::max(nextReqTime, curTick()));
+                // } else {
+                //     assert(locMemReadEvent.scheduled() || stallRds || rescheduleLocRead);
+                // }
 
                 pktLocMemRead[0].push_back(ORB.at(confAddr)->dccPkt);
+
+                if (!stallRds && !rescheduleLocRead && !locMemReadEvent.scheduled()) {
+                    schedule(locMemReadEvent, std::max(nextReqTime, curTick()));
+                }
 
                 if (pktLocMemRead[0].size() > maxLocRdEvQ) {
                     maxLocRdEvQ = pktLocMemRead[0].size();
@@ -1370,6 +1439,8 @@ DCacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
         ((pktFarMemWrite.size() >= (orbMaxSize/2)) || (!pktFarMemWrite.empty() && pktFarMemRead.empty())) &&
         !waitingForRetryReqPort
        ) {
+        // std::cout << "handleDirtyCacheLine : ";
+        /// printQSizes();
         sendFarRdReq = false;
         if (!farMemWriteEvent.scheduled()) {
             schedule(farMemWriteEvent, curTick());
@@ -1408,6 +1479,17 @@ DCacheCtrl::getPacket(Addr addr, unsigned size, const MemCmd& cmd,
     return pkt;
 }
 
+
+
+void
+DCacheCtrl::dirtAdrGen()
+{
+    for (int i=0; i<tagMetadataStore.size(); i++ ) {
+        tagMetadataStore.at(i).farMemAddr = tagMetadataStore.size()-i-1;
+    }
+}
+
+
 /* reqBufferEntry*
 DCacheCtrl::makeOrbEntry(reqBufferEntry* orbEntry, PacketPtr copyOwPkt)
 {
@@ -1431,6 +1513,19 @@ DCacheCtrl::makeOrbEntry(reqBufferEntry* orbEntry, PacketPtr copyOwPkt)
                                orbEntry->farRdIssued,
                                orbEntry->farRdRecvd);
 } */
+
+void
+DCacheCtrl::printQSizes() {
+    std::cout << curTick() << " ... " <<
+    ORB.size() << " / " <<
+    CRB.size() << " / " <<
+    pktLocMemRead[0].size() << " / " <<
+    addrLocRdRespReady.size() << " / " <<
+    pktLocMemWrite[0].size() << " / " <<
+    pktFarMemRead.size() << " / " <<
+    pktFarMemReadResp.size() << " / " <<
+    pktFarMemWrite.size() << "\n";
+}
 
 } // namespace memory
 } // namespace gem5

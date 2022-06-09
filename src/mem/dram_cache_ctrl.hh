@@ -236,6 +236,7 @@ class DCacheCtrl : public SimpleMemCtrl
      * It helps remember if we have to retry a request when available.
      */
     bool retry;
+    bool retryFMW;
 
     // Counters and flags to keep track of read/write switchings
     // stallRds: A flag to stop processing reads and switching to writes
@@ -296,6 +297,7 @@ class DCacheCtrl : public SimpleMemCtrl
     EventFunctionWrapper farMemWriteEvent;
 
     // management functions
+    void printQSizes();
     void handleRequestorPkt(PacketPtr pkt);
     void checkHitOrMiss(reqBufferEntry* orbEntry);
     bool checkDirty(Addr addr);
@@ -306,6 +308,7 @@ class DCacheCtrl : public SimpleMemCtrl
     void logStatsDcache(reqBufferEntry* orbEntry);
     //reqBufferEntry* makeOrbEntry(reqBufferEntry* orbEntry, PacketPtr copyOwPkt);
     PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd, Request::FlagsType flags = 0);
+    void dirtAdrGen();
 
     Addr returnIndexDC(Addr pkt_addr, unsigned size);
     Addr returnTagDC(Addr pkt_addr, unsigned size);
