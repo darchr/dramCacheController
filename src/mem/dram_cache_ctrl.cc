@@ -182,8 +182,6 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
 {
     // This is where we enter from the outside world
     // DPRINTF(DCacheCtrl, "dc: got %s %lld\n", pkt->cmdString(), pkt->getAddr());
-    
-    // printQSizes();
 
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
              "is responding");
@@ -210,8 +208,6 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
         ((pktFarMemWrite.size() >= (orbMaxSize/2)) || (!pktFarMemWrite.empty() && pktFarMemRead.empty())) &&
         !waitingForRetryReqPort
        ) {
-        //std::cout << "recTimFMWr : ";
-        //printQSizes();
         if (!farMemWriteEvent.scheduled() && !farMemReadEvent.scheduled()) {
             sendFarRdReq = false;
             schedule(farMemWriteEvent, curTick()+1000);
@@ -227,17 +223,15 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
 
     // check merging for writes
     if (pkt->isWrite()) {
-        stats.writePktSize[ceilLog2(size)]++;
-        stats.writeBursts++;
-        stats.requestorWriteAccesses[pkt->requestorId()]++;
-
         assert(pkt->getSize() != 0);
 
         bool merged = isInWriteQueue.find(pkt->getAddr()) !=
             isInWriteQueue.end();
 
         if (merged) {
-
+            stats.writePktSize[ceilLog2(size)]++;
+            stats.writeBursts++;
+            stats.requestorWriteAccesses[pkt->requestorId()]++;
             stats.mergedWrBursts++;
 
             accessAndRespond(pkt, frontendLatency, farMemory);
@@ -326,6 +320,9 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
         }
 
         if (foundInORB || foundInCRB || foundInFarMemWrite) {
+            stats.writePktSize[ceilLog2(size)]++;
+            stats.writeBursts++;
+            stats.requestorWriteAccesses[pkt->requestorId()]++;
 
             accessAndRespond(pkt, frontendLatency, farMemory);
 
@@ -364,7 +361,9 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
             maxConf = CRB.size();
             stats.maxNumConf = CRB.size();
         }
-
+        stats.writePktSize[ceilLog2(size)]++;
+        stats.writeBursts++;
+        stats.requestorWriteAccesses[pkt->requestorId()]++;
         return true;
     }
     // check if ORB or FMWB is full and set retry
@@ -412,12 +411,8 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
     //}
 
     pktLocMemRead[0].push_back(ORB.at(pkt->getAddr())->dccPkt);
-    // std::cout << "here0 " <<
-    // stallRds << " " <<
-    // rescheduleLocRead << " " <<
-    // locMemReadEvent.scheduled() << "\n";
+
     if (!stallRds && !rescheduleLocRead && !locMemReadEvent.scheduled()) {
-        //std::cout << "here\n";
         schedule(locMemReadEvent, std::max(nextReqTime, curTick()));
     }
 
@@ -429,7 +424,9 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
     }
 
     DPRINTF(DCacheCtrl, "dc: acc %lld\n", pkt->getAddr());
-
+    stats.writePktSize[ceilLog2(size)]++;
+    stats.writeBursts++;
+    stats.requestorWriteAccesses[pkt->requestorId()]++;
     return true;
 }
 
@@ -529,9 +526,6 @@ DCacheCtrl::processLocMemReadEvent()
     orbEntry->locRdIssued = curTick();
 
     pktLocMemRead[0].erase(to_read);
-
-    // std::cout << "locMemReadEvent : ";
-    // printQSizes();
 
     unsigned rdsNum = pktLocMemRead[0].size();
     unsigned wrsNum = pktLocMemWrite[0].size();
@@ -852,8 +846,6 @@ DCacheCtrl::processLocMemWriteEvent()
         port.sendRetryReq();
     }
 
-    // std::cout << "locMemWriteEvent : ";
-    // printQSizes();
 
     if (locWrCounter < minLocWrPerSwitch && !pktLocMemWrite[0].empty()
         // && !pktLocMemRead[0].empty()
@@ -893,12 +885,7 @@ DCacheCtrl::processLocMemWriteEvent()
 void
 DCacheCtrl::processFarMemReadEvent()
 {
-    //assert(!pktFarMemRead.empty());
-    //assert(sendFarRdReq);
-    //assert(!waitingForRetryReqPort);
-
     if (!sendFarRdReq || waitingForRetryReqPort) {
-        // std::cout << "yup\n";
         return;
     }
 
@@ -1042,18 +1029,15 @@ DCacheCtrl::processFarMemWriteEvent()
         DPRINTF(DCacheCtrl, "FarWrSent:%lld\n", wrPkt->getAddr());
         pktFarMemWrite.pop_front();
         farWrCounter++;
-        //printQSizes();
         stats.sentWrPort++;
     } else {
         DPRINTF(DCacheCtrl, "FarWrRetry: %lld\n", pktFarMemWrite.front()->getAddr());
         waitingForRetryReqPort = true;
-        // printQSizes();
         stats.failedWrPort++;
         return;
     }
 
     if (retryFMW && pktFarMemWrite.size()< (orbMaxSize / 2)) {
-        // std::cout << "retryFMW port.send\n";
         retryFMW = false;
         port.sendRetryReq();
     }
@@ -1445,8 +1429,6 @@ DCacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
         ((pktFarMemWrite.size() >= (orbMaxSize/2)) || (!pktFarMemWrite.empty() && pktFarMemRead.empty())) &&
         !waitingForRetryReqPort
        ) {
-        // std::cout << "handleDirtyCacheLine : ";
-        /// printQSizes();
         sendFarRdReq = false;
         if (!farMemWriteEvent.scheduled()) {
             schedule(farMemWriteEvent, curTick());
@@ -1491,7 +1473,7 @@ void
 DCacheCtrl::dirtAdrGen()
 {
     for (int i=0; i<tagMetadataStore.size(); i++ ) {
-        tagMetadataStore.at(i).farMemAddr = tagMetadataStore.size()-i-1;
+        tagMetadataStore.at(i).farMemAddr = i*64+dramCacheSize;
     }
 }
 
@@ -1519,19 +1501,6 @@ DCacheCtrl::makeOrbEntry(reqBufferEntry* orbEntry, PacketPtr copyOwPkt)
                                orbEntry->farRdIssued,
                                orbEntry->farRdRecvd);
 } */
-
-void
-DCacheCtrl::printQSizes() {
-    std::cout << curTick() << " ... " <<
-    ORB.size() << " / " <<
-    CRB.size() << " / " <<
-    pktLocMemRead[0].size() << " / " <<
-    addrLocRdRespReady.size() << " / " <<
-    pktLocMemWrite[0].size() << " / " <<
-    pktFarMemRead.size() << " / " <<
-    pktFarMemReadResp.size() << " / " <<
-    pktFarMemWrite.size() << "\n";
-}
 
 } // namespace memory
 } // namespace gem5

@@ -602,40 +602,37 @@ class SimpleMemCtrl : public qos::MemCtrl
         statistics::Formula requestorReadAvgLat;
         statistics::Formula requestorWriteAvgLat;
 
-        Stats::Scalar enter;
-        Stats::Scalar exit;
-
-        Stats::Scalar numHits;
-        Stats::Scalar numMisses;
-        Stats::Scalar numRdHits;
-        Stats::Scalar numWrHits;
-        Stats::Scalar numRdMisses;
-        Stats::Scalar numWrMisses;
-        Stats::Scalar numColdMisses;
-        Stats::Scalar numHotMisses;
+        // Stats::Scalar numHits;
+        // Stats::Scalar numMisses;
+        // Stats::Scalar numRdHits;
+        // Stats::Scalar numWrHits;
+        // Stats::Scalar numRdMisses;
+        // Stats::Scalar numWrMisses;
+        // Stats::Scalar numColdMisses;
+        // Stats::Scalar numHotMisses;
         Stats::Scalar numWrBacks;
         Stats::Scalar totNumConf;
         Stats::Scalar totNumConfBufFull;
 
-        Stats::Scalar timeInLocRead;
-        Stats::Scalar timeInLocWrite;
-        Stats::Scalar timeInFarRead;
-        Stats::Scalar timeInFarWrite;
+        // Stats::Scalar timeInLocRead;
+        // Stats::Scalar timeInLocWrite;
+        // Stats::Scalar timeInFarRead;
+        // Stats::Scalar timeInFarWrite;
 
-        Stats::Scalar locRdQingTime;
-        Stats::Scalar locWrQingTime;
-        Stats::Scalar farRdQingTime;
-        Stats::Scalar farWrQingTime;
+        // Stats::Scalar locRdQingTime;
+        // Stats::Scalar locWrQingTime;
+        // Stats::Scalar farRdQingTime;
+        // Stats::Scalar farWrQingTime;
 
-        Stats::Scalar locRdDevTime;
-        Stats::Scalar locWrDevTime;
-        Stats::Scalar farRdDevTime;
-        Stats::Scalar farWrDevTime;
+        // Stats::Scalar locRdDevTime;
+        // Stats::Scalar locWrDevTime;
+        // Stats::Scalar farRdDevTime;
+        // Stats::Scalar farWrDevTime;
 
-        Stats::Scalar totNumPktsLocRd;
-        Stats::Scalar totNumPktslocWr;
-        Stats::Scalar totNumPktsFarRd;
-        Stats::Scalar totNumPktsFarWr;
+        // Stats::Scalar totNumPktsLocRd;
+        // Stats::Scalar totNumPktslocWr;
+        // Stats::Scalar totNumPktsFarRd;
+        // Stats::Scalar totNumPktsFarWr;
 
         Stats::Scalar maxNumConf;
         Stats::Scalar maxLocRdEvQ;

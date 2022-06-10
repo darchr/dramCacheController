@@ -400,7 +400,6 @@ SimpleMemCtrl::printQs() const
 bool
 SimpleMemCtrl::recvTimingReq(PacketPtr pkt)
 {
-    stats.enter++;
     // This is where we enter from the outside world
     DPRINTF(MemCtrl, "recvTimingReq: request %s addr %#x size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getSize());
@@ -475,7 +474,7 @@ SimpleMemCtrl::recvTimingReq(PacketPtr pkt)
             stats.bytesReadSys += size;
         }
     }
-    stats.exit++;
+
     return true;
 }
 
@@ -1220,27 +1219,24 @@ SimpleMemCtrl::CtrlStats::CtrlStats(SimpleMemCtrl &_ctrl)
                 statistics::units::Tick, statistics::units::Count>::get(),
              "Per-requestor write average memory access latency"),
 
-    ADD_STAT(enter,
-            "Total number of hits on DRAM cache"),
-    ADD_STAT(exit,
-            "Total number of hits on DRAM cache"),
-    ADD_STAT(numHits,
-            "Total number of hits on DRAM cache"),
-    ADD_STAT(numMisses,
-            "Total number of misses on DRAM cache"),
-    ADD_STAT(numRdHits,
-            "Total number of read hits on DRAM cache"),
-    ADD_STAT(numWrHits,
-            "Total number of write hits on DRAM cache"),
-    ADD_STAT(numRdMisses,
-            "Total number of read misses on DRAM cache"),
-    ADD_STAT(numWrMisses,
-            "Total number of write misses on DRAM cache"),
-    ADD_STAT(numColdMisses,
-            "Total number of misses on DRAM cache due to"
-            " first reference to a cache block"),
-    ADD_STAT(numHotMisses,
-            "Total number of misses on DRAM cache that are not cold miss"),
+
+    // ADD_STAT(numHits,
+    //         "Total number of hits on DRAM cache"),
+    // ADD_STAT(numMisses,
+    //         "Total number of misses on DRAM cache"),
+    // ADD_STAT(numRdHits,
+    //         "Total number of read hits on DRAM cache"),
+    // ADD_STAT(numWrHits,
+    //         "Total number of write hits on DRAM cache"),
+    // ADD_STAT(numRdMisses,
+    //         "Total number of read misses on DRAM cache"),
+    // ADD_STAT(numWrMisses,
+    //         "Total number of write misses on DRAM cache"),
+    // ADD_STAT(numColdMisses,
+    //         "Total number of misses on DRAM cache due to"
+    //         " first reference to a cache block"),
+    // ADD_STAT(numHotMisses,
+    //        "Total number of misses on DRAM cache that are not cold miss"),
     ADD_STAT(numWrBacks,
             "Total number of write backs from DRAM cache to main memory"),
     ADD_STAT(totNumConf,
@@ -1249,41 +1245,41 @@ SimpleMemCtrl::CtrlStats::CtrlStats(SimpleMemCtrl &_ctrl)
             "Total number of packets conflicted yet couldn't "
             "enter confBuffer"),
 
-    ADD_STAT(timeInLocRead,
-             "Total time spent in locMemRead state in ns"),
-    ADD_STAT(timeInLocWrite,
-            "Total time spent in locMemWrite state in ns"),
-    ADD_STAT(timeInFarRead,
-            "Total time spent in farMemRead state in ns"),
-    ADD_STAT(timeInFarWrite,
-            "Total time spent in farMemRWrite state in ns"),
+    // ADD_STAT(timeInLocRead,
+    //          "Total time spent in locMemRead state in ns"),
+    // ADD_STAT(timeInLocWrite,
+    //         "Total time spent in locMemWrite state in ns"),
+    // ADD_STAT(timeInFarRead,
+    //         "Total time spent in farMemRead state in ns"),
+    // ADD_STAT(timeInFarWrite,
+    //         "Total time spent in farMemRWrite state in ns"// ),
 
-    ADD_STAT(locRdQingTime,
-            "Total time spent as loc mem read queuing time in ns"),
-    ADD_STAT(locWrQingTime,
-            "Total time spent as loc mem write queuing time in ns"),
-    ADD_STAT(farRdQingTime,
-            "Total time spent as far mem read queuing time in ns"),
-    ADD_STAT(farWrQingTime,
-            "Total time spent as far mem write queuing time in ns"),
+    // ADD_STAT(locRdQingTime,
+    //         "Total time spent as loc mem read queuing time in ns"),
+    // ADD_STAT(locWrQingTime,
+    //         "Total time spent as loc mem write queuing time in ns"),
+    // ADD_STAT(farRdQingTime,
+    //         "Total time spent as far mem read queuing time in ns"),
+    // ADD_STAT(farWrQingTime,
+    //        "Total time spent as far mem write queuing time in ns"),
 
-    ADD_STAT(locRdDevTime,
-            "Total time spent as loc mem read device time in Ticks"),
-    ADD_STAT(locWrDevTime,
-            "Total time spent as loc mem write device time in Ticks"),
-    ADD_STAT(farRdDevTime,
-            "Total time spent as far mem read device time in Ticks"),
-    ADD_STAT(farWrDevTime,
-            "Total time spent as far mem write device time in Ticks"),
+    // ADD_STAT(locRdDevTime,
+    //         "Total time spent as loc mem read device time in Ticks"),
+    // ADD_STAT(locWrDevTime,
+    //         "Total time spent as loc mem write device time in Ticks"),
+    // ADD_STAT(farRdDevTime,
+    //         "Total time spent as far mem read device time in Ticks"),
+    // ADD_STAT(farWrDevTime,
+    //         "Total time spent as far mem write device time in Ticks"),
 
-    ADD_STAT(totNumPktsLocRd,
-            "Total number of packets enterted to loc mem read state"),
-    ADD_STAT(totNumPktslocWr,
-            "Total number of packets enterted to loc mem write state"),
-    ADD_STAT(totNumPktsFarRd,
-            "Total number of packets enterted to far mem read state"),
-    ADD_STAT(totNumPktsFarWr,
-            "Total number of packets enterted to far mem write state"),
+    // ADD_STAT(totNumPktsLocRd,
+    //         "Total number of packets enterted to loc mem read state"),
+    // ADD_STAT(totNumPktslocWr,
+    //         "Total number of packets enterted to loc mem write state"),
+    // ADD_STAT(totNumPktsFarRd,
+    //         "Total number of packets enterted to far mem read state"),
+    // ADD_STAT(totNumPktsFarWr,
+    //         "Total number of packets enterted to far mem write state"),
 
     ADD_STAT(maxNumConf,
             "Maximum number of packets conflicted on DRAM cache"),
@@ -1300,13 +1296,13 @@ SimpleMemCtrl::CtrlStats::CtrlStats(SimpleMemCtrl &_ctrl)
     ADD_STAT(maxFarWrEvQ,
             "Maximum number of packets in farMemWriteEvent concurrently"),
     ADD_STAT(sentRdPort,
-            ""),
+            "Number of read packets successfully sent through the request port to the far memory."),
     ADD_STAT(failedRdPort,
-            ""),
+            "Number of read packets failed to be sent through the request port to the far memory."),
     ADD_STAT(sentWrPort,
-            ""),
+            "Number of write packets successfully sent through the request port to the far memory."),
     ADD_STAT(failedWrPort,
-            "")
+            "Number of write packets failed to be sent through the request port to the far memory.")
 {
 }
 
