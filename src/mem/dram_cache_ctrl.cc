@@ -91,38 +91,11 @@ DCacheCtrl::DCacheCtrl(const DCacheCtrlParams &p):
     dirtAdrGen();
     pktLocMemRead.resize(1);
     pktLocMemWrite.resize(1);
-    // pktFarMemRead.resize(1);
-    // pktFarMemWrite.resize(1);
-
-    // perform a basic check of the write thresholds
-    // if (p.write_low_thresh_perc >= p.write_high_thresh_perc)
-    //     fatal("Write buffer low threshold %d must be smaller than the "
-    //           "high threshold %d\n", p.write_low_thresh_perc,
-    //           p.write_high_thresh_perc);
-
-    // if (orbMaxSize>512) {
-    //     locWrDrainPerc = 0.25;
-    // }
-    // else {
-    //     locWrDrainPerc = 0.5;
-    // }
 
     // This is actually a locWriteHighThreshold
     writeHighThreshold = 0.5 * orbMaxSize;
 
     minLocWrPerSwitch = 0.25 * orbMaxSize;
-
-    // if (orbMaxSize == 1) {
-    //     writeHighThreshold = 1;
-    //     minLocWrPerSwitch = 0;
-    // }
-
-    // if (orbMaxSize == 2) {
-    //     writeHighThreshold = 1;
-    //     minLocWrPerSwitch = 1;
-    // }
-
-
 
 }
 
@@ -246,9 +219,6 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
     bool foundInFarMemWrite = false;
 
     if (pkt->isRead()) {
-        stats.readPktSize[ceilLog2(size)]++;
-        stats.readBursts++;
-        stats.requestorReadAccesses[pkt->requestorId()]++;
 
         assert(pkt->getSize() != 0);
 
@@ -320,9 +290,9 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
         }
 
         if (foundInORB || foundInCRB || foundInFarMemWrite) {
-            stats.writePktSize[ceilLog2(size)]++;
-            stats.writeBursts++;
-            stats.requestorWriteAccesses[pkt->requestorId()]++;
+            stats.readPktSize[ceilLog2(size)]++;
+            stats.readBursts++;
+            stats.requestorReadAccesses[pkt->requestorId()]++;
 
             accessAndRespond(pkt, frontendLatency, farMemory);
 
@@ -361,9 +331,7 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
             maxConf = CRB.size();
             stats.maxNumConf = CRB.size();
         }
-        stats.writePktSize[ceilLog2(size)]++;
-        stats.writeBursts++;
-        stats.requestorWriteAccesses[pkt->requestorId()]++;
+
         return true;
     }
     // check if ORB or FMWB is full and set retry
@@ -401,15 +369,6 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
         isInWriteQueue.insert(pkt->getAddr());
     }
 
-    // if (pktLocMemRead[0].empty() && !stallRds && !rescheduleLocRead) {
-    //     assert(!locMemReadEvent.scheduled());
-    //     schedule(locMemReadEvent, std::max(nextReqTime, curTick()));
-    // }
-
-    //else {
-    //    assert(locMemReadEvent.scheduled() || stallRds || rescheduleLocRead); //dram->isBusy(false, false)
-    //}
-
     pktLocMemRead[0].push_back(ORB.at(pkt->getAddr())->dccPkt);
 
     if (!stallRds && !rescheduleLocRead && !locMemReadEvent.scheduled()) {
@@ -423,10 +382,8 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
         stats.maxLocRdEvQ = pktLocMemRead[0].size();
     }
 
-    DPRINTF(DCacheCtrl, "dc: acc %lld\n", pkt->getAddr());
-    stats.writePktSize[ceilLog2(size)]++;
-    stats.writeBursts++;
-    stats.requestorWriteAccesses[pkt->requestorId()]++;
+    DPRINTF(DCacheCtrl, "DRAM cache controller accepted packet %lld\n", pkt->getAddr());
+
     return true;
 }
 
@@ -1193,7 +1150,7 @@ DCacheCtrl::checkHitOrMiss(reqBufferEntry* orbEntry)
     //     stats.numHotMisses++;
     // }
 
-    //always hit
+    // always hit
     // orbEntry->isHit = true;
 
     // always miss
@@ -1247,8 +1204,7 @@ DCacheCtrl::handleRequestorPkt(PacketPtr pkt)
     if (pkt->isRead()) {
         logRequest(DCacheCtrl::READ, pkt->requestorId(), pkt->qosValue(),
                    pkt->getAddr(), 1);
-    }
-    else {
+    } else {
         //copying the packet
         PacketPtr copyOwPkt = new Packet(pkt, false, pkt->isRead());
 
@@ -1309,10 +1265,23 @@ DCacheCtrl::handleRequestorPkt(PacketPtr pkt)
     tagMetadataStore.at(orbEntry->indexDC).farMemAddr =
                         orbEntry->owPkt->getAddr();
 
-    if (orbEntry->owPkt->isRead()) {
+    
+    Addr addr = pkt->getAddr();
+
+    unsigned burst_size = dram->bytesPerBurst();
+
+    unsigned size = std::min((addr | (burst_size - 1)) + 1,
+                             addr + pkt->getSize()) - addr;
+
+    if (pkt->isRead()) {
+        stats.readPktSize[ceilLog2(size)]++;
+        stats.readBursts++;
+        stats.requestorReadAccesses[pkt->requestorId()]++;
         stats.readReqs++;
-    }
-    else {
+    } else {
+        stats.writePktSize[ceilLog2(size)]++;
+        stats.writeBursts++;
+        stats.requestorWriteAccesses[pkt->requestorId()]++;
         stats.writeReqs++;
     }
 }
@@ -1320,6 +1289,10 @@ DCacheCtrl::handleRequestorPkt(PacketPtr pkt)
 bool
 DCacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 {
+    assert(orbEntry->dccPkt->readyTime != MaxTick);
+    assert(orbEntry->dccPkt->readyTime >= curTick());
+    stats.totPktsServiceTime += ((orbEntry->dccPkt->readyTime - orbEntry->arrivalTick)/1000);
+
     bool conflictFound = false;
 
     if (orbEntry->owPkt->isWrite()) {
@@ -1354,13 +1327,6 @@ DCacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
                 CRB.erase(e);
 
                 checkConflictInCRB(ORB.at(confAddr));
-
-                // if (pktLocMemRead[0].empty() && !stallRds && !rescheduleLocRead) {
-                //     assert(!locMemReadEvent.scheduled());
-                //     schedule(locMemReadEvent, std::max(nextReqTime, curTick()));
-                // } else {
-                //     assert(locMemReadEvent.scheduled() || stallRds || rescheduleLocRead);
-                // }
 
                 pktLocMemRead[0].push_back(ORB.at(confAddr)->dccPkt);
 

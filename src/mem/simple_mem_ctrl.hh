@@ -649,6 +649,10 @@ class SimpleMemCtrl : public qos::MemCtrl
         Stats::Scalar failedRdPort;
         Stats::Scalar sentWrPort;
         Stats::Scalar failedWrPort;
+
+        Stats::Scalar totPktsServiceTime;
+        //Stats::Scalar totRdPktsServiceTime;
+        //Stats::Scalar totWrPktsServiceTime;
     };
 
     CtrlStats stats;

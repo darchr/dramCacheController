@@ -1295,6 +1295,13 @@ SimpleMemCtrl::CtrlStats::CtrlStats(SimpleMemCtrl &_ctrl)
             "Maximum number of packets in farMemReadRespEvent concurrently"),
     ADD_STAT(maxFarWrEvQ,
             "Maximum number of packets in farMemWriteEvent concurrently"),
+    
+    ADD_STAT(rdToWrTurnAround,
+            "Maximum number of packets in farMemReadRespEvent concurrently"),
+    ADD_STAT(wrToRdTurnAround,
+            "Maximum number of packets in farMemWriteEvent concurrently"),
+
+
     ADD_STAT(sentRdPort,
             "Number of read packets successfully sent through the request port to the far memory."),
     ADD_STAT(failedRdPort,
@@ -1302,6 +1309,8 @@ SimpleMemCtrl::CtrlStats::CtrlStats(SimpleMemCtrl &_ctrl)
     ADD_STAT(sentWrPort,
             "Number of write packets successfully sent through the request port to the far memory."),
     ADD_STAT(failedWrPort,
+            "Number of write packets failed to be sent through the request port to the far memory."),
+    ADD_STAT(totPktsServiceTime,
             "Number of write packets failed to be sent through the request port to the far memory.")
 {
 }
