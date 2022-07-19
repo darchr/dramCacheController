@@ -100,7 +100,7 @@ class MemPacket
   public:
 
     /** When did request enter the controller */
-    const Tick entryTime;
+    Tick entryTime;
 
     /** When will request leave the controller */
     Tick readyTime;
@@ -723,7 +723,7 @@ class MemCtrl : public qos::MemCtrl
      *
      * @return true if event is scheduled
      */
-    bool respondEventScheduled() const { return respondEvent.scheduled(); }
+    virtual bool respondEventScheduled() const { return respondEvent.scheduled(); }
 
     /**
      * Is there a read/write burst Event scheduled?
