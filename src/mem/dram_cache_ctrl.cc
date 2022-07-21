@@ -388,7 +388,7 @@ bool
 DCacheCtrl::recvTimingReq(PacketPtr pkt)
 {
     // This is where we enter from the outside world
-    // DPRINTF(DCacheCtrl, "dc: got %s %lld\n", pkt->cmdString(), pkt->getAddr());
+    DPRINTF(DCacheCtrl, "dc: got %s %lld\n", pkt->cmdString(), pkt->getAddr());
 
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
              "is responding");
@@ -607,6 +607,7 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
     }
 
     pktLocMemRead[0].push_back(ORB.at(pkt->getAddr())->dccPkt);
+    std::cout << "here1\n";
 
     if (!stallRds && !rescheduleLocRead && !locMemReadEvent.scheduled()) {
         schedule(locMemReadEvent, std::max(dram->nextReqTime, curTick()));
@@ -1123,6 +1124,8 @@ DCacheCtrl::processFarMemReadRespEvent()
     assert(!pktFarMemReadResp.empty());
 
     auto orbEntry = ORB.at(pktFarMemReadResp.front()->getAddr());
+
+    DPRINTF(DCacheCtrl, "FarMemReadRespEvent %lld\n", orbEntry->owPkt->getAddr());
     
     // sanity check for the chosen packet
     assert(orbEntry->validEntry);
@@ -1211,6 +1214,25 @@ DCacheCtrl::processFarMemReadRespEvent()
     if (!pktFarMemReadResp.empty() && !farMemReadRespEvent.scheduled()) {
         schedule(farMemReadRespEvent, curTick());
     }
+
+    std::cout << "*: " <<
+    ORB.size() << ", " <<
+    CRB.size() << ", " <<
+    pktLocMemRead[0].size() << ", " <<
+    pktLocMemWrite[0].size() << ", " <<
+    pktFarMemRead.size() << ", " <<
+    pktFarMemWrite.size() << ", " <<
+    addrLocRdRespReady.size() << ", " <<
+    pktFarMemReadResp.size() << " // " <<
+    locMemReadEvent.scheduled()  << ", " <<
+    locMemWriteEvent.scheduled()  << ", " <<
+    farMemReadEvent.scheduled()  << ", " <<
+    farMemWriteEvent.scheduled()  << ", " <<
+    locMemReadRespEvent.scheduled()  << ", " <<
+    farMemReadRespEvent.scheduled()  << " // " <<
+    stallRds << ", " << 
+    rescheduleLocWrite << ", " << 
+    rescheduleLocRead << "\n";
 }
 
 void
@@ -1281,14 +1303,18 @@ DCacheCtrl::recvReqRetry()
 bool
 DCacheCtrl::recvTimingResp(PacketPtr pkt) // This is equivalant of farMemReadRespEvent
 {
+    DPRINTF(DCacheCtrl, "recvTimingResp %lld\n", pkt->getAddr());
+
     if (pkt->isRead()) {
+        std::cout << "!\n";
         pktFarMemReadResp.push_back(pkt);
 
         if (!farMemReadRespEvent.scheduled()) {
+            std::cout << "!2\n";
             schedule(farMemReadRespEvent, curTick());
         }
     }
-
+    
     return true;
 }
 
@@ -1569,6 +1595,7 @@ DCacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
                 checkConflictInCRB(ORB.at(confAddr));
 
                 pktLocMemRead[0].push_back(ORB.at(confAddr)->dccPkt);
+                std::cout << "here2\n";
 
                 if (!stallRds && !rescheduleLocRead && !locMemReadEvent.scheduled()) {
                     schedule(locMemReadEvent, std::max(dram->nextReqTime, curTick()));

@@ -99,7 +99,13 @@ system.dcache_ctrl.crb_max_size = "32"
 system.mem_ranges = [AddrRange('8GB')]
 
 system.generator.port = system.dcache_ctrl.port
-system.dcache_ctrl.req_port = system.farMem_ctrl.port
+# system.dcache_ctrl.req_port = system.farMem_ctrl.port
+
+system.membus = L2XBar()
+system.membus.cpu_side_ports = system.dcache_ctrl.req_port
+system.farMem_ctrl.port = system.membus.mem_side_ports
+system.membus.frontend_latency = 100
+system.membus.response_latency  = 100
 
 def createRandomTraffic(tgen):
     yield tgen.createRandom(options.duration,   # duration
