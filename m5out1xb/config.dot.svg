@@ -56,7 +56,7 @@
 </g>
 <g id="clust17" class="cluster">
 <title>cluster_system_membus</title>
-<g id="a_clust17"><a xlink:title="clk_domain=system.clk_domain&#10;eventq_index=0&#10;forward_latency=4&#10;frontend_latency=10&#10;header_latency=1&#10;max_outstanding_snoops=512&#10;max_routing_table_size=512&#10;point_of_coherency=true&#10;point_of_unification=true&#10;power_model=&#10;power_state=system.membus.power_state&#10;&#13;esponse_latency=10&#10;snoop_filter=system.membus.snoop_filter&#10;snoop_response_latency=4&#10;system=system&#10;use_default_range=false&#10;width=16">
+<g id="a_clust17"><a xlink:title="clk_domain=system.clk_domain&#10;eventq_index=0&#10;forward_latency=4&#10;frontend_latency=3&#10;header_latency=1&#10;max_outstanding_snoops=512&#10;max_routing_table_size=512&#10;point_of_coherency=true&#10;point_of_unification=true&#10;power_model=&#10;power_state=system.membus.power_state&#10;&#13;esponse_latency=2&#10;snoop_filter=system.membus.snoop_filter&#10;snoop_response_latency=4&#10;system=system&#10;use_default_range=false&#10;width=16">
 <path fill="#6f798c" stroke="#000000" d="M36,-155C36,-155 272,-155 272,-155 278,-155 284,-161 284,-167 284,-167 284,-234 284,-234 284,-240 278,-246 272,-246 272,-246 36,-246 36,-246 30,-246 24,-240 24,-234 24,-234 24,-167 24,-167 24,-161 30,-155 36,-155"/>
 <text text-anchor="middle" x="154" y="-230.8" font-family="Arial" font-size="14.00" fill="#000000">membus </text>
 <text text-anchor="middle" x="154" y="-215.8" font-family="Arial" font-size="14.00" fill="#000000">: SystemXBar</text>

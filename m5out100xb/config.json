@@ -465,7 +465,7 @@
             "clk_domain": "system.clk_domain",
             "eventq_index": 0,
             "forward_latency": 4,
-            "frontend_latency": 10,
+            "frontend_latency": 100,
             "header_latency": 1,
             "max_outstanding_snoops": 512,
             "max_routing_table_size": 512,
@@ -485,7 +485,7 @@
                 "leaders": [],
                 "possible_states": []
             },
-            "response_latency": 10,
+            "response_latency": 100,
             "snoop_filter": {
                 "type": "SnoopFilter",
                 "cxx_class": "gem5::SnoopFilter",

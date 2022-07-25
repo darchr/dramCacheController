@@ -607,7 +607,6 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
     }
 
     pktLocMemRead[0].push_back(ORB.at(pkt->getAddr())->dccPkt);
-    std::cout << "here1\n";
 
     if (!stallRds && !rescheduleLocRead && !locMemReadEvent.scheduled()) {
         schedule(locMemReadEvent, std::max(dram->nextReqTime, curTick()));
@@ -925,12 +924,11 @@ DCacheCtrl::processLocMemReadRespEvent()
         if (drainState() == DrainState::Draining &&
             !wrsNum && !rdsNum &&
             allIntfDrained()) {
-
             DPRINTF(Drain, "Controller done draining\n");
             signalDrainDone();
-        } else if (orbEntry->owPkt->isRead() &&
+        } else /*if (orbEntry->owPkt->isRead() &&
                    orbEntry->dccPkt->isDram() &&
-                   orbEntry->isHit) {
+                   orbEntry->isHit)*/ {
             // check the refresh state and kick the refresh event loop
             // into action again if banks already closed and just waiting
             // for read to complete
@@ -958,8 +956,8 @@ void
 DCacheCtrl::processLocMemWriteEvent()
 {
     if (dram->isBusy(false, false) || rescheduleLocWrite) {
-        // it's possible that dram is busy and we return here before
-        // reching to read_found check to set rescheduleLocRead
+        // it's possible that dram is busy and we reach here before
+        // reching to write_found check to set rescheduleLocWrite
         if (dram->isBusy(false, false)) {
             rescheduleLocWrite = true;
         }
@@ -1089,9 +1087,11 @@ DCacheCtrl::processFarMemReadEvent()
 
     auto rdPkt = pktFarMemRead.front();
     if (reqPort.sendTimingReq(rdPkt)) {
+        DPRINTF(DCacheCtrl, "FarRdSent: %lld\n", rdPkt->getAddr());
         pktFarMemRead.pop_front();
         dcstats.sentRdPort++;
     } else {
+        DPRINTF(DCacheCtrl, "FarRdRetry: %lld\n", rdPkt->getAddr());
         waitingForRetryReqPort = true;
         dcstats.failedRdPort++;
         return;
@@ -1215,7 +1215,7 @@ DCacheCtrl::processFarMemReadRespEvent()
         schedule(farMemReadRespEvent, curTick());
     }
 
-    std::cout << "*: " <<
+    /*std::cout << curTick() << " : " <<
     ORB.size() << ", " <<
     CRB.size() << ", " <<
     pktLocMemRead[0].size() << ", " <<
@@ -1231,8 +1231,8 @@ DCacheCtrl::processFarMemReadRespEvent()
     locMemReadRespEvent.scheduled()  << ", " <<
     farMemReadRespEvent.scheduled()  << " // " <<
     stallRds << ", " << 
-    rescheduleLocWrite << ", " << 
-    rescheduleLocRead << "\n";
+    rescheduleLocRead << ", " << 
+    rescheduleLocWrite << " // " << dram->isBusy(false, false) << "\n";*/
 }
 
 void
@@ -1243,12 +1243,12 @@ DCacheCtrl::processFarMemWriteEvent()
     assert(!waitingForRetryReqPort);
     auto wrPkt = pktFarMemWrite.front();
     if (reqPort.sendTimingReq(wrPkt)) {
-        DPRINTF(DCacheCtrl, "FarWrSent:%lld\n", wrPkt->getAddr());
+        DPRINTF(DCacheCtrl, "FarWrSent: %lld\n", wrPkt->getAddr());
         pktFarMemWrite.pop_front();
         farWrCounter++;
         dcstats.sentWrPort++;
     } else {
-        DPRINTF(DCacheCtrl, "FarWrRetry: %lld\n", pktFarMemWrite.front()->getAddr());
+        DPRINTF(DCacheCtrl, "FarWrRetry: %lld\n", wrPkt->getAddr());
         waitingForRetryReqPort = true;
         dcstats.failedWrPort++;
         return;
@@ -1303,14 +1303,12 @@ DCacheCtrl::recvReqRetry()
 bool
 DCacheCtrl::recvTimingResp(PacketPtr pkt) // This is equivalant of farMemReadRespEvent
 {
-    DPRINTF(DCacheCtrl, "recvTimingResp %lld\n", pkt->getAddr());
+    DPRINTF(DCacheCtrl, "recvTimingResp %lld, %s\n", pkt->getAddr(), pkt->cmdString());
 
     if (pkt->isRead()) {
-        std::cout << "!\n";
         pktFarMemReadResp.push_back(pkt);
 
         if (!farMemReadRespEvent.scheduled()) {
-            std::cout << "!2\n";
             schedule(farMemReadRespEvent, curTick());
         }
     }
@@ -1595,7 +1593,6 @@ DCacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
                 checkConflictInCRB(ORB.at(confAddr));
 
                 pktLocMemRead[0].push_back(ORB.at(confAddr)->dccPkt);
-                std::cout << "here2\n";
 
                 if (!stallRds && !rescheduleLocRead && !locMemReadEvent.scheduled()) {
                     schedule(locMemReadEvent, std::max(dram->nextReqTime, curTick()));

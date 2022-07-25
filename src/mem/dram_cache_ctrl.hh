@@ -415,22 +415,6 @@ class DCacheCtrl : public MemCtrl
 
     DCCtrlStats dcstats;
 
-    /**
-     * Puts this packet in the waitingResp list and returns true if
-     * we are above the maximum number of oustanding requests.
-     */
-    bool allocateWaitingRespSlot(PacketPtr pkt)
-    {
-        assert(waitingResp.find(pkt->req) == waitingResp.end());
-        assert(pkt->needsResponse());
-
-        waitingResp[pkt->req] = curTick();
-
-        return (maxOutstandingReqs > 0) &&
-               (waitingResp.size() > maxOutstandingReqs);
-    }
-
-
   public:
 
     DCacheCtrl(const DCacheCtrlParams &p);

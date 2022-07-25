@@ -905,8 +905,8 @@ DRAMInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
     assert(row < rowsPerBank);
     assert(row < Bank::NO_ROW);
 
-    DPRINTF(DRAM, "Address: %#x Rank %d Bank %d Row %d\n",
-            pkt_addr, rank, bank, row);
+    // DPRINTF(DRAM, "Address: %#x Rank %d Bank %d Row %d\n",
+    //         pkt_addr, rank, bank, row);
 
     // create the corresponding memory packet with the entry time and
     // ready time set to the current tick, the latter will be updated
@@ -1313,6 +1313,7 @@ DRAMInterface::Rank::processRefreshEvent()
             DPRINTF(DRAM, "Refresh awaiting draining\n");
             return;
         } else {
+            DPRINTF(DRAM, "ELSE of Refresh awaiting draining\n");
             refreshState = REF_PD_EXIT;
         }
     }
@@ -1327,12 +1328,14 @@ DRAMInterface::Rank::processRefreshEvent()
             scheduleWakeUpEvent(dram.tXP);
             return;
         } else {
+            DPRINTF(DRAM, "ELSE of Wake Up for refresh\n");
             refreshState = REF_PRE;
         }
     }
 
     // at this point, ensure that all banks are precharged
     if (refreshState == REF_PRE) {
+        DPRINTF(DRAM, "REF_PRE\n");
         // precharge any active bank
         if (numBanksActive != 0) {
             // at the moment, we use a precharge all even if there is
@@ -1377,6 +1380,7 @@ DRAMInterface::Rank::processRefreshEvent()
             // we are already idle
             schedulePowerEvent(PWR_REF, curTick());
         } else {
+            DPRINTF(DRAM, "banks state is closed but... %d  %d\n", prechargeEvent.scheduled(), dram.ctrl->respondEventScheduled());
             // banks state is closed but haven't transitioned pwrState to IDLE
             // or have outstanding ACT,RD/WR,Auto-PRE sequence scheduled
             // should have outstanding precharge or read response event
