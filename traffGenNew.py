@@ -19,6 +19,11 @@ args = argparse.ArgumentParser()
 #             32 random 100000000 2GB    1000 100
 
 args.add_argument(
+    "xbarLatency",
+    type = int,
+    help = "latency of crossbar front/resp"
+)
+args.add_argument(
     "device_loc",
     type = str,
     help = "Memory device to use as a dram cache (local memory)"
@@ -95,6 +100,8 @@ system.farMem_ctrl.dram = system.dcache_ctrl.far_memory
 system.dcache_ctrl.dram_cache_size = options.dram_cache_size
 system.dcache_ctrl.orb_max_size = options.max_orb
 system.dcache_ctrl.crb_max_size = "32"
+system.dcache_ctrl.always_hit = False;
+system.dcache_ctrl.always_dirty = False;
 
 system.mem_ranges = [AddrRange('8GB')]
 
@@ -104,8 +111,8 @@ system.generator.port = system.dcache_ctrl.port
 system.membus = SystemXBar()
 system.membus.cpu_side_ports = system.dcache_ctrl.req_port
 system.farMem_ctrl.port = system.membus.mem_side_ports
-system.membus.frontend_latency = 10
-system.membus.response_latency  = 10
+system.membus.frontend_latency = options.xbarLatency
+system.membus.response_latency  = options.xbarLatency
 
 def createRandomTraffic(tgen):
     yield tgen.createRandom(options.duration,   # duration

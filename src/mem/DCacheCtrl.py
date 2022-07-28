@@ -58,5 +58,7 @@ class DCacheCtrl(MemCtrl):
     addr_size = Param.Unsigned(64,"Addr size of the request from outside world")
     orb_max_size = Param.Unsigned(256, "Outstanding Requests Buffer size")
     crb_max_size = Param.Unsigned(64, "Conflicting Requests Buffer size")
+    always_hit = Param.Bool(True, "")
+    always_dirty = Param.Bool(True, "")
     far_mem_write_queue_max_size = Param.Unsigned(128, "Maximum size of "
                                     "far memory write queue in DRAM cache controller")

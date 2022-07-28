@@ -64,6 +64,7 @@ DCacheCtrl::DCacheCtrl(const DCacheCtrlParams &p):
     addrSize(p.addr_size),
     orbMaxSize(p.orb_max_size), orbSize(0),
     crbMaxSize(p.crb_max_size), crbSize(0),
+    alwaysHit(p.always_hit), alwaysDirty(p.always_dirty),
     retry(false), retryFMW(false),
     stallRds(false), sendFarRdReq(true),
     waitingForRetryReqPort(false),
@@ -241,12 +242,20 @@ DCacheCtrl::DCCtrlStats::DCCtrlStats(DCacheCtrl &_ctrl)
             "Number of read packets successfully sent through the request port to the far memory."),
     ADD_STAT(failedRdPort,
             "Number of read packets failed to be sent through the request port to the far memory."),
+    ADD_STAT(recvdRdPort,
+            "Number of read packets resp recvd through the request port from the far memory."),
     ADD_STAT(sentWrPort,
             "Number of write packets successfully sent through the request port to the far memory."),
     ADD_STAT(failedWrPort,
             "Number of write packets failed to be sent through the request port to the far memory."),
     ADD_STAT(totPktsServiceTime,
-            "Number of write packets failed to be sent through the request port to the far memory.")
+            "stat"),
+    ADD_STAT(totTimeFarRdtoSend,
+            "stat"),
+    ADD_STAT(totTimeFarRdtoRecv,
+            "stat"),
+    ADD_STAT(totTimeFarWrtoSend,
+            "stat")
 {
 }
 
@@ -376,6 +385,7 @@ DCacheCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
         // the static latency has passed
         port.schedTimingResp(pkt, response_time);
     } else {
+        std::cout << "here\n";
         // @todo the packet is going to be deleted, and the MemPacket
         // is still having a pointer to it
         pendingDelete.reset(pkt);
@@ -509,10 +519,10 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
                 for (const auto& e : pktFarMemWrite) {
                     // check if the read is subsumed in the write queue
                     // packet we are looking at
-                    if (e->getAddr() <= addr &&
+                    if (e.second->getAddr() <= addr &&
                         ((addr + size) <=
-                        (e->getAddr() +
-                         e->getSize()))) {
+                        (e.second->getAddr() +
+                         e.second->getSize()))) {
 
                         foundInFarMemWrite = true;
 
@@ -892,6 +902,10 @@ DCacheCtrl::processLocMemReadRespEvent()
                                              orbEntry->owPkt->isRead());
 
         pktFarMemRead.push_back(copyOwPkt_2);
+        if (pktFarMemRead.size() > maxFarRdEvQ) {
+            maxFarRdEvQ = pktFarMemRead.size();
+            dcstats.maxFarRdEvQ = pktFarMemRead.size();
+        }
 
         if (!farMemReadEvent.scheduled() && sendFarRdReq && !waitingForRetryReqPort) {
             schedule(farMemReadEvent, std::max(dram->nextReqTime, curTick()));
@@ -1090,6 +1104,7 @@ DCacheCtrl::processFarMemReadEvent()
         DPRINTF(DCacheCtrl, "FarRdSent: %lld\n", rdPkt->getAddr());
         pktFarMemRead.pop_front();
         dcstats.sentRdPort++;
+        ORB.at(rdPkt->getAddr())->farRdIssued = curTick();
     } else {
         DPRINTF(DCacheCtrl, "FarRdRetry: %lld\n", rdPkt->getAddr());
         waitingForRetryReqPort = true;
@@ -1241,9 +1256,10 @@ DCacheCtrl::processFarMemWriteEvent()
     assert(!pktFarMemWrite.empty());
     assert(!sendFarRdReq);
     assert(!waitingForRetryReqPort);
-    auto wrPkt = pktFarMemWrite.front();
+    auto wrPkt = pktFarMemWrite.front().second;
     if (reqPort.sendTimingReq(wrPkt)) {
         DPRINTF(DCacheCtrl, "FarWrSent: %lld\n", wrPkt->getAddr());
+        dcstats.totTimeFarWrtoSend += (curTick() - pktFarMemWrite.front().first);
         pktFarMemWrite.pop_front();
         farWrCounter++;
         dcstats.sentWrPort++;
@@ -1307,10 +1323,17 @@ DCacheCtrl::recvTimingResp(PacketPtr pkt) // This is equivalant of farMemReadRes
 
     if (pkt->isRead()) {
         pktFarMemReadResp.push_back(pkt);
+        if (pktFarMemReadResp.size() > maxFarRdRespEvQ) {
+            maxFarRdRespEvQ = pktFarMemReadResp.size();
+            dcstats.maxFarRdRespEvQ = pktFarMemReadResp.size();
+        }
 
         if (!farMemReadRespEvent.scheduled()) {
             schedule(farMemReadRespEvent, curTick());
         }
+
+        ORB.at(pkt->getAddr())->farRdRecvd = curTick();
+        dcstats.recvdRdPort++;
     }
     
     return true;
@@ -1418,7 +1441,9 @@ DCacheCtrl::checkHitOrMiss(reqBufferEntry* orbEntry)
     // orbEntry->isHit = true;
 
     // always miss
-    orbEntry->isHit = false;
+    // orbEntry->isHit = false;
+
+    orbEntry->isHit = alwaysHit;
 }
 
 bool
@@ -1430,10 +1455,12 @@ DCacheCtrl::checkDirty(Addr addr)
 
 
     // always dirty
-    return true;
+    // return true;
 
     // always clean
     // return false;
+
+    return alwaysDirty;
 }
 
 void
@@ -1556,6 +1583,8 @@ DCacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
     assert(orbEntry->dccPkt->readyTime != MaxTick);
     assert(orbEntry->dccPkt->readyTime >= curTick());
     dcstats.totPktsServiceTime += ((orbEntry->dccPkt->readyTime - orbEntry->arrivalTick)/1000);
+    dcstats.totTimeFarRdtoSend += ((orbEntry->farRdIssued - orbEntry->farRdEntered)/1000);
+    dcstats.totTimeFarRdtoRecv += ((orbEntry->farRdRecvd - orbEntry->farRdIssued)/1000);
 
     bool conflictFound = false;
 
@@ -1653,7 +1682,7 @@ DCacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
                                 orbEntry->owPkt->getSize(),
                                 MemCmd::WriteReq);
 
-    pktFarMemWrite.push_back(wbPkt);
+    pktFarMemWrite.push_back(std::make_pair(curTick(), wbPkt));
 
     if (
         ((pktFarMemWrite.size() >= (orbMaxSize/2)) || (!pktFarMemWrite.empty() && pktFarMemRead.empty())) &&

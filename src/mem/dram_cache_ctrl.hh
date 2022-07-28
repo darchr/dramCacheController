@@ -113,6 +113,8 @@ class DCacheCtrl : public MemCtrl
     unsigned orbSize;
     unsigned crbMaxSize;
     unsigned crbSize;
+    bool alwaysHit;
+    bool alwaysDirty;
 
     struct tagMetaStoreEntry
     {
@@ -216,7 +218,7 @@ class DCacheCtrl : public MemCtrl
      */
     std::map<Addr,reqBufferEntry*> ORB;
 
-    typedef std::pair<Tick, PacketPtr> confReqPair;
+    typedef std::pair<Tick, PacketPtr> timeReqPair;
     /**
      * This is the second important data structure
      * within the DRAM cache controller which holds
@@ -229,7 +231,7 @@ class DCacheCtrl : public MemCtrl
      * outstanding request buffer and start being
      * processed in the DRAM cache controller.
      */
-    std::vector<confReqPair> CRB;
+    std::vector<timeReqPair> CRB;
 
     /**
      * This is a unified retry flag for both reads and writes.
@@ -256,7 +258,7 @@ class DCacheCtrl : public MemCtrl
      * to be written back to the backing memory.
      * These packets are not maintained in the ORB.
      */
-    std::deque <PacketPtr> pktFarMemWrite; 
+    std::deque <timeReqPair> pktFarMemWrite; 
 
     // Maintenance Queues
     std::vector <MemPacketQueue> pktLocMemRead;
@@ -340,7 +342,7 @@ class DCacheCtrl : public MemCtrl
       DCacheCtrl &ctrl;
 
         // All statistics that the model needs to capture
-        statistics::Scalar readReqs;
+        //statistics::Scalar readReqs;
         statistics::Scalar writeReqs;
         statistics::Scalar readBursts;
         statistics::Scalar writeBursts;
@@ -407,10 +409,14 @@ class DCacheCtrl : public MemCtrl
 
       Stats::Scalar sentRdPort;
       Stats::Scalar failedRdPort;
+      Stats::Scalar recvdRdPort;
       Stats::Scalar sentWrPort;
       Stats::Scalar failedWrPort;
 
       Stats::Scalar totPktsServiceTime;
+      Stats::Scalar totTimeFarRdtoSend;
+      Stats::Scalar totTimeFarRdtoRecv;
+      Stats::Scalar totTimeFarWrtoSend;
     };
 
     DCCtrlStats dcstats;
