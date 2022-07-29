@@ -99,7 +99,7 @@ system.farMem_ctrl.dram = system.dcache_ctrl.far_memory
 #system.dcache_ctrl.far_memory.tREFI = "8000"
 system.dcache_ctrl.dram_cache_size = options.dram_cache_size
 system.dcache_ctrl.orb_max_size = options.max_orb
-system.dcache_ctrl.crb_max_size = "32"
+system.dcache_ctrl.crb_max_size = 32
 system.dcache_ctrl.always_hit = False;
 system.dcache_ctrl.always_dirty = False;
 

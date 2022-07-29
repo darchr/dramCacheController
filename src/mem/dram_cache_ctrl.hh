@@ -342,7 +342,7 @@ class DCacheCtrl : public MemCtrl
       DCacheCtrl &ctrl;
 
         // All statistics that the model needs to capture
-        //statistics::Scalar readReqs;
+        statistics::Scalar readReqs;
         statistics::Scalar writeReqs;
         statistics::Scalar readBursts;
         statistics::Scalar writeBursts;
