@@ -250,11 +250,19 @@ DCacheCtrl::DCCtrlStats::DCCtrlStats(DCacheCtrl &_ctrl)
             "Number of write packets failed to be sent through the request port to the far memory."),
     ADD_STAT(totPktsServiceTime,
             "stat"),
+    ADD_STAT(totPktsORBTime,
+            "stat"),
     ADD_STAT(totTimeFarRdtoSend,
             "stat"),
     ADD_STAT(totTimeFarRdtoRecv,
             "stat"),
     ADD_STAT(totTimeFarWrtoSend,
+            "stat"),
+    ADD_STAT(totTimeInLocRead,
+            "stat"),
+    ADD_STAT(totTimeInLocWrite,
+            "stat"),
+    ADD_STAT(totTimeInFarRead,
             "stat")
 {
 }
@@ -385,7 +393,6 @@ DCacheCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
         // the static latency has passed
         port.schedTimingResp(pkt, response_time);
     } else {
-        std::cout << "here\n";
         // @todo the packet is going to be deleted, and the MemPacket
         // is still having a pointer to it
         pendingDelete.reset(pkt);
@@ -454,7 +461,7 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
             
             dcstats.mergedWrBursts++;
 
-            accessAndRespond(pkt, frontendLatency, farMemory);
+            accessAndRespond(pkt, frontendLatency, dram);
 
             return true;
         }
@@ -541,7 +548,7 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
             dcstats.readBursts++;
             dcstats.requestorReadAccesses[pkt->requestorId()]++;
 
-            accessAndRespond(pkt, frontendLatency, farMemory);
+            accessAndRespond(pkt, frontendLatency, dram);
 
             return true;
         }
@@ -729,6 +736,7 @@ DCacheCtrl::processLocMemReadEvent()
     orbEntry->issued = true;
     // record the tick it was issued
     orbEntry->locRdIssued = curTick();
+    orbEntry->locRdExit = orbEntry->dccPkt->readyTime;
 
     pktLocMemRead[0].erase(to_read);
 
@@ -794,7 +802,7 @@ DCacheCtrl::processLocMemReadRespEvent()
 
             accessAndRespond(orbEntry->owPkt,
                              frontendLatency + backendLatency,
-                             farMemory);
+                             dram);
 
             ORB.at(copyOwPkt->getAddr()) = new reqBufferEntry(orbEntry->validEntry,
                                                               orbEntry->arrivalTick,
@@ -810,11 +818,13 @@ DCacheCtrl::processLocMemReadRespEvent()
                                                               orbEntry->handleDirtyLine,
                                                               orbEntry->locRdEntered,
                                                               orbEntry->locRdIssued,
+                                                              orbEntry->locRdExit,
                                                               orbEntry->locWrEntered,
-                                                              orbEntry->locWrIssued,
+                                                              orbEntry->locWrExit,
                                                               orbEntry->farRdEntered,
                                                               orbEntry->farRdIssued,
-                                                              orbEntry->farRdRecvd);
+                                                              orbEntry->farRdRecvd,
+                                                              orbEntry->farRdExit);
 
             delete orbEntry;
 
@@ -1030,6 +1040,8 @@ DCacheCtrl::processLocMemWriteEvent()
 
     MemCtrl::doBurstAccess(orbEntry->dccPkt, dram);
 
+    orbEntry->locWrExit = orbEntry->dccPkt->readyTime;
+
     locWrCounter++;
 
     if (orbEntry->owPkt->isWrite()) {
@@ -1164,26 +1176,28 @@ DCacheCtrl::processFarMemReadRespEvent()
                                          orbEntry->owPkt->isRead());
         accessAndRespond(orbEntry->owPkt,
                          frontendLatency + backendLatency,
-                         farMemory);
+                         dram);
         ORB.at(copyOwPkt->getAddr()) =  new reqBufferEntry(orbEntry->validEntry,
-                                                          orbEntry->arrivalTick,
-                                                          orbEntry->tagDC,
-                                                          orbEntry->indexDC,
-                                                          copyOwPkt,
-                                                          orbEntry->dccPkt,
-                                                          orbEntry->state,
-                                                          orbEntry->issued,
-                                                          orbEntry->isHit,
-                                                          orbEntry->conflict,
-                                                          orbEntry->dirtyLineAddr,
-                                                          orbEntry->handleDirtyLine,
-                                                          orbEntry->locRdEntered,
-                                                          orbEntry->locRdIssued,
-                                                          orbEntry->locWrEntered,
-                                                          orbEntry->locWrIssued,
-                                                          orbEntry->farRdEntered,
-                                                          orbEntry->farRdIssued,
-                                                          orbEntry->farRdRecvd);
+                                                            orbEntry->arrivalTick,
+                                                            orbEntry->tagDC,
+                                                            orbEntry->indexDC,
+                                                            copyOwPkt,
+                                                            orbEntry->dccPkt,
+                                                            orbEntry->state,
+                                                            orbEntry->issued,
+                                                            orbEntry->isHit,
+                                                            orbEntry->conflict,
+                                                            orbEntry->dirtyLineAddr,
+                                                            orbEntry->handleDirtyLine,
+                                                            orbEntry->locRdEntered,
+                                                            orbEntry->locRdIssued,
+                                                            orbEntry->locRdExit,
+                                                            orbEntry->locWrEntered,
+                                                            orbEntry->locWrExit,
+                                                            orbEntry->farRdEntered,
+                                                            orbEntry->farRdIssued,
+                                                            orbEntry->farRdRecvd,
+                                                            orbEntry->farRdExit);
         delete orbEntry;
         orbEntry = ORB.at(pktFarMemReadResp.front()->getAddr());
 
@@ -1202,6 +1216,7 @@ DCacheCtrl::processFarMemReadRespEvent()
     //** transition to locMemWrite
     orbEntry->state = locMemWrite;
     orbEntry->issued = false;
+    orbEntry->farRdExit = curTick();
     orbEntry->locWrEntered = curTick();
 
     pktLocMemWrite[0].push_back(orbEntry->dccPkt);
@@ -1259,7 +1274,7 @@ DCacheCtrl::processFarMemWriteEvent()
     auto wrPkt = pktFarMemWrite.front().second;
     if (reqPort.sendTimingReq(wrPkt)) {
         DPRINTF(DCacheCtrl, "FarWrSent: %lld\n", wrPkt->getAddr());
-        dcstats.totTimeFarWrtoSend += (curTick() - pktFarMemWrite.front().first);
+        dcstats.totTimeFarWrtoSend += ((curTick() - pktFarMemWrite.front().first)/1000);
         pktFarMemWrite.pop_front();
         farWrCounter++;
         dcstats.sentWrPort++;
@@ -1485,9 +1500,9 @@ DCacheCtrl::handleRequestorPkt(PacketPtr pkt)
                                 locMemRead, false,
                                 false, false,
                                 -1, false,
-                                curTick(), MaxTick,
+                                curTick(), MaxTick, MaxTick,
                                 MaxTick, MaxTick,
-                                MaxTick, MaxTick, MaxTick
+                                MaxTick, MaxTick, MaxTick, MaxTick
                             );
 
     ORB.emplace(pkt->getAddr(), orbEntry);
@@ -1499,27 +1514,29 @@ DCacheCtrl::handleRequestorPkt(PacketPtr pkt)
         //copying the packet
         PacketPtr copyOwPkt = new Packet(pkt, false, pkt->isRead());
 
-        accessAndRespond(pkt, frontendLatency, farMemory);
+        accessAndRespond(pkt, frontendLatency, dram);
 
         ORB.at(copyOwPkt->getAddr()) = new reqBufferEntry(orbEntry->validEntry,
-                                                          orbEntry->arrivalTick,
-                                                          orbEntry->tagDC,
-                                                          orbEntry->indexDC,
-                                                          copyOwPkt,
-                                                          orbEntry->dccPkt,
-                                                          orbEntry->state,
-                                                          orbEntry->issued,
-                                                          orbEntry->isHit,
-                                                          orbEntry->conflict,
-                                                          orbEntry->dirtyLineAddr,
-                                                          orbEntry->handleDirtyLine,
-                                                          orbEntry->locRdEntered,
-                                                          orbEntry->locRdIssued,
-                                                          orbEntry->locWrEntered,
-                                                          orbEntry->locWrIssued,
-                                                          orbEntry->farRdEntered,
-                                                          orbEntry->farRdIssued,
-                                                          orbEntry->farRdRecvd);
+                                                              orbEntry->arrivalTick,
+                                                              orbEntry->tagDC,
+                                                              orbEntry->indexDC,
+                                                              copyOwPkt,
+                                                              orbEntry->dccPkt,
+                                                              orbEntry->state,
+                                                              orbEntry->issued,
+                                                              orbEntry->isHit,
+                                                              orbEntry->conflict,
+                                                              orbEntry->dirtyLineAddr,
+                                                              orbEntry->handleDirtyLine,
+                                                              orbEntry->locRdEntered,
+                                                              orbEntry->locRdIssued,
+                                                              orbEntry->locRdExit,
+                                                              orbEntry->locWrEntered,
+                                                              orbEntry->locWrExit,
+                                                              orbEntry->farRdEntered,
+                                                              orbEntry->farRdIssued,
+                                                              orbEntry->farRdRecvd,
+                                                              orbEntry->farRdExit);
 
         delete orbEntry;
 
@@ -1582,9 +1599,20 @@ DCacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
 {
     assert(orbEntry->dccPkt->readyTime != MaxTick);
     assert(orbEntry->dccPkt->readyTime >= curTick());
-    dcstats.totPktsServiceTime += ((orbEntry->dccPkt->readyTime - orbEntry->arrivalTick)/1000);
+    dcstats.totPktsServiceTime += ((orbEntry->locWrExit - orbEntry->arrivalTick)/1000);
+    dcstats.totPktsORBTime += ((curTick() - orbEntry->arrivalTick)/1000);
     dcstats.totTimeFarRdtoSend += ((orbEntry->farRdIssued - orbEntry->farRdEntered)/1000);
     dcstats.totTimeFarRdtoRecv += ((orbEntry->farRdRecvd - orbEntry->farRdIssued)/1000);
+    dcstats.totTimeInLocRead += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
+    dcstats.totTimeInLocWrite += ((orbEntry->locWrExit - orbEntry->locWrEntered)/1000);
+    dcstats.totTimeInFarRead += ((orbEntry->farRdExit - orbEntry->farRdEntered)/1000);
+
+    // std::cout << ((orbEntry->locWrExit - orbEntry->arrivalTick)/1000) << ", " <<
+    // ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000) << ", " <<
+    // ((orbEntry->locWrExit - orbEntry->locWrEntered)/1000) << ", " <<
+    // ((orbEntry->farRdExit - orbEntry->farRdEntered)/1000) << ", " <<
+    // ((orbEntry->farRdIssued - orbEntry->farRdEntered)/1000) << ", " <<
+    // ((orbEntry->farRdRecvd - orbEntry->farRdIssued)/1000) << "\n";
 
     bool conflictFound = false;
 
@@ -1740,25 +1768,27 @@ DCacheCtrl::dirtAdrGen()
 /* reqBufferEntry*
 DCacheCtrl::makeOrbEntry(reqBufferEntry* orbEntry, PacketPtr copyOwPkt)
 {
-    return new reqBufferEntry( orbEntry->validEntry,
-                               orbEntry->arrivalTick,
-                               orbEntry->tagDC,
-                               orbEntry->indexDC,
-                               copyOwPkt,
-                               orbEntry->dccPkt,
-                               orbEntry->state,
-                               orbEntry->issued,
-                               orbEntry->isHit,
-                               orbEntry->conflict,
-                               orbEntry->dirtyLineAddr,
-                               orbEntry->handleDirtyLine,
-                               orbEntry->locRdEntered,
-                               orbEntry->locRdIssued,
-                               orbEntry->locWrEntered,
-                               orbEntry->locWrIssued,
-                               orbEntry->farRdEntered,
-                               orbEntry->farRdIssued,
-                               orbEntry->farRdRecvd);
+    return new reqBufferEntry(orbEntry->validEntry,
+                                orbEntry->arrivalTick,
+                                orbEntry->tagDC,
+                                orbEntry->indexDC,
+                                copyOwPkt,
+                                orbEntry->dccPkt,
+                                orbEntry->state,
+                                orbEntry->issued,
+                                orbEntry->isHit,
+                                orbEntry->conflict,
+                                orbEntry->dirtyLineAddr,
+                                orbEntry->handleDirtyLine,
+                                orbEntry->locRdEntered,
+                                orbEntry->locRdIssued,
+                                orbEntry->locRdExit,
+                                orbEntry->locWrEntered,
+                                orbEntry->locWrExit,
+                                orbEntry->farRdEntered,
+                                orbEntry->farRdIssued,
+                                orbEntry->farRdRecvd,
+                                orbEntry->farRdExit);
 } */
 
 } // namespace memory

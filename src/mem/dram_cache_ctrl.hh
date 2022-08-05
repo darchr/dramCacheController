@@ -179,11 +179,13 @@ class DCacheCtrl : public MemCtrl
         // is the number of ticks for waiting time in that state.
         Tick locRdEntered;
         Tick locRdIssued;
+        Tick locRdExit;
         Tick locWrEntered;
-        Tick locWrIssued;
+        Tick locWrExit;
         Tick farRdEntered;
         Tick farRdIssued;
         Tick farRdRecvd;
+        Tick farRdExit;
 
         reqBufferEntry(
           bool _validEntry, Tick _arrivalTick,
@@ -192,9 +194,9 @@ class DCacheCtrl : public MemCtrl
           reqState _state,  bool _issued,
           bool _isHit, bool _conflict,
           Addr _dirtyLineAddr, bool _handleDirtyLine,
-          Tick _locRdEntered, Tick _locRdIssued,
-          Tick _locWrEntered, Tick _locWrIssued,
-          Tick _farRdEntered, Tick _farRdIssued, Tick _farRdRecvd)
+          Tick _locRdEntered, Tick _locRdIssued, Tick _locRdExit,
+          Tick _locWrEntered, Tick _locWrExit,
+          Tick _farRdEntered, Tick _farRdIssued, Tick _farRdRecvd, Tick _farRdExit)
         :
         validEntry(_validEntry), arrivalTick(_arrivalTick),
         tagDC(_tagDC), indexDC(_indexDC),
@@ -202,9 +204,9 @@ class DCacheCtrl : public MemCtrl
         state(_state), issued(_issued),
         isHit(_isHit), conflict(_conflict),
         dirtyLineAddr(_dirtyLineAddr), handleDirtyLine(_handleDirtyLine),
-        locRdEntered(_locRdEntered), locRdIssued(_locRdIssued),
-        locWrEntered(_locWrEntered), locWrIssued(_locWrIssued),
-        farRdEntered(_farRdEntered), farRdIssued(_farRdIssued), farRdRecvd(_farRdRecvd)
+        locRdEntered(_locRdEntered), locRdIssued(_locRdIssued), locRdExit(_locRdExit),
+        locWrEntered(_locWrEntered), locWrExit(_locWrExit),
+        farRdEntered(_farRdEntered), farRdIssued(_farRdIssued), farRdRecvd(_farRdRecvd), farRdExit(_farRdExit)
         { }
     };
 
@@ -414,9 +416,13 @@ class DCacheCtrl : public MemCtrl
       Stats::Scalar failedWrPort;
 
       Stats::Scalar totPktsServiceTime;
+      Stats::Scalar totPktsORBTime;
       Stats::Scalar totTimeFarRdtoSend;
       Stats::Scalar totTimeFarRdtoRecv;
       Stats::Scalar totTimeFarWrtoSend;
+      Stats::Scalar totTimeInLocRead;
+      Stats::Scalar totTimeInLocWrite;
+      Stats::Scalar totTimeInFarRead;
     };
 
     DCCtrlStats dcstats;
