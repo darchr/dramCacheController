@@ -58,7 +58,6 @@ namespace memory
 DCacheCtrl::DCacheCtrl(const DCacheCtrlParams &p):
     MemCtrl(p),
     reqPort(name() + ".req_port", *this),
-    farMemory(p.far_memory),
     dramCacheSize(p.dram_cache_size),
     blockSize(p.block_size),
     addrSize(p.addr_size),
@@ -84,7 +83,7 @@ DCacheCtrl::DCacheCtrl(const DCacheCtrlParams &p):
 {
     fatal_if(!dram, "DRAM cache controller must have a DRAM interface.\n");
 
-    panic_if(orbMaxSize<4, "ORB maximum size must be at least 4.\n");
+    panic_if(orbMaxSize<8, "ORB maximum size must be at least 8.\n");
 
     // hook up interfaces to the controller
     dram->setCtrl(this, commandWindow);
@@ -210,10 +209,41 @@ DCacheCtrl::DCCtrlStats::DCCtrlStats(DCacheCtrl &_ctrl)
              "Per-requestor write average memory access latency"),
 ////////
 
+    ADD_STAT(avgORBLen, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average ORB length"),
+    ADD_STAT(avgLocRdQLenStrt, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average local read queue length"),
+    ADD_STAT(avgLocWrQLenStrt, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average local write queue length"),
+    ADD_STAT(avgFarRdQLenStrt, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average far read queue length"),
+    ADD_STAT(avgFarWrQLenStrt, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average far write queue length"),
+    
+    ADD_STAT(avgLocRdQLenEnq, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average local read queue length when enqueuing"),
+    ADD_STAT(avgLocWrQLenEnq, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average local write queue length when enqueuing"),
+    ADD_STAT(avgFarRdQLenEnq, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average far read queue length when enqueuing"),
+    ADD_STAT(avgFarWrQLenEnq, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average far write queue length when enqueuing"),
+
     ADD_STAT(numWrBacks,
             "Total number of write backs from DRAM cache to main memory"),
     ADD_STAT(totNumConf,
             "Total number of packets conflicted on DRAM cache"),
+    ADD_STAT(totNumORBFull,
+            "Total number of packets ORB full"),
     ADD_STAT(totNumConfBufFull,
             "Total number of packets conflicted yet couldn't "
             "enter confBuffer"),
@@ -263,6 +293,10 @@ DCacheCtrl::DCCtrlStats::DCCtrlStats(DCacheCtrl &_ctrl)
     ADD_STAT(totTimeInLocWrite,
             "stat"),
     ADD_STAT(totTimeInFarRead,
+            "stat"),
+    ADD_STAT(QTLocRd,
+            "stat"),
+    ADD_STAT(QTLocWr,
             "stat")
 {
 }
@@ -277,6 +311,17 @@ DCacheCtrl::DCCtrlStats::regStats()
 
     avgRdQLen.precision(2);
     avgWrQLen.precision(2);
+
+    avgORBLen.precision(4);
+    avgLocRdQLenStrt.precision(2);
+    avgLocWrQLenStrt.precision(2);
+    avgFarRdQLenStrt.precision(2);
+    avgFarWrQLenStrt.precision(2);
+
+    avgLocRdQLenEnq.precision(2);
+    avgLocWrQLenEnq.precision(2);
+    avgFarRdQLenEnq.precision(2);
+    avgFarWrQLenEnq.precision(2);
 
     readPktSize.init(ceilLog2(ctrl.system()->cacheLineSize()) + 1);
     writePktSize.init(ceilLog2(ctrl.system()->cacheLineSize()) + 1);
@@ -604,6 +649,7 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
 
     if (ORB.size() >= orbMaxSize) {
         DPRINTF(DCacheCtrl, "ORBfull: addr %lld\n", pkt->getAddr());
+        dcstats.totNumORBFull++;
         retry = true;
 
         if (pkt->isRead()) {
@@ -624,6 +670,8 @@ DCacheCtrl::recvTimingReq(PacketPtr pkt)
     }
 
     pktLocMemRead[0].push_back(ORB.at(pkt->getAddr())->dccPkt);
+
+    dcstats.avgLocRdQLenEnq = pktLocMemRead[0].size() + addrLocRdRespReady.size();
 
     if (!stallRds && !rescheduleLocRead && !locMemReadEvent.scheduled()) {
         schedule(locMemReadEvent, std::max(dram->nextReqTime, curTick()));
@@ -698,7 +746,8 @@ DCacheCtrl::processLocMemReadEvent()
         dcstats.wrToRdTurnAround++;
     }
 
-    MemCtrl::doBurstAccess(orbEntry->dccPkt, dram);
+    Tick cmdAt = MemCtrl::doBurstAccess(orbEntry->dccPkt, dram);
+    dcstats.QTLocRd += ((cmdAt-orbEntry->locRdEntered)/1000);
 
     // sanity check
     //assert(orbEntry->dccPkt->size <= dram->bytesPerBurst());
@@ -858,6 +907,8 @@ DCacheCtrl::processLocMemReadRespEvent()
 
             pktLocMemWrite[0].push_back(orbEntry->dccPkt);
 
+            dcstats.avgLocWrQLenEnq = pktLocMemWrite[0].size();
+
             unsigned rdsNum = pktLocMemRead[0].size();
             unsigned wrsNum = pktLocMemWrite[0].size();
 
@@ -887,12 +938,6 @@ DCacheCtrl::processLocMemReadRespEvent()
         // delete the current dcc pkt which is for read from local memory
         delete orbEntry->dccPkt;
 
-        // creating an nvm read dcc-pkt
-        // orbEntry->dccPkt = farMemory->decodePacket(orbEntry->owPkt,
-        //                                      orbEntry->owPkt->getAddr(),
-        //                                      orbEntry->owPkt->getSize(),
-        //                                      true);
-
         // orbEntry->dccPkt->entryTime = orbEntry->arrivalTick;
         // orbEntry->dccPkt->readyTime = MaxTick;
         //** transition to farMemRead
@@ -912,6 +957,9 @@ DCacheCtrl::processLocMemReadRespEvent()
                                              orbEntry->owPkt->isRead());
 
         pktFarMemRead.push_back(copyOwPkt_2);
+        
+        dcstats.avgFarRdQLenEnq = countFarRdInORB();
+
         if (pktFarMemRead.size() > maxFarRdEvQ) {
             maxFarRdEvQ = pktFarMemRead.size();
             dcstats.maxFarRdEvQ = pktFarMemRead.size();
@@ -1038,7 +1086,8 @@ DCacheCtrl::processLocMemWriteEvent()
 
     busState = DCacheCtrl::WRITE;
 
-    MemCtrl::doBurstAccess(orbEntry->dccPkt, dram);
+    Tick cmdAt = MemCtrl::doBurstAccess(orbEntry->dccPkt, dram);
+    dcstats.QTLocWr += ((cmdAt - orbEntry->locWrEntered)/1000);
 
     orbEntry->locWrExit = orbEntry->dccPkt->readyTime;
 
@@ -1220,6 +1269,8 @@ DCacheCtrl::processFarMemReadRespEvent()
     orbEntry->locWrEntered = curTick();
 
     pktLocMemWrite[0].push_back(orbEntry->dccPkt);
+
+    dcstats.avgLocWrQLenEnq = pktLocMemWrite[0].size();
 
     unsigned rdsNum = pktLocMemRead[0].size();
     unsigned wrsNum = pktLocMemWrite[0].size();
@@ -1507,6 +1558,13 @@ DCacheCtrl::handleRequestorPkt(PacketPtr pkt)
 
     ORB.emplace(pkt->getAddr(), orbEntry);
 
+    // dcstats.avgORBLen = ORB.size();
+    dcstats.avgORBLen = ORB.size();
+    dcstats.avgLocRdQLenStrt = countLocRdInORB();
+    dcstats.avgFarRdQLenStrt = countFarRdInORB();
+    dcstats.avgLocWrQLenStrt = countLocWrInORB();
+    dcstats.avgFarWrQLenStrt = countFarWr();
+
     if (pkt->isRead()) {
         logRequest(DCacheCtrl::READ, pkt->requestorId(), pkt->qosValue(),
                    pkt->getAddr(), 1);
@@ -1592,6 +1650,13 @@ DCacheCtrl::handleRequestorPkt(PacketPtr pkt)
         dcstats.requestorWriteAccesses[pkt->requestorId()]++;
         dcstats.writeReqs++;
     }
+
+    // std::cout << pkt->getAddr() << ", " <<
+    // ORB.size() << ", " <<
+    // countLocRdInORB() << ", " <<
+    // countFarRdInORB() << ", " <<
+    // countLocWrInORB() << ", " <<
+    // countFarWr() << "\n";
 }
 
 bool
@@ -1606,6 +1671,8 @@ DCacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
     dcstats.totTimeInLocRead += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
     dcstats.totTimeInLocWrite += ((orbEntry->locWrExit - orbEntry->locWrEntered)/1000);
     dcstats.totTimeInFarRead += ((orbEntry->farRdExit - orbEntry->farRdEntered)/1000);
+
+    // std::cout << (orbEntry->farRdRecvd-orbEntry->arrivalTick)/1000 << ",    " <<  orbEntry->arrivalTick << ",    " << orbEntry->farRdRecvd << "\n";
 
     // std::cout << ((orbEntry->locWrExit - orbEntry->arrivalTick)/1000) << ", " <<
     // ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000) << ", " <<
@@ -1650,6 +1717,8 @@ DCacheCtrl::resumeConflictingReq(reqBufferEntry* orbEntry)
                 checkConflictInCRB(ORB.at(confAddr));
 
                 pktLocMemRead[0].push_back(ORB.at(confAddr)->dccPkt);
+
+                dcstats.avgLocRdQLenEnq = pktLocMemRead[0].size() + addrLocRdRespReady.size();
 
                 if (!stallRds && !rescheduleLocRead && !locMemReadEvent.scheduled()) {
                     schedule(locMemReadEvent, std::max(dram->nextReqTime, curTick()));
@@ -1712,6 +1781,8 @@ DCacheCtrl::handleDirtyCacheLine(reqBufferEntry* orbEntry)
 
     pktFarMemWrite.push_back(std::make_pair(curTick(), wbPkt));
 
+    dcstats.avgFarWrQLenEnq = pktFarMemWrite.size();
+
     if (
         ((pktFarMemWrite.size() >= (orbMaxSize/2)) || (!pktFarMemWrite.empty() && pktFarMemRead.empty())) &&
         !waitingForRetryReqPort
@@ -1763,6 +1834,49 @@ DCacheCtrl::dirtAdrGen()
         tagMetadataStore.at(i).farMemAddr = i*64+dramCacheSize;
     }
 }
+
+unsigned
+DCacheCtrl::countLocRdInORB()
+{
+    unsigned count =0;
+    for (auto i : ORB) {
+        if (i.second->state == locMemRead) {
+            count++;
+        }
+    }
+    return count;
+}
+
+unsigned
+DCacheCtrl::countFarRdInORB()
+{
+    unsigned count =0;
+    for (auto i : ORB) {
+        if (i.second->state == farMemRead) {
+            count++;
+        }
+    }
+    return count;
+}
+
+unsigned
+DCacheCtrl::countLocWrInORB()
+{
+    unsigned count =0;
+    for (auto i : ORB) {
+        if (i.second->state == locMemWrite) {
+            count++;
+        }
+    }
+    return count;
+}
+
+unsigned
+DCacheCtrl::countFarWr()
+{
+    return pktFarMemWrite.size();
+}
+
 
 
 /* reqBufferEntry*

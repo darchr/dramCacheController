@@ -18,6 +18,18 @@ args = argparse.ArgumentParser()
 # sample cmd: gem5.opt traffGen.py DDR4_2400_16x4 1GB
 #             32 random 100000000 2GB    1000 100
 
+# args.add_argument(
+#     "hit",
+#     type = bool,
+#     help = "always hit of miss"
+# )
+# 
+# args.add_argument(
+#     "dirty",
+#     type = bool,
+#     help = "always dirty or clean"
+# )
+
 args.add_argument(
     "xbarLatency",
     type = int,
@@ -91,14 +103,16 @@ system.dcache_ctrl = DCacheCtrl()
 system.farMem_ctrl = MemCtrl()
 system.dcache_ctrl.dram = eval(options.device_loc)(range=AddrRange('4GB'),
                                                 in_addr_map=False)
-system.dcache_ctrl.far_memory = eval(options.device_far)(range=AddrRange('4GB'))
 # system.dcache_ctrl.far_memory = DDR4_2400_16x4(range=AddrRange('4GB'))
 # system.dcache_ctrl.far_memory = NVM_2400_1x64(range=AddrRange('4GB'))
-system.farMem_ctrl.dram = system.dcache_ctrl.far_memory
+system.farMem_ctrl.dram = eval(options.device_far)(range=AddrRange('4GB'))
+#system.farMem_ctrl.dram.read_buffer_size = 128
 
 system.dcache_ctrl.dram_cache_size = options.dram_cache_size
 system.dcache_ctrl.orb_max_size = options.max_orb
 system.dcache_ctrl.crb_max_size = 32
+# system.dcache_ctrl.always_hit = options.hit
+# system.dcache_ctrl.always_dirty = options.dirty
 system.dcache_ctrl.always_hit = False
 system.dcache_ctrl.always_dirty = False
 

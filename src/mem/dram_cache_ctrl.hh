@@ -95,10 +95,6 @@ class DCacheCtrl : public MemCtrl
      */
     RequestPortDCache reqPort;
 
-    // A pointer to the far memory interface.
-    // Mainly used for accessAndResponse only.
-    MemInterface* farMemory;
-
     /**
      * The following are basic design parameters of the unified
      * DRAM cache controller, and are initialized based on parameter values.
@@ -314,6 +310,11 @@ class DCacheCtrl : public MemCtrl
     PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd, Request::FlagsType flags = 0);
     void dirtAdrGen();
 
+    unsigned countLocRdInORB();
+    unsigned countFarRdInORB();
+    unsigned countLocWrInORB();
+    unsigned countFarWr();
+
     Addr returnIndexDC(Addr pkt_addr, unsigned size);
     Addr returnTagDC(Addr pkt_addr, unsigned size);
 
@@ -394,8 +395,21 @@ class DCacheCtrl : public MemCtrl
         statistics::Formula requestorReadAvgLat;
         statistics::Formula requestorWriteAvgLat;
 
+      statistics::Average avgORBLen;
+      statistics::Average avgLocRdQLenStrt;
+      statistics::Average avgLocWrQLenStrt;
+      statistics::Average avgFarRdQLenStrt;
+      statistics::Average avgFarWrQLenStrt;
+
+      statistics::Average avgLocRdQLenEnq;
+      statistics::Average avgLocWrQLenEnq;
+      statistics::Average avgFarRdQLenEnq;
+      statistics::Average avgFarWrQLenEnq;
+
+      
       Stats::Scalar numWrBacks;
       Stats::Scalar totNumConf;
+      Stats::Scalar totNumORBFull;
       Stats::Scalar totNumConfBufFull;
 
       Stats::Scalar maxNumConf;
@@ -423,6 +437,8 @@ class DCacheCtrl : public MemCtrl
       Stats::Scalar totTimeInLocRead;
       Stats::Scalar totTimeInLocWrite;
       Stats::Scalar totTimeInFarRead;
+      Stats::Scalar QTLocRd;
+      Stats::Scalar QTLocWr;
     };
 
     DCCtrlStats dcstats;
