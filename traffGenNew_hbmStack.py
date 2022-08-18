@@ -31,6 +31,11 @@ args = argparse.ArgumentParser()
 # )
 
 args.add_argument(
+    "xbarLatency",
+    type = int,
+    help = "latency of crossbar front/resp"
+)
+args.add_argument(
     "device_loc",
     type = str,
     help = "Memory device to use as a dram cache (local memory)"
@@ -44,6 +49,12 @@ args.add_argument(
 
 args.add_argument(
     "dram_cache_size",
+    type = str,
+    help = "Duration of simulation"
+)
+
+args.add_argument(
+    "far_mem_size",
     type = str,
     help = "Duration of simulation"
 )
@@ -94,48 +105,53 @@ system.mem_mode = 'timing'
 
 system.generator = PyTrafficGen()
 
-system.dcache_ctrl = DCacheCtrl()
-system.farMem_ctrl = MemCtrl()
-system.dcache_ctrl.dram = eval(options.device_loc)(range=AddrRange('4GB'),
-                                                in_addr_map=False)
-# system.dcache_ctrl.far_memory = DDR4_2400_16x4(range=AddrRange('8GB'))
-# system.dcache_ctrl.far_memory = NVM_2400_1x64(range=AddrRange('8GB'))
-system.farMem_ctrl.dram = eval(options.device_far)(range=AddrRange('4GB'))
+system.membus[0] = SystemXBar()
+system.membus[1] = SystemXBar()
+system.membus[1].frontend_latency = options.xbarLatency
+system.membus[1].response_latency  = options.xbarLatency
 
-#system.dcache_ctrl.far_memory.tREFI = "8000"
-system.dcache_ctrl.dram_cache_size = options.dram_cache_size
-system.dcache_ctrl.orb_max_size = options.max_orb
-system.dcache_ctrl.crb_max_size = "32"
-system.dcache_ctrl.always_hit = False
-system.dcache_ctrl.always_dirty = True
-# system.dcache_ctrl.always_hit = options.hit
-# system.dcache_ctrl.always_dirty = options.dirty
+system.generator.port = system.membus[0].cpu_side_ports
 
-system.mem_ranges = [AddrRange('4GB')]
+loc_ranges = ['0', '1GB', '2GB', '3GB', '4GB', '5GB', '6GB', '7GB', '8GB']
+for i in range (0,8):
+    system.dcache_ctrl[i] = DCacheCtrl()
+    system.dcache_ctrl[i].dram = eval(options.device_loc)(range=AddrRange(start = loc_ranges[i], end = loc_ranges[i+1]), in_addr_map=False)
+    system.dcache_ctrl[i].dram_cache_size = options.dram_cache_size
+    system.dcache_ctrl[i].always_hit = False
+    system.dcache_ctrl[i].always_dirty = True
+    system.membus[0].mem_side_ports = system.dcache_ctrl[i].port
+    system.membus[1].cpu_side_ports = system.dcache_ctrl[i].req_port
 
-system.generator.port = system.dcache_ctrl.port
-system.dcache_ctrl.req_port = system.farMem_ctrl.port
+far_ranges = ['0', '4GB', '8GB']
+for i in range (0,2):
+    system.farMem_ctrl[i] = MemCtrl()
+    system.farMem_ctrl[i].dram = eval(options.device_far)(range=AddrRange(start = far_ranges[i], end = far_ranges[i+1]))
+    system.farMem_ctrl[i].dram.device_size = options.far_mem_size
+    system.membus[1].mem_side_ports = system.farMem_ctrl[i].port
+
+system.mem_ranges = [AddrRange('8GB')]
+
 
 def createRandomTraffic(tgen):
-    yield tgen.createRandom(options.duration,   # duration
-                            0,                  # min_addr
+    yield tgen.createRandom(options.duration,         # duration
+                            0,                        # min_addr
                             AddrRange(options.max_address).end,  # max_adr
-                            64,                 # block_size
-                            options.inj_period, # min_period
-                            options.inj_period, # max_period
-                            options.rd_prct,    # rd_perc
-                            0)                  # data_limit
+                            64,                       # block_size
+                            options.inj_period,       # min_period
+                            options.inj_period,       # max_period
+                            options.rd_prct,          # rd_perc
+                            0)                        # data_limit
     yield tgen.createExit(0)
 
 def createLinearTraffic(tgen):
-    yield tgen.createLinear(0,                    # duration
-                            0,                    # min_addr
+    yield tgen.createLinear(options.duration,         # duration
+                            0,                        # min_addr
                             AddrRange(options.max_address).end,  # max_adr
-                            64,                   # block_size
-                            options.inj_period,   # min_period
-                            options.inj_period,   # max_period
-                            options.rd_prct,      # rd_perc
-                            104857600)            # data_limit
+                            64,                       # block_size
+                            options.inj_period,       # min_period
+                            options.inj_period,       # max_period
+                            options.rd_prct,          # rd_perc
+                            0)             # data_limit
     yield tgen.createExit(0)
 
 

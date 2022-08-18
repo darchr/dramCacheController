@@ -114,7 +114,7 @@ system.dcache_ctrl.crb_max_size = 32
 # system.dcache_ctrl.always_hit = options.hit
 # system.dcache_ctrl.always_dirty = options.dirty
 system.dcache_ctrl.always_hit = False
-system.dcache_ctrl.always_dirty = False
+system.dcache_ctrl.always_dirty = True
 
 system.mem_ranges = [AddrRange('4GB')]
 

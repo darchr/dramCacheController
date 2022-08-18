@@ -1166,6 +1166,7 @@ DCacheCtrl::processFarMemReadEvent()
         pktFarMemRead.pop_front();
         dcstats.sentRdPort++;
         ORB.at(rdPkt->getAddr())->farRdIssued = curTick();
+        // delete rdPkt;
     } else {
         DPRINTF(DCacheCtrl, "FarRdRetry: %lld\n", rdPkt->getAddr());
         waitingForRetryReqPort = true;
@@ -1290,6 +1291,7 @@ DCacheCtrl::processFarMemReadRespEvent()
         dcstats.maxLocWrEvQ = pktLocMemWrite[0].size();
     }
 
+    delete pktFarMemReadResp.front();
     pktFarMemReadResp.pop_front();
 
     if (!pktFarMemReadResp.empty() && !farMemReadRespEvent.scheduled()) {
@@ -1400,6 +1402,10 @@ DCacheCtrl::recvTimingResp(PacketPtr pkt) // This is equivalant of farMemReadRes
 
         ORB.at(pkt->getAddr())->farRdRecvd = curTick();
         dcstats.recvdRdPort++;
+    } else{
+        assert(pkt->isWrite());
+
+        delete pkt;
     }
     
     return true;
