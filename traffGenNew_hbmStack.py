@@ -6,29 +6,6 @@ from m5.objects.NVMInterface import *
 
 args = argparse.ArgumentParser()
 
-# This scipt takes these arguments [device model for dram cache]
-# [dram cache size] [maximum orb size]
-# [traffic mode] [duration of simulation in ticks]
-# [max address] [request injection period in ticks] [rd percentage]
-# min address is 0, data limit is 0, block size is 64B.
-# crb_max_size is 32 by default.
-
-# sample cmd: gem5.opt traffGen.py DDR3_1600_8x8  16MiB
-#             32 linear 100000000 128MiB 1000 100
-# sample cmd: gem5.opt traffGen.py DDR4_2400_16x4 1GB
-#             32 random 100000000 2GB    1000 100
-
-# args.add_argument(
-#     "hit",
-#     type = bool,
-#     help = "always hit of miss"
-# )
-# 
-# args.add_argument(
-#     "dirty",
-#     type = bool,
-#     help = "always dirty or clean"
-# )
 
 args.add_argument(
     "xbarLatency",
@@ -56,12 +33,6 @@ args.add_argument(
 args.add_argument(
     "far_mem_size",
     type = str,
-    help = "Duration of simulation"
-)
-
-args.add_argument(
-    "max_orb",
-    type = int,
     help = "Duration of simulation"
 )
 
