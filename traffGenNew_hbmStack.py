@@ -49,11 +49,11 @@ system.generator = PyTrafficGen()
 
 
 system.membus0 = SystemXBar()
-system.membus0.max_routing_table_size = 3000
+system.membus0.max_routing_table_size = 900000
 system.membus1 = SystemXBar()
 system.membus1.frontend_latency = options.xbarLatency
 system.membus1.response_latency  = options.xbarLatency
-system.membus1.max_routing_table_size = 2000
+system.membus1.max_routing_table_size = 900000
 
 system.generator.port = system.membus0.cpu_side_ports
 

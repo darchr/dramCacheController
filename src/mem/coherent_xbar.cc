@@ -344,9 +344,9 @@ CoherentXBar::recvTimingReq(PacketPtr pkt, PortID cpu_side_port_id)
                 assert(routeTo.find(pkt->req) == routeTo.end());
                 routeTo[pkt->req] = cpu_side_port_id;
 
-                panic_if(routeTo.size() > maxRoutingTableSizeCheck,
-                         "%s: Routing table exceeds %d packets\n",
-                         name(), maxRoutingTableSizeCheck);
+                // panic_if(routeTo.size() > maxRoutingTableSizeCheck,
+                //          "%s: Routing table exceeds %d packets\n",
+                //          name(), maxRoutingTableSizeCheck);
             }
 
             // update the layer state and schedule an idle event
