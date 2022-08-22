@@ -713,6 +713,7 @@ DCacheCtrl::processLocMemReadEvent()
                  queue != pktLocMemRead.rend(); ++queue) {
         to_read = MemCtrl::chooseNext((*queue), switched_cmd_type ?
                                 minWriteToReadDataGap() : 0, dram);
+        // to_read = MemCtrl::chooseNext((*queue), 0, dram);
         if (to_read != queue->end()) {
             // candidate read found
             read_found = true;
@@ -1053,7 +1054,8 @@ DCacheCtrl::processLocMemWriteEvent()
     for (auto queue = pktLocMemWrite.rbegin();
                 queue != pktLocMemWrite.rend(); ++queue) {
         to_write = chooseNext((*queue), switched_cmd_type ?
-                                minReadToWriteDataGap() : 0, dram);
+                    minReadToWriteDataGap() : 0, dram);
+        // to_write = chooseNext((*queue), 0, dram);
         if (to_write != queue->end()) {
             // candidate write found
             write_found = true;

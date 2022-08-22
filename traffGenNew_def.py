@@ -101,6 +101,7 @@ system.dcache_ctrl.dram = eval(options.device_loc)(range=AddrRange('4GB'),
 # system.dcache_ctrl.far_memory = DDR4_2400_16x4(range=AddrRange('8GB'))
 # system.dcache_ctrl.far_memory = NVM_2400_1x64(range=AddrRange('8GB'))
 system.farMem_ctrl.dram = eval(options.device_far)(range=AddrRange('4GB'))
+# system.farMem_ctrl.dram.page_policy = 'close_adaptive'
 
 #system.dcache_ctrl.far_memory.tREFI = "8000"
 system.dcache_ctrl.dram_cache_size = options.dram_cache_size
