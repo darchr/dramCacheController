@@ -1131,6 +1131,7 @@ DCacheCtrl::processLocMemWriteEvent()
     else if (pktLocMemRead[0].empty() && !pktLocMemWrite[0].empty()) {
         // assert(!locMemWriteEvent.scheduled());
         stallRds = true;
+        //std::cout << locWrCounter << "\n";
         locWrCounter = 0;
         if (!locMemWriteEvent.scheduled()) {
             schedule(locMemWriteEvent, std::max(dram->nextReqTime, curTick()));
@@ -1140,6 +1141,7 @@ DCacheCtrl::processLocMemWriteEvent()
     else if (!pktLocMemRead[0].empty() && (pktLocMemWrite[0].empty()||locWrCounter>=(minLocWrPerSwitch))) {
             // assert(!locMemReadEvent.scheduled());
             stallRds = false;
+            //std::cout << locWrCounter << "\n";
             locWrCounter = 0;
             if (!locMemReadEvent.scheduled()) {
                 schedule(locMemReadEvent, std::max(dram->nextReqTime, curTick()));
@@ -1148,6 +1150,7 @@ DCacheCtrl::processLocMemWriteEvent()
     }
     else if (pktLocMemRead[0].empty() && pktLocMemWrite[0].empty()) {
         stallRds = false;
+        //std::cout << locWrCounter << "\n";
         locWrCounter = 0;
     }
 }
