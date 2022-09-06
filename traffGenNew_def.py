@@ -94,7 +94,7 @@ system.mem_mode = 'timing'
 
 system.generator = PyTrafficGen()
 
-system.dcache_ctrl = DCacheCtrl()
+system.dcache_ctrl = MemCtrl()
 system.farMem_ctrl = MemCtrl()
 system.dcache_ctrl.dram = eval(options.device_loc)(range=AddrRange('4GB'),
                                                 in_addr_map=False)
