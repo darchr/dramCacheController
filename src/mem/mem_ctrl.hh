@@ -500,7 +500,7 @@ class MemCtrl : public qos::MemCtrl
 +    */
     MemInterface* dram;
 
-    virtual AddrRangeList getAddrRanges();
+    // virtual AddrRangeList getAddrRanges();
 
     /**
      * The following are basic design parameters of the memory
@@ -676,6 +676,8 @@ class MemCtrl : public qos::MemCtrl
 
     MemCtrl(const MemCtrlParams &p);
 
+    virtual AddrRangeList getAddrRanges();
+
     /**
      * Ensure that all interfaced have drained commands
      *
@@ -766,6 +768,12 @@ class MemCtrl : public qos::MemCtrl
      * @return True when bus is currently in a write state
      */
     bool inWriteBusState(bool next_state) const;
+
+    uint32_t bytesPerBurst() const;
+
+    Addr burstAlign(Addr addr) const { return burstAlign(addr, dram); }
+
+    void accessAndRespond(PacketPtr pkt, Tick static_latency) { accessAndRespond(pkt, static_latency, dram); }
 
     Port &getPort(const std::string &if_name,
                   PortID idx=InvalidPortID) override;

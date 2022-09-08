@@ -783,6 +783,12 @@ MemCtrl::inWriteBusState(bool next_state) const
     }
 }
 
+uint32_t
+MemCtrl::bytesPerBurst() const
+{
+    return dram->bytesPerBurst(); 
+}
+
 Tick
 MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
 {

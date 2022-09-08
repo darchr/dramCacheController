@@ -6,48 +6,68 @@
 #ifndef __POLICY_MANAGER_HH__
 #define __POLICY_MANAGER_HH__
 
+#include <cstdint>
 #include <queue>
 #include <deque>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "base/callback.hh"
+#include "base/compiler.hh"
+#include "base/logging.hh"
 #include "base/statistics.hh"
-#include "enums/MemSched.hh"
+#include "base/trace.hh"
+#include "base/types.hh"
+#include "enums/Policy.hh"
+#include "mem/mem_ctrl.hh"
+#include "mem/packet.hh"
 #include "mem/qport.hh"
+#include "mem/request.hh"
+#include "params/PolicyManager.hh"
+#include "sim/clocked_object.hh"
+#include "sim/cur_tick.hh"
 #include "sim/eventq.hh"
+#include "sim/system.hh"
 
 namespace gem5
 {
 
 namespace memory
 {
-class PolicyManager
+class PolicyManager : public ClockedObject
 {
-  private:
+  protected:
 
     class RespPortPolManager : public QueuedResponsePort
     {
+      private:
+
+        RespPacketQueue queue;
+        PolicyManager& polMan;
+
       public:
 
         RespPortPolManager(const std::string& name, PolicyManager& _polMan)
-            : QueuedResponsePort(name, &_polMan),
-              queue(_ctrl, *this, true),
+            : QueuedResponsePort(name, &_polMan, queue),
+              queue(_polMan, *this, true),
               polMan(_polMan)
         { }
 
       protected:
 
-        bool recvTimingReq(PacketPtr) override { return polMan.recvTimingReq(pkt); }
+        Tick recvAtomic(PacketPtr pkt) override;
+        Tick recvAtomicBackdoor(
+                PacketPtr pkt, MemBackdoorPtr &backdoor) override;
 
-        AddrRangeList getAddrRanges() override { return polMan.getAddrRanges(); }
+        void recvFunctional(PacketPtr pkt) override;
 
-      private:
+        bool recvTimingReq(PacketPtr pkt) override { return polMan.recvTimingReq(pkt); }
 
-        PolicyManager& polMan;
-        RespPacketQueue queue;
+        AddrRangeList getAddrRanges() const override { return polMan.getAddrRanges(); }
 
     };
     
@@ -62,13 +82,14 @@ class PolicyManager
       protected:
 
         void recvReqRetry()
-        { if (this.name == "locMemPort") { polMan.locMemRecvReqRetry(); }
-          if (this.name == "farMemPort") { polMan.farMemRecvReqRetry(); }
+        { if (this->name() == "locMemPort") { polMan.locMemRecvReqRetry(); }
+          if (this->name() == "farMemPort") { polMan.farMemRecvReqRetry(); }
         }
 
         bool recvTimingResp(PacketPtr pkt)
-        { if (this.name == "locMemPort") { return polMan.locMemRecvTimingResp(pkt); }
-          if (this.name == "farMemPort") { return polMan.farMemRecvTimingResp(pkt); }
+        { if (this->name() == "locMemPort") { return polMan.locMemRecvTimingResp(pkt); }
+          else if (this->name() == "farMemPort") { return polMan.farMemRecvTimingResp(pkt); }
+          else { std::cout << "Por name error, fix it!\n"; return false;}
         }
 
       private:
@@ -81,8 +102,10 @@ class PolicyManager
     ReqPortPolManager locMemPort;
     ReqPortPolManager farMemPort;
 
-    MemCtrl& locMemCtrl;
-    MemCtrl& farMemCtrl;
+    MemCtrl* locMemCtrl;
+    MemCtrl* farMemCtrl;
+
+    enums::Policy locMemPolicy;
 
     /**
      * The following are basic design parameters of the unified
@@ -100,6 +123,20 @@ class PolicyManager
     unsigned crbSize;
     bool alwaysHit;
     bool alwaysDirty;
+
+    /**
+     * Pipeline latency of the controller frontend. The frontend
+     * contribution is added to writes (that complete when they are in
+     * the write buffer) and reads that are serviced the write buffer.
+     */
+    const Tick frontendLatency;
+
+    /**
+     * Pipeline latency of the backend and PHY. Along with the
+     * frontend contribution, this latency is added to reads serviced
+     * by the memory.
+     */
+    const Tick backendLatency;
 
     Tick prevArrival;
 
@@ -128,17 +165,11 @@ class PolicyManager
      */
     enum reqState
     {
+      Init,
       locMemRead, waitingLocMemReadResp,
       locMemWrite,
-      farMemRead, waitingFarMemReadResp
+      farMemRead, waitingFarMemReadResp,
       farMemWrite
-    };
-
-    enum Policy
-    {
-      MainMemory,
-      CascadeLake, CascadeLakeNoPartWrs, CascadeLakeHBM2,
-      AlloyCache, AlloyCacheHBM2
     };
 
     /**
@@ -159,7 +190,7 @@ class PolicyManager
         // pointer to the outside world (ow) packet received from llc
         const PacketPtr owPkt;
 
-        Policy pol;
+        enums::Policy pol;
         reqState state;
         
         bool issued;
@@ -187,8 +218,8 @@ class PolicyManager
         reqBufferEntry(
           bool _validEntry, Tick _arrivalTick,
           Addr _tagDC, Addr _indexDC,
-          PacketPtr _owPkt
-          Policy _pol, reqState _state,  
+          PacketPtr _owPkt,
+          enums::Policy _pol, reqState _state,  
           bool _issued, bool _isHit, bool _conflict,
           Addr _dirtyLineAddr, bool _handleDirtyLine,
           Tick _locRdEntered, Tick _locRdIssued, Tick _locRdExit,
@@ -197,7 +228,7 @@ class PolicyManager
         :
         validEntry(_validEntry), arrivalTick(_arrivalTick),
         tagDC(_tagDC), indexDC(_indexDC),
-        owPkt( _owPkt), dccPkt(_dccPkt),
+        owPkt( _owPkt),
         pol(_pol), state(_state),
         issued(_issued), isHit(_isHit), conflict(_conflict),
         dirtyLineAddr(_dirtyLineAddr), handleDirtyLine(_handleDirtyLine),
@@ -262,23 +293,18 @@ class PolicyManager
     std::deque <timeReqPair> pktFarMemWrite; 
 
     // Maintenance Queues
-    std::vector <PacketPtr> pktLocMemRead;
-    std::vector <PacketPtr> pktLocMemWrite;
-    std::deque <PacketPtr> pktFarMemRead;
-    std::deque <PacketPtr> pktFarMemReadResp;
-
-    std::deque <Addr> addrLocRdRespReady;
-    //std::deque <Addr> addrFarRdRespReady;
+    std::deque <Addr> pktLocMemRead;
+    std::deque <Addr> pktLocMemWrite;
+    std::deque <Addr> pktFarMemRead;
 
     // Maintenance variables
     unsigned maxConf, maxLocRdEvQ, maxLocRdRespEvQ,
     maxLocWrEvQ, maxFarRdEvQ, maxFarRdRespEvQ, maxFarWrEvQ;
 
     // needs be reimplemented
-    bool recvTimingReq(PacketPtr pkt) override;
+    bool recvTimingReq(PacketPtr pkt);
 
-    void accessAndRespond(PacketPtr pkt, Tick static_latency,
-                                                MemInterface* mem_intr) override;
+    AddrRangeList getAddrRanges();
 
     // events
     void processLocMemReadEvent();
@@ -301,9 +327,8 @@ class PolicyManager
 
     // management functions
     void setNextState(reqBufferEntry* orbEntry);
-    bool handleTagRead(PacketPtr pkt);
     void handleNextState(reqBufferEntry* orbEntry);
-    void sendRespondToRequestor(PacketPtr pkt);
+    void sendRespondToRequestor(PacketPtr pkt, Tick static_latency);
     void printQSizes();
     void handleRequestorPkt(PacketPtr pkt);
     void checkHitOrMiss(reqBufferEntry* orbEntry);
@@ -445,10 +470,10 @@ class PolicyManager
 
     PolicyManager(const PolicyManagerParams &p);
 
-    void init() override;
+    void init();
 
     Port &getPort(const std::string &if_name,
-                  PortID idx=InvalidPortID) override;
+                  PortID idx=InvalidPortID);
 
     // bool requestEventScheduled(uint8_t pseudo_channel = 0) const override;
     // void restartScheduler(Tick tick,  uint8_t pseudo_channel = 0) override;

@@ -94,28 +94,28 @@ system.mem_mode = 'timing'
 
 system.generator = PyTrafficGen()
 
-system.dcache_ctrl = MemCtrl()
-system.farMem_ctrl = MemCtrl()
-system.dcache_ctrl.dram = eval(options.device_loc)(range=AddrRange('4GB'),
+system.loc_mem_ctrl = MemCtrl()
+system.far_mem_ctrl = MemCtrl()
+system.loc_mem_ctrl.dram = eval(options.device_loc)(range=AddrRange('4GB'),
                                                 in_addr_map=False)
-# system.dcache_ctrl.far_memory = DDR4_2400_16x4(range=AddrRange('8GB'))
-# system.dcache_ctrl.far_memory = NVM_2400_1x64(range=AddrRange('8GB'))
-system.farMem_ctrl.dram = eval(options.device_far)(range=AddrRange('4GB'))
-# system.farMem_ctrl.dram.page_policy = 'close_adaptive'
+# system.loc_mem_ctrl.far_memory = DDR4_2400_16x4(range=AddrRange('8GB'))
+# system.loc_mem_ctrl.far_memory = NVM_2400_1x64(range=AddrRange('8GB'))
+system.far_mem_ctrl.dram = eval(options.device_far)(range=AddrRange('4GB'))
+# system.far_mem_ctrl.dram.page_policy = 'close_adaptive'
 
-#system.dcache_ctrl.far_memory.tREFI = "8000"
-system.dcache_ctrl.dram_cache_size = options.dram_cache_size
-system.dcache_ctrl.orb_max_size = options.max_orb
-system.dcache_ctrl.crb_max_size = "32"
-system.dcache_ctrl.always_hit = False
-system.dcache_ctrl.always_dirty = True
-# system.dcache_ctrl.always_hit = options.hit
-# system.dcache_ctrl.always_dirty = options.dirty
+#system.loc_mem_ctrl.far_memory.tREFI = "8000"
+system.loc_mem_ctrl.dram_cache_size = options.dram_cache_size
+system.loc_mem_ctrl.orb_max_size = options.max_orb
+system.loc_mem_ctrl.crb_max_size = "32"
+system.loc_mem_ctrl.always_hit = False
+system.loc_mem_ctrl.always_dirty = True
+# system.loc_mem_ctrl.always_hit = options.hit
+# system.loc_mem_ctrl.always_dirty = options.dirty
 
 system.mem_ranges = [AddrRange('4GB')]
 
-system.generator.port = system.dcache_ctrl.port
-system.dcache_ctrl.req_port = system.farMem_ctrl.port
+system.generator.port = system.loc_mem_ctrl.port
+system.loc_mem_ctrl.req_port = system.far_mem_ctrl.port
 
 def createRandomTraffic(tgen):
     yield tgen.createRandom(options.duration,   # duration
