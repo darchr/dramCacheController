@@ -273,22 +273,51 @@ PolicyManager::processLocMemReadEvent()
     assert(orbEntry->state == locMemRead);
     assert(!orbEntry->issued);
 
-    PacketPtr rdTagPkt = getPacket(pktLocMemRead.front(),
+    PacketPtr rdLocMemPkt = getPacket(pktLocMemRead.front(),
                                    blockSize,
                                    MemCmd::ReadReq);
 
-    if (locMemPort.sendTimingReq(rdTagPkt)) {
-        DPRINTF(PolicyManager, "loc mem read is sent : %lld\n", rdTagPkt->getAddr());
+    if (locMemPort.sendTimingReq(rdLocMemPkt)) {
+        DPRINTF(PolicyManager, "loc mem read is sent : %lld\n", rdLocMemPkt->getAddr());
         orbEntry->state = waitingFarMemReadResp;
         orbEntry->issued = true;
         pktLocMemRead.pop_front();
     } else {
-        DPRINTF(PolicyManager, "loc mem read sending failed: %lld\n", rdTagPkt->getAddr());
-        delete rdTagPkt;
+        DPRINTF(PolicyManager, "loc mem read sending failed: %lld\n", rdLocMemPkt->getAddr());
+        delete rdLocMemPkt;
     }
 
     if (!pktLocMemRead.empty() && !locMemReadEvent.scheduled()) {
         schedule(locMemReadEvent, curTick()+1000);
+        return;
+    }
+}
+
+void
+PolicyManager::processFarMemReadEvent()
+{
+    // sanity check for the chosen packet
+    auto orbEntry = ORB.at(pktFarMemRead.front());
+    assert(orbEntry->validEntry);
+    assert(orbEntry->state == farMemRead);
+    assert(!orbEntry->issued);
+
+    PacketPtr rdFarMemPkt = getPacket(pktFarMemRead.front(),
+                                      blockSize,
+                                      MemCmd::ReadReq);
+
+    if (farMemPort.sendTimingReq(rdFarMemPkt)) {
+        DPRINTF(PolicyManager, "far mem read is sent : %lld\n", rdFarMemPkt->getAddr());
+        orbEntry->state = waitingFarMemReadResp;
+        orbEntry->issued = true;
+        pktFarMemRead.pop_front();
+    } else {
+        DPRINTF(PolicyManager, "far mem read sending failed: %lld\n", rdFarMemPkt->getAddr());
+        delete rdFarMemPkt;
+    }
+
+    if (!pktLocMemRead.empty() && !farMemReadEvent.scheduled()) {
+        schedule(farMemReadEvent, curTick()+1000);
         return;
     }
 }
@@ -456,7 +485,24 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
     }
     else {
         assert(pkt->isWrite());
+        delete pkt;
 
+    }
+
+    return true;
+}
+
+bool
+PolicyManager::farMemRecvTimingResp(PacketPtr pkt)
+{
+    if (pkt->isRead()) {
+        auto orbEntry = ORB.at(pkt->getAddr());
+        setNextState(orbEntry);
+        handleNextState(orbEntry);
+        delete pkt;
+    }
+    else {
+        assert(pkt->isWrite());
         delete pkt;
 
     }
@@ -521,9 +567,19 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
         orbEntry->owPkt->isRead() &&
-        orbEntry->state == waitingLocMemReadResp &&
-        !orbEntry->isHit) {
+        orbEntry->state == farMemRead) {
+
+            assert(!orbEntry->isHit);
+
             // do a read from far mem
+            pktFarMemRead.push_back(orbEntry->owPkt->getAddr());
+
+            if (!farMemReadEvent.scheduled()) {
+                schedule(farMemReadEvent, curTick());
+            }
+
+            return;
+
     }
 }
 
