@@ -42,17 +42,17 @@ args.add_argument(
     help = "Memory device to use as a backing store (far memory)"
 )
 
-args.add_argument(
-    "dram_cache_size",
-    type = str,
-    help = "Duration of simulation"
-)
-
-args.add_argument(
-    "max_orb",
-    type = int,
-    help = "Duration of simulation"
-)
+# args.add_argument(
+#     "dram_cache_size",
+#     type = str,
+#     help = "Duration of simulation"
+# )
+# 
+# args.add_argument(
+#     "max_orb",
+#     type = int,
+#     help = "Duration of simulation"
+# )
 
 args.add_argument(
     "traffic_mode",
@@ -60,29 +60,29 @@ args.add_argument(
     help = "Traffic type to use"
 )
 
-args.add_argument(
-    "duration",
-    type = int,
-    help = "Duration of simulation"
-)
+# args.add_argument(
+#     "duration",
+#     type = int,
+#     help = "Duration of simulation"
+# )
 
-args.add_argument(
-    "max_address",
-    type=str,
-    help="End address of the range to be accessed",
-)
+# args.add_argument(
+#     "max_address",
+#     type=str,
+#     help="End address of the range to be accessed",
+# )
 
-args.add_argument(
-    "inj_period",
-    type = int,
-    help = "Period to inject reqs"
-)
+# args.add_argument(
+#     "inj_period",
+#     type = int,
+#     help = "Period to inject reqs"
+# )
 
-args.add_argument(
-    "rd_prct",
-    type=int,
-    help="Read Percentage",
-)
+# args.add_argument(
+#     "rd_prct",
+#     type=int,
+#     help="Read Percentage",
+# )
 
 options = args.parse_args()
 
@@ -93,50 +93,52 @@ system.clk_domain.voltage_domain = VoltageDomain()
 system.mem_mode = 'timing'
 
 system.generator = PyTrafficGen()
+system.generator.progress_check = '1000ms'
 
+system.policy_manager = PolicyManager()
 system.loc_mem_ctrl = MemCtrl()
+system.policy_manager.loc_mem_ctrl = system.loc_mem_ctrl
 system.far_mem_ctrl = MemCtrl()
-system.loc_mem_ctrl.dram = eval(options.device_loc)(range=AddrRange('4GB'),
-                                                in_addr_map=False)
-# system.loc_mem_ctrl.far_memory = DDR4_2400_16x4(range=AddrRange('8GB'))
-# system.loc_mem_ctrl.far_memory = NVM_2400_1x64(range=AddrRange('8GB'))
-system.far_mem_ctrl.dram = eval(options.device_far)(range=AddrRange('4GB'))
-# system.far_mem_ctrl.dram.page_policy = 'close_adaptive'
+system.policy_manager.far_mem_ctrl = system.far_mem_ctrl
 
-#system.loc_mem_ctrl.far_memory.tREFI = "8000"
-system.loc_mem_ctrl.dram_cache_size = options.dram_cache_size
-system.loc_mem_ctrl.orb_max_size = options.max_orb
-system.loc_mem_ctrl.crb_max_size = "32"
-system.loc_mem_ctrl.always_hit = False
-system.loc_mem_ctrl.always_dirty = True
+system.loc_mem_ctrl.dram = eval(options.device_loc)(range=AddrRange('16GB'),
+                                                in_addr_map=False)
+system.loc_mem_ctrl.dram.read_buffer_size = 128
+system.loc_mem_ctrl.dram.write_buffer_size = 128
+system.far_mem_ctrl.dram = eval(options.device_far)(range=AddrRange('16GB'))
+
+system.policy_manager.always_hit = False
+system.policy_manager.always_dirty = True
 # system.loc_mem_ctrl.always_hit = options.hit
 # system.loc_mem_ctrl.always_dirty = options.dirty
 
-system.mem_ranges = [AddrRange('4GB')]
+# system.mem_ranges = [AddrRange('4GB')]
 
-system.generator.port = system.loc_mem_ctrl.port
-system.loc_mem_ctrl.req_port = system.far_mem_ctrl.port
+system.generator.port = system.policy_manager.resp_port
+
+system.policy_manager.loc_mem_ctrl.port = system.policy_manager.loc_req_port
+system.policy_manager.far_mem_ctrl.port = system.policy_manager.far_req_port
 
 def createRandomTraffic(tgen):
-    yield tgen.createRandom(options.duration,   # duration
+    yield tgen.createRandom(10000000000,   # duration
                             0,                  # min_addr
-                            AddrRange(options.max_address).end,  # max_adr
+                            AddrRange('16GB').end,  # max_adr
                             64,                 # block_size
-                            options.inj_period, # min_period
-                            options.inj_period, # max_period
-                            options.rd_prct,    # rd_perc
+                            1000, # min_period
+                            1000, # max_period
+                            0,    # rd_perc
                             0)                  # data_limit
     yield tgen.createExit(0)
 
 def createLinearTraffic(tgen):
-    yield tgen.createLinear(0,                    # duration
-                            0,                    # min_addr
-                            AddrRange(options.max_address).end,  # max_adr
-                            64,                   # block_size
-                            options.inj_period,   # min_period
-                            options.inj_period,   # max_period
-                            options.rd_prct,      # rd_perc
-                            104857600)            # data_limit
+    yield tgen.createLinear(100000000000,   # duration
+                            0,                  # min_addr
+                            AddrRange('16GB').end,  # max_adr
+                            64,                 # block_size
+                            1000, # min_period
+                            1000, # max_period
+                            0,    # rd_perc
+                            0)                  # data_limit
     yield tgen.createExit(0)
 
 

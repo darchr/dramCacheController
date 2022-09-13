@@ -13,8 +13,8 @@ namespace memory
 PolicyManager::PolicyManager(const PolicyManagerParams &p):
     ClockedObject(p),
     respPort(name() + ".resp_port", *this),
-    locMemPort(name() + ".loc_req_port", *this),
-    farMemPort(name() + ".far_req_port", *this),
+    locReqPort(name() + ".loc_req_port", *this),
+    farReqPort(name() + ".far_req_port", *this),
     locMemCtrl(p.loc_mem_ctrl),
     farMemCtrl(p.far_mem_ctrl),
     locMemPolicy(p.loc_mem_policy),
@@ -26,7 +26,9 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     alwaysHit(p.always_hit), alwaysDirty(p.always_dirty),
     frontendLatency(p.static_frontend_latency),
     backendLatency(p.static_backend_latency),
-    retryLLC(false), retryLocMem(false), retryFarMem(false),
+    retryLLC(false), retryLLCFarMemWr(false),
+    retryLocMemRead(false), retryFarMemRead(false),
+    retryLocMemWrite(false), retryFarMemWrite(false),
     stallRds(false), sendFarRdReq(true),
     waitingForRetryReqPort(false),
     rescheduleLocRead(false),
@@ -47,6 +49,21 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
 
     tagMetadataStore.resize(dramCacheSize/blockSize);
 
+}
+
+void
+PolicyManager::init()
+{
+   if (!respPort.isConnected()) {
+        fatal("Policy Manager %s is unconnected!\n", name());
+    } else if (!locReqPort.isConnected()) {
+        fatal("Policy Manager %s is unconnected!\n", name());
+    } else if (!farReqPort.isConnected()) {
+        fatal("Policy Manager %s is unconnected!\n", name());
+    } else {
+        respPort.sendRangeChange();
+        //reqPort.recvRangeChange();
+    }
 }
 
 bool
@@ -218,7 +235,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     // check if ORB or FMWB is full and set retry
     if (pktFarMemWrite.size()>= (orbMaxSize / 2)) {
         DPRINTF(PolicyManager, "FMWBfull: %lld\n", pkt->getAddr());
-        retryFarMem = true;
+        retryLLCFarMemWr = true;
 
         if (pkt->isRead()) {
             polManStats.numRdRetry++;
@@ -273,23 +290,58 @@ PolicyManager::processLocMemReadEvent()
     assert(orbEntry->state == locMemRead);
     assert(!orbEntry->issued);
 
+    DPRINTF(PolicyManager, "LocMemReadEvent: request %s addr %#x\n",
+            orbEntry->owPkt->cmdString(), orbEntry->owPkt->getAddr());
+
     PacketPtr rdLocMemPkt = getPacket(pktLocMemRead.front(),
                                    blockSize,
                                    MemCmd::ReadReq);
 
-    if (locMemPort.sendTimingReq(rdLocMemPkt)) {
+    if (locReqPort.sendTimingReq(rdLocMemPkt)) {
         DPRINTF(PolicyManager, "loc mem read is sent : %lld\n", rdLocMemPkt->getAddr());
-        orbEntry->state = waitingFarMemReadResp;
+        orbEntry->state = waitingLocMemReadResp;
         orbEntry->issued = true;
         pktLocMemRead.pop_front();
     } else {
         DPRINTF(PolicyManager, "loc mem read sending failed: %lld\n", rdLocMemPkt->getAddr());
+        retryLocMemRead = true;
         delete rdLocMemPkt;
     }
 
-    if (!pktLocMemRead.empty() && !locMemReadEvent.scheduled()) {
+    if (!pktLocMemRead.empty() && !locMemReadEvent.scheduled() && !retryLocMemRead) {
         schedule(locMemReadEvent, curTick()+1000);
-        return;
+    }
+}
+
+void
+PolicyManager::processLocMemWriteEvent()
+{
+    // sanity check for the chosen packet
+    auto orbEntry = ORB.at(pktLocMemWrite.front());
+    assert(orbEntry->validEntry);
+    assert(orbEntry->state == locMemWrite);
+    assert(!orbEntry->issued);
+
+    DPRINTF(PolicyManager, "LocMemWriteEvent: request %s addr %#x\n",
+            orbEntry->owPkt->cmdString(), orbEntry->owPkt->getAddr());
+
+    PacketPtr wrLocMemPkt = getPacket(pktLocMemWrite.front(),
+                                   blockSize,
+                                   MemCmd::WriteReq);
+
+    if (locReqPort.sendTimingReq(wrLocMemPkt)) {
+        DPRINTF(PolicyManager, "loc mem write is sent : %lld\n", wrLocMemPkt->getAddr());
+        orbEntry->state = waitingLocMemWriteResp;
+        orbEntry->issued = true;
+        pktLocMemWrite.pop_front();
+    } else {
+        DPRINTF(PolicyManager, "loc mem write sending failed: %lld\n", wrLocMemPkt->getAddr());
+        retryLocMemWrite = true;
+        delete wrLocMemPkt;
+    }
+
+    if (!pktLocMemWrite.empty() && !locMemWriteEvent.scheduled() && !retryLocMemWrite) {
+        schedule(locMemWriteEvent, curTick()+1000);
     }
 }
 
@@ -302,23 +354,282 @@ PolicyManager::processFarMemReadEvent()
     assert(orbEntry->state == farMemRead);
     assert(!orbEntry->issued);
 
+    DPRINTF(PolicyManager, "FarMemReadEvent: request %s addr %#x\n",
+            orbEntry->owPkt->cmdString(), orbEntry->owPkt->getAddr());
+
     PacketPtr rdFarMemPkt = getPacket(pktFarMemRead.front(),
                                       blockSize,
                                       MemCmd::ReadReq);
 
-    if (farMemPort.sendTimingReq(rdFarMemPkt)) {
+    if (farReqPort.sendTimingReq(rdFarMemPkt)) {
         DPRINTF(PolicyManager, "far mem read is sent : %lld\n", rdFarMemPkt->getAddr());
         orbEntry->state = waitingFarMemReadResp;
         orbEntry->issued = true;
         pktFarMemRead.pop_front();
     } else {
         DPRINTF(PolicyManager, "far mem read sending failed: %lld\n", rdFarMemPkt->getAddr());
+        retryFarMemRead = true;
         delete rdFarMemPkt;
     }
 
-    if (!pktLocMemRead.empty() && !farMemReadEvent.scheduled()) {
+    if (!pktFarMemRead.empty() && !farMemReadEvent.scheduled() && !retryFarMemRead) {
         schedule(farMemReadEvent, curTick()+1000);
+    }
+}
+
+void
+PolicyManager::processFarMemWriteEvent()
+{
+    PacketPtr wrFarMemPkt = getPacket(pktFarMemWrite.front().second->getAddr(),
+                                      blockSize,
+                                      MemCmd::WriteReq);
+    DPRINTF(PolicyManager, "FarMemWriteEvent: request %s addr %#x\n",
+            wrFarMemPkt->cmdString(), wrFarMemPkt->getAddr());
+
+    if (farReqPort.sendTimingReq(wrFarMemPkt)) {
+        DPRINTF(PolicyManager, "far mem write is sent : %lld\n", wrFarMemPkt->getAddr());
+        pktFarMemWrite.pop_front();
+    } else {
+        DPRINTF(PolicyManager, "far mem write sending failed: %lld\n", wrFarMemPkt->getAddr());
+        retryFarMemWrite = true;
+        delete wrFarMemPkt;
+    }
+
+    if (!pktFarMemWrite.empty() && !farMemWriteEvent.scheduled() && !retryFarMemWrite) {
+        schedule(farMemWriteEvent, curTick()+1000);
+    }
+
+    if (retryLLCFarMemWr && pktFarMemWrite.size()< (orbMaxSize / 2)) {
+        retryLLCFarMemWr = false;
+        respPort.sendRetryReq();
+    }
+}
+
+bool
+PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
+{
+    auto orbEntry = ORB.at(pkt->getAddr());
+
+    if (pkt->isRead()) {
+        assert(orbEntry->state == waitingLocMemReadResp);
+    }
+    else {
+        assert(pkt->isWrite());
+        assert(orbEntry->state == waitingLocMemWriteResp);
+    }
+
+    setNextState(orbEntry);
+
+    handleNextState(orbEntry);
+
+    delete pkt;
+
+    return true;
+}
+
+bool
+PolicyManager::farMemRecvTimingResp(PacketPtr pkt)
+{
+    if (pkt->isRead()) {
+        auto orbEntry = ORB.at(pkt->getAddr());
+        assert(orbEntry->state == waitingFarMemReadResp);
+        setNextState(orbEntry);
+        handleNextState(orbEntry);
+        delete pkt;
+    }
+    else {
+        assert(pkt->isWrite());
+        delete pkt;
+    }
+
+    return true;
+}
+
+void
+PolicyManager::locMemRecvReqRetry()
+{
+    assert(retryLocMemRead || retryLocMemWrite);
+    
+    if (retryLocMemRead) {
+        if (!locMemReadEvent.scheduled()) {
+            schedule(locMemReadEvent, curTick());
+        }
+        retryLocMemRead = false;
+    } else if (retryLocMemWrite) {
+        if (!locMemWriteEvent.scheduled()) {
+            schedule(locMemWriteEvent, curTick());
+        }
+        retryLocMemWrite = false;
+    } else {
+        panic("Wrong local mem retry event happend.\n");
+    }
+}
+
+void
+PolicyManager::farMemRecvReqRetry()
+{
+    assert(retryFarMemRead || retryFarMemWrite);
+    
+    if (retryFarMemRead) {
+        if (!farMemReadEvent.scheduled()) {
+            schedule(farMemReadEvent, curTick());
+        }
+        retryFarMemRead = false;
+    } else if (retryFarMemWrite) {
+        if (!farMemWriteEvent.scheduled()) {
+            schedule(farMemWriteEvent, curTick());
+        }
+        retryFarMemWrite = false;
+    } else {
+        panic("Wrong far mem retry event happend.\n");
+    }
+}
+
+
+void
+PolicyManager::setNextState(reqBufferEntry* orbEntry)
+{
+    orbEntry->issued = false;
+    // init --> read tag
+    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+        orbEntry->state == Init) {
+            orbEntry->state = locMemRead;
+            return;
+    }
+
+    // tag ready && read && hit --> DONE
+    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+        orbEntry->owPkt->isRead() &&
+        orbEntry->state == waitingLocMemReadResp &&
+        orbEntry->isHit) {
+            // done
+            // do nothing
+            return;
+    }
+
+    // tag ready && write --> loc write
+    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+        orbEntry->owPkt->isWrite() &&
+        orbEntry->state == waitingLocMemReadResp) {
+            // done
+            // do nothing
+            orbEntry->state = locMemWrite;
+            return;
+    }
+
+    // loc read resp ready && read && miss --> far read
+    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+        orbEntry->owPkt->isRead() &&
+        orbEntry->state == waitingLocMemReadResp &&
+        !orbEntry->isHit) {
+            orbEntry->state = farMemRead;
+            return;
+    }
+
+    // far read resp ready && read && miss --> loc write
+    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+        orbEntry->owPkt->isRead() &&
+        orbEntry->state == waitingFarMemReadResp &&
+        !orbEntry->isHit) {
+            sendRespondToRequestor(orbEntry->owPkt, frontendLatency + backendLatency);
+            if (orbEntry->handleDirtyLine) {
+                handleDirtyCacheLine(orbEntry);
+            }
+            orbEntry->state = locMemWrite;
+            return;
+    }
+
+    // loc write received
+    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+        // orbEntry->owPkt->isRead() &&
+        // !orbEntry->isHit &&
+        orbEntry->state == waitingLocMemWriteResp) {
+            // done
+            // do nothing
+            return;
+    }
+}
+
+void
+PolicyManager::handleNextState(reqBufferEntry* orbEntry)
+{
+    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+        orbEntry->state == locMemRead) {
+
+        assert(!pktLocMemRead.empty());
+            
+        if (!locMemReadEvent.scheduled()) {
+            schedule(locMemReadEvent, curTick());
+        }
         return;
+    }
+
+    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+        orbEntry->owPkt->isRead() &&
+        orbEntry->state == waitingLocMemReadResp &&
+        orbEntry->isHit) {
+            // DONE
+            // send the respond to the requestor
+            sendRespondToRequestor(orbEntry->owPkt, frontendLatency + backendLatency);
+
+            // clear ORB
+            resumeConflictingReq(orbEntry);
+
+            // if (retryLLC && canRetry) {
+            //     retryLLC = false;
+            //     respPort.sendRetryReq();
+            // }
+
+            return;            
+    }
+
+    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+        orbEntry->owPkt->isRead() &&
+        orbEntry->state == farMemRead) {
+
+            assert(!orbEntry->isHit);
+
+            // do a read from far mem
+            pktFarMemRead.push_back(orbEntry->owPkt->getAddr());
+
+            if (!farMemReadEvent.scheduled()) {
+                schedule(farMemReadEvent, curTick());
+            }
+            return;
+
+    }
+
+    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+        orbEntry->state == locMemWrite) {
+
+            if (orbEntry->owPkt->isRead()) {
+                assert(!orbEntry->isHit);
+            }
+
+            // do a read from far mem
+            pktLocMemWrite.push_back(orbEntry->owPkt->getAddr());
+
+            if (!locMemWriteEvent.scheduled()) {
+                schedule(locMemWriteEvent, curTick());
+            }
+            return;
+
+    }
+
+    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+        // orbEntry->owPkt->isRead() &&
+        // !orbEntry->isHit &&
+        orbEntry->state == waitingLocMemWriteResp) {
+            // DONE
+            // clear ORB
+            resumeConflictingReq(orbEntry);
+
+            // if (retryLLC && canRetry) {
+            //     retryLLC = false;
+            //     respPort.sendRetryReq();
+            // }
+
+            return;
     }
 }
 
@@ -340,12 +651,16 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
 
     ORB.emplace(pkt->getAddr(), orbEntry);
 
+    if (pkt->isWrite()) {
+        sendRespondToRequestor(pkt, frontendLatency);
+    }
+
     // polManStats.avgORBLen = ORB.size();
     polManStats.avgORBLen = ORB.size();
-    polManStats.avgLocRdQLenStrt = countLocRdInORB();
-    polManStats.avgFarRdQLenStrt = countFarRdInORB();
-    polManStats.avgLocWrQLenStrt = countLocWrInORB();
-    polManStats.avgFarWrQLenStrt = countFarWr();
+    // polManStats.avgLocRdQLenStrt = countLocRdInORB();
+    // polManStats.avgFarRdQLenStrt = countFarRdInORB();
+    // polManStats.avgLocWrQLenStrt = countLocWrInORB();
+    // polManStats.avgFarWrQLenStrt = countFarWr();
 
     checkHitOrMiss(orbEntry);
 
@@ -474,121 +789,13 @@ PolicyManager::getPacket(Addr addr, unsigned size, const MemCmd& cmd,
     return pkt;
 }
 
-bool
-PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
-{
-    if (pkt->isRead()) {
-        auto orbEntry = ORB.at(pkt->getAddr());
-        setNextState(orbEntry);
-        handleNextState(orbEntry);
-        delete pkt;
-    }
-    else {
-        assert(pkt->isWrite());
-        delete pkt;
-
-    }
-
-    return true;
-}
-
-bool
-PolicyManager::farMemRecvTimingResp(PacketPtr pkt)
-{
-    if (pkt->isRead()) {
-        auto orbEntry = ORB.at(pkt->getAddr());
-        setNextState(orbEntry);
-        handleNextState(orbEntry);
-        delete pkt;
-    }
-    else {
-        assert(pkt->isWrite());
-        delete pkt;
-
-    }
-
-    return true;
-}
-
-void
-PolicyManager::setNextState(reqBufferEntry* orbEntry)
-{
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
-        orbEntry->state == Init &&
-        orbEntry->isHit) {
-            orbEntry->state = locMemRead;
-    }
-
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
-        orbEntry->owPkt->isRead() &&
-        orbEntry->state == waitingLocMemReadResp &&
-        orbEntry->isHit) {
-            // done
-            // do nothing
-            return;
-    }
-
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
-        orbEntry->owPkt->isRead() &&
-        orbEntry->state == waitingLocMemReadResp &&
-        !orbEntry->isHit) {
-            orbEntry->state = farMemRead;
-    }
-}
-
-void
-PolicyManager::handleNextState(reqBufferEntry* orbEntry)
-{
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
-        orbEntry->state == locMemRead) {
-
-        assert(!pktLocMemRead.empty());
-            
-        if (!locMemReadEvent.scheduled()) {
-            schedule(locMemReadEvent, curTick());
-        }
-
-        return;            
-    }
-
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
-        orbEntry->owPkt->isRead() &&
-        orbEntry->state == waitingLocMemReadResp &&
-        orbEntry->isHit) {
-            // DONE
-            // send the respond to the requestor
-            sendRespondToRequestor(orbEntry->owPkt, frontendLatency + backendLatency);
-
-            // clear ORB
-            resumeConflictingReq(orbEntry);
-
-            return;            
-    }
-
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
-        orbEntry->owPkt->isRead() &&
-        orbEntry->state == farMemRead) {
-
-            assert(!orbEntry->isHit);
-
-            // do a read from far mem
-            pktFarMemRead.push_back(orbEntry->owPkt->getAddr());
-
-            if (!farMemReadEvent.scheduled()) {
-                schedule(farMemReadEvent, curTick());
-            }
-
-            return;
-
-    }
-}
-
 void
 PolicyManager::sendRespondToRequestor(PacketPtr pkt, Tick static_latency)
 {
     PacketPtr copyOwPkt = new Packet(pkt,
                                      false,
                                      pkt->isRead());
+    copyOwPkt->makeResponse();
     
     Tick response_time = curTick() + static_latency + copyOwPkt->headerDelay +
                          copyOwPkt->payloadDelay;
@@ -665,6 +872,11 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
         delete orbEntry->owPkt;
 
         delete orbEntry;
+
+        if (retryLLC) {
+            retryLLC = false;
+            respPort.sendRetryReq();
+        }
     }
 
     return conflictFound;
@@ -706,6 +918,369 @@ PolicyManager::getAddrRanges()
     
     // return ranges;
     return locRanges;
+}
+
+Addr
+PolicyManager::returnIndexDC(Addr request_addr, unsigned size)
+{
+    int index_bits = ceilLog2(dramCacheSize/blockSize);
+    int block_bits = ceilLog2(size);
+    return bits(request_addr, block_bits + index_bits-1, block_bits);
+}
+
+Addr
+PolicyManager::returnTagDC(Addr request_addr, unsigned size)
+{
+    int index_bits = ceilLog2(dramCacheSize/blockSize);
+    int block_bits = ceilLog2(size);
+    return bits(request_addr, addrSize-1, (index_bits+block_bits));
+}
+
+void
+PolicyManager::handleDirtyCacheLine(reqBufferEntry* orbEntry)
+{
+    assert(orbEntry->dirtyLineAddr != -1);
+
+    // create a new request packet
+    PacketPtr wbPkt = getPacket(orbEntry->dirtyLineAddr,
+                                orbEntry->owPkt->getSize(),
+                                MemCmd::WriteReq);
+
+    pktFarMemWrite.push_back(std::make_pair(curTick(), wbPkt));
+
+    polManStats.avgFarWrQLenEnq = pktFarMemWrite.size();
+
+    if (
+        ((pktFarMemWrite.size() >= (orbMaxSize/2)) || (!pktFarMemWrite.empty() && pktFarMemRead.empty())) &&
+        !waitingForRetryReqPort
+       ) {
+        sendFarRdReq = false;
+        if (!farMemWriteEvent.scheduled()) {
+            schedule(farMemWriteEvent, curTick());
+        }
+    }
+
+    if (pktFarMemWrite.size() > maxFarWrEvQ) {
+        maxFarWrEvQ = pktFarMemWrite.size();
+        polManStats.maxFarWrEvQ = pktFarMemWrite.size();
+    }
+
+    polManStats.numWrBacks++;
+}
+
+
+PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
+    : statistics::Group(&_polMan),
+    polMan(_polMan),
+
+/////
+    ADD_STAT(readReqs, statistics::units::Count::get(),
+             "Number of read requests accepted"),
+    ADD_STAT(writeReqs, statistics::units::Count::get(),
+             "Number of write requests accepted"),
+
+    ADD_STAT(readBursts, statistics::units::Count::get(),
+             "Number of controller read bursts, including those serviced by "
+             "the write queue"),
+    ADD_STAT(writeBursts, statistics::units::Count::get(),
+             "Number of controller write bursts, including those merged in "
+             "the write queue"),
+    ADD_STAT(servicedByWrQ, statistics::units::Count::get(),
+             "Number of controller read bursts serviced by the write queue"),
+    ADD_STAT(mergedWrBursts, statistics::units::Count::get(),
+             "Number of controller write bursts merged with an existing one"),
+
+    ADD_STAT(neitherReadNorWriteReqs, statistics::units::Count::get(),
+             "Number of requests that are neither read nor write"),
+
+    ADD_STAT(avgRdQLen, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average read queue length when enqueuing"),
+    ADD_STAT(avgWrQLen, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average write queue length when enqueuing"),
+
+    ADD_STAT(numRdRetry, statistics::units::Count::get(),
+             "Number of times read queue was full causing retry"),
+    ADD_STAT(numWrRetry, statistics::units::Count::get(),
+             "Number of times write queue was full causing retry"),
+
+    ADD_STAT(readPktSize, statistics::units::Count::get(),
+             "Read request sizes (log2)"),
+    ADD_STAT(writePktSize, statistics::units::Count::get(),
+             "Write request sizes (log2)"),
+
+    // ADD_STAT(rdQLenPdf, statistics::units::Count::get(),
+    //          "What read queue length does an incoming req see"),
+    // ADD_STAT(wrQLenPdf, statistics::units::Count::get(),
+    //          "What write queue length does an incoming req see"),
+
+    // ADD_STAT(rdPerTurnAround, statistics::units::Count::get(),
+    //          "Reads before turning the bus around for writes"),
+    // ADD_STAT(wrPerTurnAround, statistics::units::Count::get(),
+    //          "Writes before turning the bus around for reads"),
+
+    ADD_STAT(bytesReadWrQ, statistics::units::Byte::get(),
+             "Total number of bytes read from write queue"),
+    ADD_STAT(bytesReadSys, statistics::units::Byte::get(),
+             "Total read bytes from the system interface side"),
+    ADD_STAT(bytesWrittenSys, statistics::units::Byte::get(),
+             "Total written bytes from the system interface side"),
+
+    ADD_STAT(avgRdBWSys, statistics::units::Rate<
+                statistics::units::Byte, statistics::units::Second>::get(),
+             "Average system read bandwidth in Byte/s"),
+    ADD_STAT(avgWrBWSys, statistics::units::Rate<
+                statistics::units::Byte, statistics::units::Second>::get(),
+             "Average system write bandwidth in Byte/s"),
+
+    ADD_STAT(totGap, statistics::units::Tick::get(),
+             "Total gap between requests"),
+    ADD_STAT(avgGap, statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(),
+             "Average gap between requests"),
+
+    // ADD_STAT(requestorReadBytes, statistics::units::Byte::get(),
+    //          "Per-requestor bytes read from memory"),
+    // ADD_STAT(requestorWriteBytes, statistics::units::Byte::get(),
+    //          "Per-requestor bytes write to memory"),
+    // ADD_STAT(requestorReadRate, statistics::units::Rate<
+    //             statistics::units::Byte, statistics::units::Second>::get(),
+    //          "Per-requestor bytes read from memory rate"),
+    // ADD_STAT(requestorWriteRate, statistics::units::Rate<
+    //             statistics::units::Byte, statistics::units::Second>::get(),
+    //          "Per-requestor bytes write to memory rate"),
+    // ADD_STAT(requestorReadAccesses, statistics::units::Count::get(),
+    //          "Per-requestor read serviced memory accesses"),
+    // ADD_STAT(requestorWriteAccesses, statistics::units::Count::get(),
+    //          "Per-requestor write serviced memory accesses"),
+    // ADD_STAT(requestorReadTotalLat, statistics::units::Tick::get(),
+    //          "Per-requestor read total memory access latency"),
+    // ADD_STAT(requestorWriteTotalLat, statistics::units::Tick::get(),
+    //          "Per-requestor write total memory access latency"),
+    // ADD_STAT(requestorReadAvgLat, statistics::units::Rate<
+    //             statistics::units::Tick, statistics::units::Count>::get(),
+    //          "Per-requestor read average memory access latency"),
+    // ADD_STAT(requestorWriteAvgLat, statistics::units::Rate<
+    //             statistics::units::Tick, statistics::units::Count>::get(),
+    //          "Per-requestor write average memory access latency"),
+////////
+
+    ADD_STAT(avgORBLen, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average ORB length"),
+    ADD_STAT(avgLocRdQLenStrt, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average local read queue length"),
+    ADD_STAT(avgLocWrQLenStrt, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average local write queue length"),
+    ADD_STAT(avgFarRdQLenStrt, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average far read queue length"),
+    ADD_STAT(avgFarWrQLenStrt, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average far write queue length"),
+    
+    ADD_STAT(avgLocRdQLenEnq, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average local read queue length when enqueuing"),
+    ADD_STAT(avgLocWrQLenEnq, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average local write queue length when enqueuing"),
+    ADD_STAT(avgFarRdQLenEnq, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average far read queue length when enqueuing"),
+    ADD_STAT(avgFarWrQLenEnq, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average far write queue length when enqueuing"),
+
+    ADD_STAT(numWrBacks,
+            "Total number of write backs from DRAM cache to main memory"),
+    ADD_STAT(totNumConf,
+            "Total number of packets conflicted on DRAM cache"),
+    ADD_STAT(totNumORBFull,
+            "Total number of packets ORB full"),
+    ADD_STAT(totNumConfBufFull,
+            "Total number of packets conflicted yet couldn't "
+            "enter confBuffer"),
+
+    ADD_STAT(maxNumConf,
+            "Maximum number of packets conflicted on DRAM cache"),
+    ADD_STAT(maxLocRdEvQ,
+            "Maximum number of packets in locMemReadEvent concurrently"),
+    ADD_STAT(maxLocRdRespEvQ,
+            "Maximum number of packets in locMemReadRespEvent concurrently"),
+    ADD_STAT(maxLocWrEvQ,
+            "Maximum number of packets in locMemRWriteEvent concurrently"),
+    ADD_STAT(maxFarRdEvQ,
+            "Maximum number of packets in farMemReadEvent concurrently"),
+    ADD_STAT(maxFarRdRespEvQ,
+            "Maximum number of packets in farMemReadRespEvent concurrently"),
+    ADD_STAT(maxFarWrEvQ,
+            "Maximum number of packets in farMemWriteEvent concurrently"),
+    
+    ADD_STAT(rdToWrTurnAround,
+            "Maximum number of packets in farMemReadRespEvent concurrently"),
+    ADD_STAT(wrToRdTurnAround,
+            "Maximum number of packets in farMemWriteEvent concurrently"),
+
+    ADD_STAT(sentRdPort,
+            "Number of read packets successfully sent through the request port to the far memory."),
+    ADD_STAT(failedRdPort,
+            "Number of read packets failed to be sent through the request port to the far memory."),
+    ADD_STAT(recvdRdPort,
+            "Number of read packets resp recvd through the request port from the far memory."),
+    ADD_STAT(sentWrPort,
+            "Number of write packets successfully sent through the request port to the far memory."),
+    ADD_STAT(failedWrPort,
+            "Number of write packets failed to be sent through the request port to the far memory."),
+    ADD_STAT(totPktsServiceTime,
+            "stat"),
+    ADD_STAT(totPktsORBTime,
+            "stat"),
+    ADD_STAT(totTimeFarRdtoSend,
+            "stat"),
+    ADD_STAT(totTimeFarRdtoRecv,
+            "stat"),
+    ADD_STAT(totTimeFarWrtoSend,
+            "stat"),
+    ADD_STAT(totTimeInLocRead,
+            "stat"),
+    ADD_STAT(totTimeInLocWrite,
+            "stat"),
+    ADD_STAT(totTimeInFarRead,
+            "stat"),
+    ADD_STAT(QTLocRd,
+            "stat"),
+    ADD_STAT(QTLocWr,
+            "stat")
+{
+}
+
+void
+PolicyManager::PolicyManagerStats::regStats()
+{
+    using namespace statistics;
+
+    //assert(polMan.system());
+    //const auto max_requestors = polMan.system()->maxRequestors();
+
+    avgRdQLen.precision(2);
+    avgWrQLen.precision(2);
+
+    avgORBLen.precision(4);
+    avgLocRdQLenStrt.precision(2);
+    avgLocWrQLenStrt.precision(2);
+    avgFarRdQLenStrt.precision(2);
+    avgFarWrQLenStrt.precision(2);
+
+    avgLocRdQLenEnq.precision(2);
+    avgLocWrQLenEnq.precision(2);
+    avgFarRdQLenEnq.precision(2);
+    avgFarWrQLenEnq.precision(2);
+
+    readPktSize.init(ceilLog2(polMan.blockSize) + 1);
+    writePktSize.init(ceilLog2(polMan.blockSize) + 1);
+
+    // rdQLenPdf.init(polMan.readBufferSize);
+    // wrQLenPdf.init(polMan.writeBufferSize);
+
+    // rdPerTurnAround
+    //     .init(ctrl.readBufferSize)
+    //     .flags(nozero);
+    // wrPerTurnAround
+    //     .init(ctrl.writeBufferSize)
+    //     .flags(nozero);
+
+    avgRdBWSys.precision(8);
+    avgWrBWSys.precision(8);
+    avgGap.precision(2);
+
+    // per-requestor bytes read and written to memory
+    // requestorReadBytes
+    //     .init(max_requestors)
+    //     .flags(nozero | nonan);
+
+    // requestorWriteBytes
+    //     .init(max_requestors)
+    //     .flags(nozero | nonan);
+
+    // per-requestor bytes read and written to memory rate
+    // requestorReadRate
+    //     .flags(nozero | nonan)
+    //     .precision(12);
+
+    // requestorReadAccesses
+    //     .init(max_requestors)
+    //     .flags(nozero);
+
+    // requestorWriteAccesses
+    //     .init(max_requestors)
+    //     .flags(nozero);
+
+    // requestorReadTotalLat
+    //     .init(max_requestors)
+    //     .flags(nozero | nonan);
+
+    // requestorReadAvgLat
+    //     .flags(nonan)
+    //     .precision(2);
+
+    // requestorWriteRate
+    //     .flags(nozero | nonan)
+    //     .precision(12);
+
+    // requestorWriteTotalLat
+    //     .init(max_requestors)
+    //     .flags(nozero | nonan);
+
+    // requestorWriteAvgLat
+    //     .flags(nonan)
+    //     .precision(2);
+
+    // for (int i = 0; i < max_requestors; i++) {
+    //     const std::string requestor = ctrl.system()->getRequestorName(i);
+    //     requestorReadBytes.subname(i, requestor);
+    //     requestorReadRate.subname(i, requestor);
+    //     requestorWriteBytes.subname(i, requestor);
+    //     requestorWriteRate.subname(i, requestor);
+    //     requestorReadAccesses.subname(i, requestor);
+    //     requestorWriteAccesses.subname(i, requestor);
+    //     requestorReadTotalLat.subname(i, requestor);
+    //     requestorReadAvgLat.subname(i, requestor);
+    //     requestorWriteTotalLat.subname(i, requestor);
+    //     requestorWriteAvgLat.subname(i, requestor);
+    // }
+
+    // Formula stats
+    avgRdBWSys = (bytesReadSys) / simSeconds;
+    avgWrBWSys = (bytesWrittenSys) / simSeconds;
+
+    avgGap = totGap / (readReqs + writeReqs);
+
+    // requestorReadRate = requestorReadBytes / simSeconds;
+    // requestorWriteRate = requestorWriteBytes / simSeconds;
+    // requestorReadAvgLat = requestorReadTotalLat / requestorReadAccesses;
+    // requestorWriteAvgLat = requestorWriteTotalLat / requestorWriteAccesses;
+}
+
+Port &
+PolicyManager::getPort(const std::string &if_name, PortID idx)
+{
+    panic_if(idx != InvalidPortID, "This object doesn't support vector ports");
+
+    // This is the name from the Python SimObject declaration (SimpleMemobj.py)
+    if (if_name == "resp_port") {
+        return respPort;
+    } else if (if_name == "loc_req_port") {
+        return locReqPort;
+    } else if (if_name == "far_req_port") {
+        return farReqPort;
+    } else {
+        // pass it along to our super class
+        panic("PORT NAME ERROR !!!!\n");
+    }
 }
 
 } // namespace memory

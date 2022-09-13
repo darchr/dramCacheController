@@ -59,14 +59,11 @@ class PolicyManager : public ClockedObject
 
       protected:
 
-        Tick recvAtomic(PacketPtr pkt) override;
-        Tick recvAtomicBackdoor(
-                PacketPtr pkt, MemBackdoorPtr &backdoor) override;
-
-        void recvFunctional(PacketPtr pkt) override;
+        Tick recvAtomic(PacketPtr pkt) override {}
+        Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override {}
+        void recvFunctional(PacketPtr pkt) override {}
 
         bool recvTimingReq(PacketPtr pkt) override { return polMan.recvTimingReq(pkt); }
-
         AddrRangeList getAddrRanges() const override { return polMan.getAddrRanges(); }
 
     };
@@ -82,14 +79,14 @@ class PolicyManager : public ClockedObject
       protected:
 
         void recvReqRetry()
-        { if (this->name() == "locMemPort") { polMan.locMemRecvReqRetry(); }
-          if (this->name() == "farMemPort") { polMan.farMemRecvReqRetry(); }
+        { if (this->name() == "system.policy_manager.loc_req_port") { polMan.locMemRecvReqRetry(); }
+          if (this->name() == "system.policy_manager.far_req_port") { polMan.farMemRecvReqRetry(); }
         }
 
         bool recvTimingResp(PacketPtr pkt)
-        { if (this->name() == "locMemPort") { return polMan.locMemRecvTimingResp(pkt); }
-          else if (this->name() == "farMemPort") { return polMan.farMemRecvTimingResp(pkt); }
-          else { std::cout << "Por name error, fix it!\n"; return false;}
+        { if (this->name() == "system.policy_manager.loc_req_port") { return polMan.locMemRecvTimingResp(pkt); }
+          else if (this->name() == "system.policy_manager.far_req_port") { return polMan.farMemRecvTimingResp(pkt); }
+          else { std::cout << "Port name error, fix it!\n"; return false;}
         }
 
       private:
@@ -99,8 +96,8 @@ class PolicyManager : public ClockedObject
     };
 
     RespPortPolManager respPort;
-    ReqPortPolManager locMemPort;
-    ReqPortPolManager farMemPort;
+    ReqPortPolManager locReqPort;
+    ReqPortPolManager farReqPort;
 
     MemCtrl* locMemCtrl;
     MemCtrl* farMemCtrl;
@@ -166,10 +163,10 @@ class PolicyManager : public ClockedObject
     enum reqState
     {
       Init,
-      locMemRead, waitingLocMemReadResp,
-      locMemWrite,
-      farMemRead, waitingFarMemReadResp,
-      farMemWrite
+      locMemRead,  waitingLocMemReadResp,
+      locMemWrite, waitingLocMemWriteResp,
+      farMemRead,  waitingFarMemReadResp,
+      farMemWrite, waitingFarMemWriteResp
     };
 
     /**
@@ -268,8 +265,11 @@ class PolicyManager : public ClockedObject
      * It helps remember if we have to retry a request when available.
      */
     bool retryLLC;
-    bool retryLocMem;
-    bool retryFarMem;
+    bool retryLLCFarMemWr;
+    bool retryLocMemRead;
+    bool retryFarMemRead;
+    bool retryLocMemWrite;
+    bool retryFarMemWrite;
 
     // Counters and flags to keep track of read/write switchings
     // stallRds: A flag to stop processing reads and switching to writes
@@ -310,7 +310,7 @@ class PolicyManager : public ClockedObject
     void processLocMemReadEvent();
     EventFunctionWrapper locMemReadEvent;
 
-    void processLocMemReadRespEvent();
+    void processLocMemReadRespEvent() {}
     EventFunctionWrapper locMemReadRespEvent;
 
     void processLocMemWriteEvent();
@@ -319,7 +319,7 @@ class PolicyManager : public ClockedObject
     void processFarMemReadEvent();
     EventFunctionWrapper farMemReadEvent;
 
-    void processFarMemReadRespEvent();
+    void processFarMemReadRespEvent() {}
     EventFunctionWrapper farMemReadRespEvent;
 
     void processFarMemWriteEvent();
@@ -329,7 +329,7 @@ class PolicyManager : public ClockedObject
     void setNextState(reqBufferEntry* orbEntry);
     void handleNextState(reqBufferEntry* orbEntry);
     void sendRespondToRequestor(PacketPtr pkt, Tick static_latency);
-    void printQSizes();
+    void printQSizes() {}
     void handleRequestorPkt(PacketPtr pkt);
     void checkHitOrMiss(reqBufferEntry* orbEntry);
     bool checkDirty(Addr addr);
@@ -337,15 +337,15 @@ class PolicyManager : public ClockedObject
     bool checkConflictInDramCache(PacketPtr pkt);
     void checkConflictInCRB(reqBufferEntry* orbEntry);
     bool resumeConflictingReq(reqBufferEntry* orbEntry);
-    void logStatsDcache(reqBufferEntry* orbEntry);
+    void logStatsDcache(reqBufferEntry* orbEntry) {}
     //reqBufferEntry* makeOrbEntry(reqBufferEntry* orbEntry, PacketPtr copyOwPkt);
     PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd, Request::FlagsType flags = 0);
-    void dirtAdrGen();
+    void dirtAdrGen() {}
 
-    unsigned countLocRdInORB();
-    unsigned countFarRdInORB();
-    unsigned countLocWrInORB();
-    unsigned countFarWr();
+    unsigned countLocRdInORB() {}
+    unsigned countFarRdInORB() {}
+    unsigned countLocWrInORB() {}
+    unsigned countFarWr() {}
 
     Addr returnIndexDC(Addr pkt_addr, unsigned size);
     Addr returnTagDC(Addr pkt_addr, unsigned size);
@@ -354,8 +354,8 @@ class PolicyManager : public ClockedObject
     void locMemRecvReqRetry();
     void farMemRecvReqRetry();
 
-    void locMemRetryReq();
-    void farMemRetryReq();
+    //void locMemRetryReq() {}
+    //void farMemRetryReq() {}
 
     bool locMemRecvTimingResp(PacketPtr pkt);
     bool farMemRecvTimingResp(PacketPtr pkt);
@@ -365,7 +365,7 @@ class PolicyManager : public ClockedObject
 
       void regStats() override;
 
-      PolicyManager &polMan;
+      const PolicyManager &polMan;
 
         // All statistics that the model needs to capture
         statistics::Scalar readReqs;
@@ -383,10 +383,10 @@ class PolicyManager : public ClockedObject
         statistics::Scalar numWrRetry;
         statistics::Vector readPktSize;
         statistics::Vector writePktSize;
-        statistics::Vector rdQLenPdf;
-        statistics::Vector wrQLenPdf;
-        statistics::Histogram rdPerTurnAround;
-        statistics::Histogram wrPerTurnAround;
+        //statistics::Vector rdQLenPdf;
+        //statistics::Vector wrQLenPdf;
+        //statistics::Histogram rdPerTurnAround;
+        //statistics::Histogram wrPerTurnAround;
 
         statistics::Scalar bytesReadWrQ;
         statistics::Scalar bytesReadSys;
@@ -399,24 +399,24 @@ class PolicyManager : public ClockedObject
         statistics::Formula avgGap;
 
         // per-requestor bytes read and written to memory
-        statistics::Vector requestorReadBytes;
-        statistics::Vector requestorWriteBytes;
+        // statistics::Vector requestorReadBytes;
+        // statistics::Vector requestorWriteBytes;
 
         // per-requestor bytes read and written to memory rate
-        statistics::Formula requestorReadRate;
-        statistics::Formula requestorWriteRate;
+        // statistics::Formula requestorReadRate;
+        // statistics::Formula requestorWriteRate;
 
         // per-requestor read and write serviced memory accesses
-        statistics::Vector requestorReadAccesses;
-        statistics::Vector requestorWriteAccesses;
+        // statistics::Vector requestorReadAccesses;
+        // statistics::Vector requestorWriteAccesses;
 
         // per-requestor read and write total memory access latency
-        statistics::Vector requestorReadTotalLat;
-        statistics::Vector requestorWriteTotalLat;
+        // statistics::Vector requestorReadTotalLat;
+        // statistics::Vector requestorWriteTotalLat;
 
         // per-requestor raed and write average memory access latency
-        statistics::Formula requestorReadAvgLat;
-        statistics::Formula requestorWriteAvgLat;
+        // statistics::Formula requestorReadAvgLat;
+        // statistics::Formula requestorWriteAvgLat;
 
       statistics::Average avgORBLen;
       statistics::Average avgLocRdQLenStrt;
