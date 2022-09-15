@@ -103,12 +103,12 @@ system.policy_manager.far_mem_ctrl = system.far_mem_ctrl
 
 system.loc_mem_ctrl.dram = eval(options.device_loc)(range=AddrRange('16GB'),
                                                 in_addr_map=False)
-system.loc_mem_ctrl.dram.read_buffer_size = 128
-system.loc_mem_ctrl.dram.write_buffer_size = 128
+#system.loc_mem_ctrl.dram.read_buffer_size = 128
+#system.loc_mem_ctrl.dram.write_buffer_size = 128
 system.far_mem_ctrl.dram = eval(options.device_far)(range=AddrRange('16GB'))
 
-system.policy_manager.always_hit = False
-system.policy_manager.always_dirty = True
+system.policy_manager.always_hit = True
+system.policy_manager.always_dirty = False
 # system.loc_mem_ctrl.always_hit = options.hit
 # system.loc_mem_ctrl.always_dirty = options.dirty
 
