@@ -96,11 +96,11 @@ system.generator = PyTrafficGen()
 
 system.dcache_ctrl = DCacheCtrl()
 system.farMem_ctrl = MemCtrl()
-system.dcache_ctrl.dram = eval(options.device_loc)(range=AddrRange('4GB'),
+system.dcache_ctrl.dram = eval(options.device_loc)(range=AddrRange('16GB'),
                                                 in_addr_map=False)
 # system.dcache_ctrl.far_memory = DDR4_2400_16x4(range=AddrRange('8GB'))
 # system.dcache_ctrl.far_memory = NVM_2400_1x64(range=AddrRange('8GB'))
-system.farMem_ctrl.dram = eval(options.device_far)(range=AddrRange('4GB'))
+system.farMem_ctrl.dram = eval(options.device_far)(range=AddrRange('16GB'))
 # system.farMem_ctrl.dram.page_policy = 'close_adaptive'
 
 #system.dcache_ctrl.far_memory.tREFI = "8000"
@@ -112,7 +112,7 @@ system.dcache_ctrl.always_dirty = True
 # system.dcache_ctrl.always_hit = options.hit
 # system.dcache_ctrl.always_dirty = options.dirty
 
-system.mem_ranges = [AddrRange('4GB')]
+#system.mem_ranges = [AddrRange('4GB')]
 
 system.generator.port = system.dcache_ctrl.port
 system.dcache_ctrl.req_port = system.farMem_ctrl.port
