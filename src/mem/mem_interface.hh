@@ -253,7 +253,7 @@ class MemInterface : public AbstractMemory
     /**
      * @return number of bytes in a burst for this interface
      */
-    uint32_t bytesPerBurst() const { return burstSize; }
+    virtual uint32_t bytesPerBurst() const { return burstSize; }
 
     /*
      * @return time to offset next command

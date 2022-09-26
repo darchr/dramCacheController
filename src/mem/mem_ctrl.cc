@@ -1156,6 +1156,9 @@ MemCtrl::minWriteToReadDataGap()
 Addr
 MemCtrl::burstAlign(Addr addr, MemInterface* mem_intr) const
 {
+    if(addr!=(addr & ~(Addr(mem_intr->bytesPerBurst() - 1)))) {
+        std::cout << addr << "-->" << (addr & ~(Addr(mem_intr->bytesPerBurst() - 1))) << "\n";
+    }
     return (addr & ~(Addr(mem_intr->bytesPerBurst() - 1)));
 }
 

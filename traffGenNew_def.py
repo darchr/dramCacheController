@@ -2,6 +2,7 @@ from m5.objects import *
 import m5
 import argparse
 from m5.objects.DRAMInterface import *
+from m5.objects.DRAMAlloyInterface import *
 from m5.objects.NVMInterface import *
 
 args = argparse.ArgumentParser()
@@ -29,18 +30,6 @@ args = argparse.ArgumentParser()
 #     type = bool,
 #     help = "always dirty or clean"
 # )
-
-args.add_argument(
-    "device_loc",
-    type = str,
-    help = "Memory device to use as a dram cache (local memory)"
-)
-
-args.add_argument(
-    "device_far",
-    type = str,
-    help = "Memory device to use as a backing store (far memory)"
-)
 
 # args.add_argument(
 #     "dram_cache_size",
@@ -78,11 +67,11 @@ args.add_argument(
 #     help = "Period to inject reqs"
 # )
 
-# args.add_argument(
-#     "rd_prct",
-#     type=int,
-#     help="Read Percentage",
-# )
+args.add_argument(
+    "rd_prct",
+    type=int,
+    help="Read Percentage",
+)
 
 options = args.parse_args()
 
@@ -96,21 +85,22 @@ system.generator = PyTrafficGen()
 system.generator.progress_check = '1000ms'
 
 system.policy_manager = PolicyManager()
-system.loc_mem_ctrl = MemCtrl()
+system.loc_mem_ctrl = HBMCtrl() #MemCtrl()
 system.policy_manager.loc_mem_ctrl = system.loc_mem_ctrl
 system.far_mem_ctrl = MemCtrl()
 system.policy_manager.far_mem_ctrl = system.far_mem_ctrl
 
-system.loc_mem_ctrl.dram = eval(options.device_loc)(range=AddrRange('16GB'),
+system.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange('16GiB'), # DDR4_2400_16x4_Alloy
                                                 in_addr_map=False)
-#system.loc_mem_ctrl.dram.read_buffer_size = 128
-#system.loc_mem_ctrl.dram.write_buffer_size = 128
-system.far_mem_ctrl.dram = eval(options.device_far)(range=AddrRange('16GB'))
+system.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange('16GiB'), # DDR4_2400_16x4_Alloy
+                                                in_addr_map=False)
+system.policy_manager.dram_cache_size = "4GiB"
+# system.loc_mem_ctrl.dram.read_buffer_size = 128
+# system.loc_mem_ctrl.dram.write_buffer_size = 128
+system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('16GiB'))
 
 system.policy_manager.always_hit = True
 system.policy_manager.always_dirty = False
-# system.loc_mem_ctrl.always_hit = options.hit
-# system.loc_mem_ctrl.always_dirty = options.dirty
 
 # system.mem_ranges = [AddrRange('4GB')]
 
@@ -122,22 +112,22 @@ system.policy_manager.far_mem_ctrl.port = system.policy_manager.far_req_port
 def createRandomTraffic(tgen):
     yield tgen.createRandom(10000000000,   # duration
                             0,                  # min_addr
-                            AddrRange('16GB').end,  # max_adr
+                            AddrRange('16GiB').end,  # max_adr
                             64,                 # block_size
                             1000, # min_period
                             1000, # max_period
-                            0,    # rd_perc
+                            options.rd_prct,    # rd_perc
                             0)                  # data_limit
     yield tgen.createExit(0)
 
 def createLinearTraffic(tgen):
     yield tgen.createLinear(100000000000,   # duration
                             0,                  # min_addr
-                            AddrRange('16GB').end,  # max_adr
+                            AddrRange('16GiB').end,  # max_adr
                             64,                 # block_size
                             1000, # min_period
                             1000, # max_period
-                            0,    # rd_perc
+                            options.rd_prct,    # rd_perc
                             0)                  # data_limit
     yield tgen.createExit(0)
 
