@@ -448,7 +448,7 @@ PolicyManager::farMemRecvTimingResp(PacketPtr pkt)
 void
 PolicyManager::locMemRecvReqRetry()
 {
-    assert(retryLocMemRead || retryLocMemWrite);
+    // assert(retryLocMemRead || retryLocMemWrite);
     
     if (retryLocMemRead) {
         if (!locMemReadEvent.scheduled()) {
@@ -460,9 +460,9 @@ PolicyManager::locMemRecvReqRetry()
             schedule(locMemWriteEvent, curTick());
         }
         retryLocMemWrite = false;
-    } else {
-        panic("Wrong local mem retry event happend.\n");
-    }
+    } // else {
+      //   panic("Wrong local mem retry event happend.\n");
+      //   }
 }
 
 void

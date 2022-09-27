@@ -455,7 +455,7 @@ class DCacheCtrl : public MemCtrl
     // TODO: write events
     bool requestEventScheduled(uint8_t pseudo_channel = 0) const override;
     void restartScheduler(Tick tick,  uint8_t pseudo_channel = 0) override;
-    bool respondEventScheduled() const override { return locMemReadRespEvent.scheduled(); }
+    bool respondEventScheduled(uint8_t pseudo_channel = 0) const override { return locMemReadRespEvent.scheduled(); }
 
 };
 
