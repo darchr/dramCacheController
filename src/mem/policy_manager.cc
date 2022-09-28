@@ -449,20 +449,31 @@ void
 PolicyManager::locMemRecvReqRetry()
 {
     // assert(retryLocMemRead || retryLocMemWrite);
-    
+    // std::cout << curTick() << " here0\n";
     if (retryLocMemRead) {
-        if (!locMemReadEvent.scheduled()) {
+        if (!locMemReadEvent.scheduled() && !pktLocMemRead.empty()) {
             schedule(locMemReadEvent, curTick());
         }
         retryLocMemRead = false;
     } else if (retryLocMemWrite) {
-        if (!locMemWriteEvent.scheduled()) {
+        if (!locMemWriteEvent.scheduled() && !pktLocMemWrite.empty()) {
             schedule(locMemWriteEvent, curTick());
         }
         retryLocMemWrite = false;
-    } // else {
-      //   panic("Wrong local mem retry event happend.\n");
-      //   }
+    } else {
+        // std::cout << "here1\n";
+            // panic("Wrong local mem retry event happend.\n");
+            if (!locMemReadEvent.scheduled() && !pktLocMemRead.empty()) {
+                // std::cout << "l1\n";
+                schedule(locMemReadEvent, curTick());
+                return;
+            }
+            if (!locMemWriteEvent.scheduled() && !pktLocMemWrite.empty()) {
+                schedule(locMemWriteEvent, curTick()+100);
+                // std::cout << "l2\n";
+            }
+        // std::cout << "here2\n";
+    }
 }
 
 void

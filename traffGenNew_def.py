@@ -100,8 +100,8 @@ system.policy_manager.dram_cache_size = "4GiB"
 # system.loc_mem_ctrl.dram.write_buffer_size = 128
 system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('16GiB'), in_addr_map=False)
 
-system.policy_manager.always_hit = True
-system.policy_manager.always_dirty = False
+system.policy_manager.always_hit = False
+system.policy_manager.always_dirty = True
 
 # system.mem_ranges = [AddrRange('4GB')]
 
