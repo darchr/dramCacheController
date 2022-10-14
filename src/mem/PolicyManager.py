@@ -25,8 +25,8 @@ class PolicyManager(ClockedObject):
     addr_size = Param.Unsigned(64,"Addr size of the request from outside world")
     orb_max_size = Param.Unsigned(256, "Outstanding Requests Buffer size")
     crb_max_size = Param.Unsigned(32, "Conflicting Requests Buffer size")
-    always_hit = Param.Bool(True, "")
-    always_dirty = Param.Bool(True, "")
+    always_hit = Param.Bool(True, "Control flag for enforcing hit/miss")
+    always_dirty = Param.Bool(False, "Control flag for enforcing clean/dirty")
     static_frontend_latency = Param.Latency("10ns", "Static frontend latency")
     static_backend_latency = Param.Latency("10ns", "Static backend latency")
     

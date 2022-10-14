@@ -783,6 +783,13 @@ MemCtrl::inWriteBusState(bool next_state) const
     }
 }
 
+void
+MemCtrl::accessInterface(PacketPtr pkt)
+{
+    dram->access(pkt);
+}
+
+
 uint32_t
 MemCtrl::bytesPerBurst() const
 {

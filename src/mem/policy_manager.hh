@@ -59,8 +59,8 @@ class PolicyManager : public ClockedObject
 
       protected:
 
-        Tick recvAtomic(PacketPtr pkt) override {}
-        Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override {}
+        Tick recvAtomic(PacketPtr pkt) override {return MaxTick;}
+        Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override {return MaxTick;}
         void recvFunctional(PacketPtr pkt) override {}
 
         bool recvTimingReq(PacketPtr pkt) override { return polMan.recvTimingReq(pkt); }
@@ -162,7 +162,7 @@ class PolicyManager : public ClockedObject
      */
     enum reqState
     {
-      Init,
+      start,
       locMemRead,  waitingLocMemReadResp,
       locMemWrite, waitingLocMemWriteResp,
       farMemRead,  waitingFarMemReadResp,
@@ -206,10 +206,10 @@ class PolicyManager : public ClockedObject
         Tick locRdIssued;
         Tick locRdExit;
         Tick locWrEntered;
+        Tick locWrIssued;
         Tick locWrExit;
         Tick farRdEntered;
         Tick farRdIssued;
-        Tick farRdRecvd;
         Tick farRdExit;
 
         reqBufferEntry(
@@ -220,8 +220,8 @@ class PolicyManager : public ClockedObject
           bool _issued, bool _isHit, bool _conflict,
           Addr _dirtyLineAddr, bool _handleDirtyLine,
           Tick _locRdEntered, Tick _locRdIssued, Tick _locRdExit,
-          Tick _locWrEntered, Tick _locWrExit,
-          Tick _farRdEntered, Tick _farRdIssued, Tick _farRdRecvd, Tick _farRdExit)
+          Tick _locWrEntered, Tick _locWrIssued, Tick _locWrExit,
+          Tick _farRdEntered, Tick _farRdIssued, Tick _farRdExit)
         :
         validEntry(_validEntry), arrivalTick(_arrivalTick),
         tagDC(_tagDC), indexDC(_indexDC),
@@ -230,8 +230,8 @@ class PolicyManager : public ClockedObject
         issued(_issued), isHit(_isHit), conflict(_conflict),
         dirtyLineAddr(_dirtyLineAddr), handleDirtyLine(_handleDirtyLine),
         locRdEntered(_locRdEntered), locRdIssued(_locRdIssued), locRdExit(_locRdExit),
-        locWrEntered(_locWrEntered), locWrExit(_locWrExit),
-        farRdEntered(_farRdEntered), farRdIssued(_farRdIssued), farRdRecvd(_farRdRecvd), farRdExit(_farRdExit)
+        locWrEntered(_locWrEntered), locWrIssued(_locWrIssued), locWrExit(_locWrExit),
+        farRdEntered(_farRdEntered), farRdIssued(_farRdIssued), farRdExit(_farRdExit)
         { }
     };
 
@@ -273,17 +273,17 @@ class PolicyManager : public ClockedObject
 
     // Counters and flags to keep track of read/write switchings
     // stallRds: A flag to stop processing reads and switching to writes
-    bool stallRds;
-    bool sendFarRdReq;
-    bool waitingForRetryReqPort;
-    bool rescheduleLocRead;
-    bool rescheduleLocWrite;
-    float locWrDrainPerc;
-    unsigned writeHighThreshold;
-    unsigned minLocWrPerSwitch;
-    unsigned minFarWrPerSwitch;
-    unsigned locWrCounter;
-    unsigned farWrCounter;
+    // bool stallRds;
+    // bool sendFarRdReq;
+    // bool waitingForRetryReqPort;
+    // bool rescheduleLocRead;
+    // bool rescheduleLocWrite;
+    // float locWrDrainPerc;
+    // unsigned writeHighThreshold;
+    // unsigned minLocWrPerSwitch;
+    // unsigned minFarWrPerSwitch;
+    // unsigned locWrCounter;
+    // unsigned farWrCounter;
 
     /**
      * A queue for evicted dirty lines of DRAM cache,
@@ -310,8 +310,8 @@ class PolicyManager : public ClockedObject
     void processLocMemReadEvent();
     EventFunctionWrapper locMemReadEvent;
 
-    void processLocMemReadRespEvent() {}
-    EventFunctionWrapper locMemReadRespEvent;
+    // void processLocMemReadRespEvent() {}
+    // EventFunctionWrapper locMemReadRespEvent;
 
     void processLocMemWriteEvent();
     EventFunctionWrapper locMemWriteEvent;
@@ -319,8 +319,8 @@ class PolicyManager : public ClockedObject
     void processFarMemReadEvent();
     EventFunctionWrapper farMemReadEvent;
 
-    void processFarMemReadRespEvent() {}
-    EventFunctionWrapper farMemReadRespEvent;
+    // void processFarMemReadRespEvent() {}
+    // EventFunctionWrapper farMemReadRespEvent;
 
     void processFarMemWriteEvent();
     EventFunctionWrapper farMemWriteEvent;
@@ -337,15 +337,15 @@ class PolicyManager : public ClockedObject
     bool checkConflictInDramCache(PacketPtr pkt);
     void checkConflictInCRB(reqBufferEntry* orbEntry);
     bool resumeConflictingReq(reqBufferEntry* orbEntry);
-    void logStatsDcache(reqBufferEntry* orbEntry) {}
+    void logStatsPolMan(reqBufferEntry* orbEntry);
     //reqBufferEntry* makeOrbEntry(reqBufferEntry* orbEntry, PacketPtr copyOwPkt);
     PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd, Request::FlagsType flags = 0);
     void dirtAdrGen() {}
 
-    unsigned countLocRdInORB() {}
-    unsigned countFarRdInORB() {}
-    unsigned countLocWrInORB() {}
-    unsigned countFarWr() {}
+    // unsigned countLocRdInORB() {}
+    // unsigned countFarRdInORB() {}
+    // unsigned countLocWrInORB() {}
+    // unsigned countFarWr() {}
 
     Addr returnIndexDC(Addr pkt_addr, unsigned size);
     Addr returnTagDC(Addr pkt_addr, unsigned size);
@@ -462,6 +462,18 @@ class PolicyManager : public ClockedObject
       Stats::Scalar totTimeInFarRead;
       Stats::Scalar QTLocRd;
       Stats::Scalar QTLocWr;
+
+      Stats::Scalar numTotHits;
+      Stats::Scalar numTotMisses;
+      Stats::Scalar numColdMisses;
+      Stats::Scalar numHotMisses;
+      Stats::Scalar numRdMissClean;
+      Stats::Scalar numRdMissDirty;
+      Stats::Scalar numRdHit;
+      Stats::Scalar numWrMissClean;
+      Stats::Scalar numWrMissDirty;
+      Stats::Scalar numWrHit;
+
     };
 
     PolicyManagerStats polManStats;
