@@ -95,7 +95,7 @@ class PolicyManager : public ClockedObject
 
     };
 
-    RespPortPolManager respPort;
+    RespPortPolManager port;
     ReqPortPolManager locReqPort;
     ReqPortPolManager farReqPort;
 
@@ -473,6 +473,10 @@ class PolicyManager : public ClockedObject
       Stats::Scalar numWrMissClean;
       Stats::Scalar numWrMissDirty;
       Stats::Scalar numWrHit;
+      Stats::Scalar numRdHitDirty;
+      Stats::Scalar numRdHitClean;
+      Stats::Scalar numWrHitDirty;
+      Stats::Scalar numWrHitClean;
 
     };
 

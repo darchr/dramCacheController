@@ -12,7 +12,7 @@ namespace memory
 
 PolicyManager::PolicyManager(const PolicyManagerParams &p):
     ClockedObject(p),
-    respPort(name() + ".resp_port", *this),
+    port(name() + ".port", *this),
     locReqPort(name() + ".loc_req_port", *this),
     farReqPort(name() + ".far_req_port", *this),
     locMemCtrl(p.loc_mem_ctrl),
@@ -54,14 +54,14 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
 void
 PolicyManager::init()
 {
-   if (!respPort.isConnected()) {
+   if (!port.isConnected()) {
         fatal("Policy Manager %s is unconnected!\n", name());
     } else if (!locReqPort.isConnected()) {
         fatal("Policy Manager %s is unconnected!\n", name());
     } else if (!farReqPort.isConnected()) {
         fatal("Policy Manager %s is unconnected!\n", name());
     } else {
-        respPort.sendRangeChange();
+        port.sendRangeChange();
         //reqPort.recvRangeChange();
     }
 }
@@ -399,7 +399,7 @@ PolicyManager::processFarMemWriteEvent()
 
     if (retryLLCFarMemWr && pktFarMemWrite.size()< (orbMaxSize / 2)) {
         retryLLCFarMemWr = false;
-        respPort.sendRetryReq();
+        port.sendRetryReq();
     }
 }
 
@@ -833,7 +833,7 @@ PolicyManager::sendRespondToRequestor(PacketPtr pkt, Tick static_latency)
 
     // queue the packet in the response queue to be sent out after
     // the static latency has passed
-    respPort.schedTimingResp(copyOwPkt, response_time);
+    port.schedTimingResp(copyOwPkt, response_time);
 
 }
 
@@ -896,7 +896,7 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
 
         if (retryLLC) {
             retryLLC = false;
-            respPort.sendRetryReq();
+            port.sendRetryReq();
         }
     }
 
@@ -1208,6 +1208,14 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
     ADD_STAT(numWrMissDirty,
             "stat"),
     ADD_STAT(numWrHit,
+            "stat"),
+    ADD_STAT(numRdHitDirty,
+            "stat"),
+    ADD_STAT(numRdHitClean,
+            "stat"),
+    ADD_STAT(numWrHitDirty,
+            "stat"),
+    ADD_STAT(numWrHitClean,
             "stat")
     
 {
@@ -1326,8 +1334,8 @@ PolicyManager::getPort(const std::string &if_name, PortID idx)
     panic_if(idx != InvalidPortID, "This object doesn't support vector ports");
 
     // This is the name from the Python SimObject declaration (SimpleMemobj.py)
-    if (if_name == "resp_port") {
-        return respPort;
+    if (if_name == "port") {
+        return port;
     } else if (if_name == "loc_req_port") {
         return locReqPort;
     } else if (if_name == "far_req_port") {

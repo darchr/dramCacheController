@@ -407,6 +407,7 @@ class AddrRange
     bool
     intersects(const AddrRange& r) const
     {
+        // std::cout << _start << " / " << _end << " / " << r._end << " / " << r._start << "\n";
         if (_start >= r._end || _end <= r._start) {
             // start with the simple case of no overlap at all,
             // applicable even if we have interleaved ranges
@@ -649,7 +650,9 @@ class AddrRange
         for (const auto &e : sorted_ranges) {
             assert(!e.interleaved());
             if (!intersects(e)) {
+                // std::cout << "here1\n";
                 continue;
+                // std::cout << "here2\n";
             }
 
             if (e.start() <= next_start) {

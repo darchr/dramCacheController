@@ -11,7 +11,7 @@ class PolicyManager(ClockedObject):
     cxx_header = "mem/policy_manager.hh"
     cxx_class = 'gem5::memory::PolicyManager'
 
-    resp_port = ResponsePort("This port responds to memory requests")
+    port = ResponsePort("This port responds to memory requests")
     loc_req_port = RequestPort("This port responds to requests for DRAM cache controller")
     far_req_port = RequestPort("This port responds to requests for backing store controller")
 

@@ -7,65 +7,11 @@ from m5.objects.NVMInterface import *
 
 args = argparse.ArgumentParser()
 
-# This scipt takes these arguments [device model for dram cache]
-# [dram cache size] [maximum orb size]
-# [traffic mode] [duration of simulation in ticks]
-# [max address] [request injection period in ticks] [rd percentage]
-# min address is 0, data limit is 0, block size is 64B.
-# crb_max_size is 32 by default.
-
-# sample cmd: gem5.opt traffGen.py DDR3_1600_8x8  16MiB
-#             32 linear 100000000 128MiB 1000 100
-# sample cmd: gem5.opt traffGen.py DDR4_2400_16x4 1GB
-#             32 random 100000000 2GB    1000 100
-
-# args.add_argument(
-#     "hit",
-#     type = bool,
-#     help = "always hit of miss"
-# )
-# 
-# args.add_argument(
-#     "dirty",
-#     type = bool,
-#     help = "always dirty or clean"
-# )
-
-# args.add_argument(
-#     "dram_cache_size",
-#     type = str,
-#     help = "Duration of simulation"
-# )
-# 
-# args.add_argument(
-#     "max_orb",
-#     type = int,
-#     help = "Duration of simulation"
-# )
-
 args.add_argument(
     "traffic_mode",
     type = str,
     help = "Traffic type to use"
 )
-
-# args.add_argument(
-#     "duration",
-#     type = int,
-#     help = "Duration of simulation"
-# )
-
-# args.add_argument(
-#     "max_address",
-#     type=str,
-#     help="End address of the range to be accessed",
-# )
-
-# args.add_argument(
-#     "inj_period",
-#     type = int,
-#     help = "Period to inject reqs"
-# )
 
 args.add_argument(
     "rd_prct",
@@ -89,16 +35,13 @@ system.policy_manager.loc_mem_ctrl = system.loc_mem_ctrl
 system.far_mem_ctrl = MemCtrl()
 system.policy_manager.far_mem_ctrl = system.far_mem_ctrl
 
-system.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '16GiB', masks = [1 << 6], intlvMatch = 0)
-                                                #,in_addr_map=False # DDR4_2400_16x4_Alloy
-                                            )
-system.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '16GiB', masks = [1 << 6], intlvMatch = 1)
-                                                #,in_addr_map=False # DDR4_2400_16x4_Alloy
-                                              )
+#system.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '16GiB', masks = [1 << 6], intlvMatch = 0))
+system.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=AddrRange('16GiB'))
+#system.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '16GiB', masks = [1 << 6], intlvMatch = 1))
 system.policy_manager.dram_cache_size = "1GiB"
 # system.loc_mem_ctrl.dram.read_buffer_size = 128
 # system.loc_mem_ctrl.dram.write_buffer_size = 128
-system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('16GiB'), in_addr_map=False)
+system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('16GiB'))
 
 system.policy_manager.always_hit = True
 system.policy_manager.always_dirty = False
@@ -146,3 +89,6 @@ else:
     exit()
 
 exit_event = m5.simulate()
+
+
+build/X86_MESI_Two_Level/gem5.opt --outdir=results_gapbs_small configs-gapbs-small/run_gapbs.py configs-gapbs-small/vmlinux-4.9.186 configs-gapbs-small/gapbs.img timing 8 MESI_Two_Level bc  1 22
