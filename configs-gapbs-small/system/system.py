@@ -227,12 +227,12 @@ class MySystem(System):
 
         self.mem_ctrl = PolicyManager()
 
-        # self.loc_mem_ctrl = HBMCtrl()
-        # self.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '1GiB', masks = [1 << 6], intlvMatch = 0))
-        # self.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '1GiB', masks = [1 << 6], intlvMatch = 1))
+        self.loc_mem_ctrl = HBMCtrl()
+        self.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '1GiB', masks = [1 << 6], intlvMatch = 0))
+        self.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '1GiB', masks = [1 << 6], intlvMatch = 1))
         
-        self.loc_mem_ctrl = MemCtrl()
-        self.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False)
+        # self.loc_mem_ctrl = MemCtrl()
+        # self.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map = False)
         
         
         self.far_mem_ctrl = MemCtrl()
