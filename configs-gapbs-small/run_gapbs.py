@@ -101,6 +101,8 @@ if __name__ == "__m5_main__":
     elif (mem_sys == "MI_example" or "MESI_Two_Level"):
         system = MyRubySystem(kernel, disk, mem_sys, num_cpus)
 
+    system.m5ops_base = 0xffff0000
+
     # For workitems to work correctly
     # This will cause the simulator to exit simulation when the first work
     # item is reached and when the first work item is finished.
@@ -123,14 +125,22 @@ if __name__ == "__m5_main__":
         # Note: The simulator is quite picky about this number!
         root.sim_quantum = int(1e9) # 1 ms
 
-    if not allow_listeners:
-        m5.disableAllListeners()
+    # if not allow_listeners:
+    #     m5.disableAllListeners()
 
     # instantiate all of the objects we've created above
     m5.instantiate()
 
     print("Running the simulation")
+    print("******************************1")
+    print("******************************1")
+    print("******************************1")
+    print("******************************1")
     exit_event = m5.simulate()
+    print("******************************2")
+    print("******************************2")
+    print("******************************2")
+    print("******************************2")
 
     if exit_event.getCause() == "work started count reach":
         print("Done booting Linux")

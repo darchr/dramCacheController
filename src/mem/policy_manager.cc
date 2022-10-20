@@ -233,7 +233,6 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
             maxConf = CRB.size();
             polManStats.maxNumConf = CRB.size();
         }
-
         return true;
     }
     // check if ORB or FMWB is full and set retry
@@ -450,25 +449,29 @@ void
 PolicyManager::locMemRecvReqRetry()
 {
     // assert(retryLocMemRead || retryLocMemWrite);
-
+    bool schedRd = false;
+    bool schedWr = false;
     if (retryLocMemRead) {
         if (!locMemReadEvent.scheduled() && !pktLocMemRead.empty()) {
             schedule(locMemReadEvent, curTick());
         }
         retryLocMemRead = false;
-    } else if (retryLocMemWrite) {
+        schedRd = true;
+    }
+    if (retryLocMemWrite) {
         if (!locMemWriteEvent.scheduled() && !pktLocMemWrite.empty()) {
             schedule(locMemWriteEvent, curTick());
         }
         retryLocMemWrite = false;
-    } else {
+        schedWr = true;
+    }
+    if (!schedRd && !schedWr) {
             // panic("Wrong local mem retry event happend.\n");
 
             // TODO: there are cases where none of retryLocMemRead and retryLocMemWrite
             // are true, yet locMemRecvReqRetry() is called. I should fix this later.
             if (!locMemReadEvent.scheduled() && !pktLocMemRead.empty()) {
                 schedule(locMemReadEvent, curTick());
-                return;
             }
             if (!locMemWriteEvent.scheduled() && !pktLocMemWrite.empty()) {
                 schedule(locMemWriteEvent, curTick());
@@ -689,7 +692,6 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     } else {
         tagMetadataStore.at(orbEntry->indexDC).dirtyLine = true;
     }
-    std::cout << orbEntry->owPkt->getAddr() << " --> " << orbEntry->indexDC << "\n";
     
     tagMetadataStore.at(orbEntry->indexDC).farMemAddr =
                         orbEntry->owPkt->getAddr();
@@ -840,6 +842,15 @@ PolicyManager::sendRespondToRequestor(PacketPtr pkt, Tick static_latency)
 bool
 PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
 {
+    // if ( locMemPolicy == enums::CascadeLakeNoPartWrs &&
+    //      !(orbEntry->owPkt->isRead() && !orbEntry->isHit)) {
+    //     PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
+    //                                      false,
+    //                                      orbEntry->owPkt->isRead());
+    //     farMemCtrl->callRecvFunctional(copyOwPkt);
+    // }
+    
+
     bool conflictFound = false;
 
     if (orbEntry->owPkt->isWrite()) {

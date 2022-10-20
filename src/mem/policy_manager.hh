@@ -61,7 +61,7 @@ class PolicyManager : public ClockedObject
 
         Tick recvAtomic(PacketPtr pkt) override {return MaxTick;}
         Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override {return MaxTick;}
-        void recvFunctional(PacketPtr pkt) override {}
+        void recvFunctional(PacketPtr pkt) override {polMan.farMemCtrl->callRecvFunctional(pkt);}
 
         bool recvTimingReq(PacketPtr pkt) override { return polMan.recvTimingReq(pkt); }
         AddrRangeList getAddrRanges() const override { return polMan.getAddrRanges(); }
@@ -79,13 +79,13 @@ class PolicyManager : public ClockedObject
       protected:
 
         void recvReqRetry()
-        { if (this->name() == "system.policy_manager.loc_req_port") { polMan.locMemRecvReqRetry(); }
-          if (this->name() == "system.policy_manager.far_req_port") { polMan.farMemRecvReqRetry(); }
+        { if (this->name() == "system.mem_ctrl.loc_req_port") { polMan.locMemRecvReqRetry(); }
+          if (this->name() == "system.mem_ctrl.far_req_port") { polMan.farMemRecvReqRetry(); }
         }
 
         bool recvTimingResp(PacketPtr pkt)
-        { if (this->name() == "system.policy_manager.loc_req_port") { return polMan.locMemRecvTimingResp(pkt); }
-          else if (this->name() == "system.policy_manager.far_req_port") { return polMan.farMemRecvTimingResp(pkt); }
+        { if (this->name() == "system.mem_ctrl.loc_req_port") { return polMan.locMemRecvTimingResp(pkt); }
+          else if (this->name() == "system.mem_ctrl.far_req_port") { return polMan.farMemRecvTimingResp(pkt); }
           else { std::cout << "Port name error, fix it!\n"; return false;}
         }
 

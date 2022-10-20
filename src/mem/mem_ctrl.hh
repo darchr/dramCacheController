@@ -773,7 +773,7 @@ class MemCtrl : public qos::MemCtrl
      */
     bool inWriteBusState(bool next_state) const;
 
-    void accessInterface(PacketPtr pkt);
+    void callRecvFunctional(PacketPtr pkt) {recvFunctional(pkt);}
 
     uint32_t bytesPerBurst() const;
 

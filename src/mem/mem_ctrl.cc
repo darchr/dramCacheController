@@ -783,13 +783,6 @@ MemCtrl::inWriteBusState(bool next_state) const
     }
 }
 
-void
-MemCtrl::accessInterface(PacketPtr pkt)
-{
-    dram->access(pkt);
-}
-
-
 uint32_t
 MemCtrl::bytesPerBurst() const
 {
@@ -1163,9 +1156,6 @@ MemCtrl::minWriteToReadDataGap()
 Addr
 MemCtrl::burstAlign(Addr addr, MemInterface* mem_intr) const
 {
-    if(addr!=(addr & ~(Addr(mem_intr->bytesPerBurst() - 1)))) {
-        std::cout << addr << "-->" << (addr & ~(Addr(mem_intr->bytesPerBurst() - 1))) << "\n";
-    }
     return (addr & ~(Addr(mem_intr->bytesPerBurst() - 1)));
 }
 
