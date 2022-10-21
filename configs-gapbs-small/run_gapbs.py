@@ -157,7 +157,7 @@ if __name__ == "__m5_main__":
             .format(m5.curTick(), exit_event.getCause()))
         exit()
 
-    exit_event = m5.simulate(2000000000000)
+    exit_event = m5.simulate(6000000000000)
 
     # it will exit either if the ROI is done 
     # or if the max number of insts is reached

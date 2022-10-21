@@ -773,7 +773,11 @@ class MemCtrl : public qos::MemCtrl
      */
     bool inWriteBusState(bool next_state) const;
 
+    Tick callRecvAtomic(PacketPtr pkt) {return recvAtomic(pkt);}
+    Tick callRecvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) {return recvAtomicBackdoor(pkt, backdoor);}
     void callRecvFunctional(PacketPtr pkt) {recvFunctional(pkt);}
+
+    void callMemIntfAccess(PacketPtr pkt);
 
     uint32_t bytesPerBurst() const;
 

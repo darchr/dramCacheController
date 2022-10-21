@@ -59,8 +59,9 @@ class PolicyManager : public ClockedObject
 
       protected:
 
-        Tick recvAtomic(PacketPtr pkt) override {return MaxTick;}
-        Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override {return MaxTick;}
+        Tick recvAtomic(PacketPtr pkt) override {return polMan.farMemCtrl->callRecvAtomic(pkt);}
+        Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override 
+                              {return polMan.farMemCtrl->callRecvAtomicBackdoor(pkt, backdoor);}
         void recvFunctional(PacketPtr pkt) override {polMan.farMemCtrl->callRecvFunctional(pkt);}
 
         bool recvTimingReq(PacketPtr pkt) override { return polMan.recvTimingReq(pkt); }

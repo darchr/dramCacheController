@@ -650,6 +650,12 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
 }
 
 void
+MemCtrl::callMemIntfAccess(PacketPtr pkt)
+{
+    dram->access(pkt);
+}
+
+void
 MemCtrl::pruneBurstTick()
 {
     auto it = burstTicks.begin();

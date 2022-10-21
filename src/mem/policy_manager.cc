@@ -747,8 +747,18 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
 
         if (orbEntry->owPkt->isRead()) {
             polManStats.numRdHit++;
+            if (currDirty) {
+                polManStats.numRdHitDirty++;
+            } else {
+                polManStats.numRdHitClean++;
+            }
         } else {
             polManStats.numWrHit++;
+            if (currDirty) {
+                polManStats.numWrHitDirty++;
+            } else {
+                polManStats.numWrHitClean++;
+            }
         }
 
     } else {
@@ -762,13 +772,13 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
         }
 
         if (orbEntry->owPkt->isRead()) {
-            if (currDirty) {
+            if (currDirty && currValid) {
                 polManStats.numRdMissDirty++;
             } else {
                 polManStats.numRdMissClean++;
             }
         } else {
-            if (currDirty) {
+            if (currDirty && currValid) {
                 polManStats.numWrMissDirty++;
             } else {
                 polManStats.numWrMissClean++;
@@ -786,12 +796,6 @@ PolicyManager::checkDirty(Addr addr)
     Addr index = returnIndexDC(addr, blockSize);
     return (tagMetadataStore.at(index).validLine &&
             tagMetadataStore.at(index).dirtyLine);
-
-    // always dirty
-    // return true;
-
-    // always clean
-    // return false;
 
     // return alwaysDirty;
 }
@@ -847,7 +851,7 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
     //     PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
     //                                      false,
     //                                      orbEntry->owPkt->isRead());
-    //     farMemCtrl->callRecvFunctional(copyOwPkt);
+    //     farMemCtrl->callMemIntfAccess(copyOwPkt);
     // }
     
 
