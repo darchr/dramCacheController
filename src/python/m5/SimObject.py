@@ -1159,6 +1159,7 @@ class SimObject(object, metaclass=MetaSimObject):
             if not self.abstract:
                 params = self.getCCParams()
                 self._ccObject = params.create()
+                print(self._ccObject)
         elif self._ccObject == -1:
             raise RuntimeError("%s: Cycle found in configuration hierarchy." \
                   % self.path())

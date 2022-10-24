@@ -24,6 +24,7 @@
 #include "base/types.hh"
 #include "enums/Policy.hh"
 #include "mem/mem_ctrl.hh"
+#include "mem/mem_interface.hh"
 #include "mem/packet.hh"
 #include "mem/qport.hh"
 #include "mem/request.hh"
@@ -38,7 +39,7 @@ namespace gem5
 
 namespace memory
 {
-class PolicyManager : public ClockedObject
+class PolicyManager : public AbstractMemory
 {
   protected:
 
@@ -59,13 +60,20 @@ class PolicyManager : public ClockedObject
 
       protected:
 
-        Tick recvAtomic(PacketPtr pkt) override {return polMan.farMemCtrl->callRecvAtomic(pkt);}
-        Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override 
-                              {return polMan.farMemCtrl->callRecvAtomicBackdoor(pkt, backdoor);}
-        void recvFunctional(PacketPtr pkt) override {polMan.farMemCtrl->callRecvFunctional(pkt);}
+        Tick recvAtomic(PacketPtr pkt) override
+                            {return polMan.farMemCtrl->callRecvAtomic(pkt);}
 
-        bool recvTimingReq(PacketPtr pkt) override { return polMan.recvTimingReq(pkt); }
-        AddrRangeList getAddrRanges() const override { return polMan.getAddrRanges(); }
+        Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override 
+                            {return polMan.farMemCtrl->callRecvAtomicBackdoor(pkt, backdoor);}
+
+        void recvFunctional(PacketPtr pkt) override
+                            {polMan.farMemCtrl->callRecvFunctional(pkt);}
+
+        bool recvTimingReq(PacketPtr pkt) override
+                            {return polMan.recvTimingReq(pkt);}
+
+        AddrRangeList getAddrRanges() const override
+                            {return polMan.getAddrRanges();}
 
     };
     
@@ -79,16 +87,9 @@ class PolicyManager : public ClockedObject
 
       protected:
 
-        void recvReqRetry()
-        { if (this->name() == "system.mem_ctrl.loc_req_port") { polMan.locMemRecvReqRetry(); }
-          if (this->name() == "system.mem_ctrl.far_req_port") { polMan.farMemRecvReqRetry(); }
-        }
+        void recvReqRetry();
 
-        bool recvTimingResp(PacketPtr pkt)
-        { if (this->name() == "system.mem_ctrl.loc_req_port") { return polMan.locMemRecvTimingResp(pkt); }
-          else if (this->name() == "system.mem_ctrl.far_req_port") { return polMan.farMemRecvTimingResp(pkt); }
-          else { std::cout << "Port name error, fix it!\n"; return false;}
-        }
+        bool recvTimingResp(PacketPtr pkt);
 
       private:
 
@@ -102,6 +103,8 @@ class PolicyManager : public ClockedObject
 
     MemCtrl* locMemCtrl;
     MemCtrl* farMemCtrl;
+
+    // AbstractMemory* backingStore;
 
     enums::Policy locMemPolicy;
 
@@ -339,6 +342,7 @@ class PolicyManager : public ClockedObject
     void checkConflictInCRB(reqBufferEntry* orbEntry);
     bool resumeConflictingReq(reqBufferEntry* orbEntry);
     void logStatsPolMan(reqBufferEntry* orbEntry);
+    void accessAndRespond(PacketPtr pkt, Tick static_latency);
     //reqBufferEntry* makeOrbEntry(reqBufferEntry* orbEntry, PacketPtr copyOwPkt);
     PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd, Request::FlagsType flags = 0);
     void dirtAdrGen() {}

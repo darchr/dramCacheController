@@ -151,6 +151,7 @@ if __name__ == "__m5_main__":
         if cpu_type != 'kvm':
             system.switchCpus(system.cpu, system.timingCpu)
             print("Switch to detailed cpu model")
+        print("Switch to detailed cpu model!!!!!!!!!!")
     else:
         print("ROI is not annotated!")
         print('Exiting @ tick {} because {}'

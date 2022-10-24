@@ -11,12 +11,13 @@ namespace memory
 {
 
 PolicyManager::PolicyManager(const PolicyManagerParams &p):
-    ClockedObject(p),
+    AbstractMemory(p),
     port(name() + ".port", *this),
     locReqPort(name() + ".loc_req_port", *this),
     farReqPort(name() + ".far_req_port", *this),
     locMemCtrl(p.loc_mem_ctrl),
     farMemCtrl(p.far_mem_ctrl),
+    // backingStore(p.backing_store),
     locMemPolicy(p.loc_mem_policy),
     dramCacheSize(p.dram_cache_size),
     blockSize(p.block_size),
@@ -100,7 +101,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     // check merging for writes
     if (pkt->isWrite()) {
 
-        polManStats.writePktSize[ceilLog2(size)]++;
+        // polManStats.writePktSize[ceilLog2(size)]++;
 
         bool merged = isInWriteQueue.find(locMemCtrl->burstAlign(addr)) !=
             isInWriteQueue.end();
@@ -548,7 +549,45 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
         orbEntry->owPkt->isRead() &&
         orbEntry->state == waitingFarMemReadResp &&
         !orbEntry->isHit) {
-            sendRespondToRequestor(orbEntry->owPkt, frontendLatency + backendLatency);
+            // PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
+            //                                  false,
+            //                                  orbEntry->owPkt->isRead());
+            // farMemCtrl->callMemIntfAccess(copyOwPkt);
+            // sendRespondToRequestor(orbEntry->owPkt, frontendLatency + backendLatency);
+            
+            PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
+                                             false,
+                                             orbEntry->owPkt->isRead());
+
+            accessAndRespond(orbEntry->owPkt,
+                             frontendLatency + backendLatency + backendLatency);
+
+            ORB.at(copyOwPkt->getAddr()) = new reqBufferEntry(
+                                                orbEntry->validEntry,
+                                                orbEntry->arrivalTick,
+                                                orbEntry->tagDC,
+                                                orbEntry->indexDC,
+                                                copyOwPkt,
+                                                orbEntry->pol,
+                                                orbEntry->state,
+                                                orbEntry->issued,
+                                                orbEntry->isHit,
+                                                orbEntry->conflict,
+                                                orbEntry->dirtyLineAddr,
+                                                orbEntry->handleDirtyLine,
+                                                orbEntry->locRdEntered,
+                                                orbEntry->locRdIssued,
+                                                orbEntry->locRdExit,
+                                                orbEntry->locWrEntered,
+                                                orbEntry->locWrIssued,
+                                                orbEntry->locWrExit,
+                                                orbEntry->farRdEntered,
+                                                orbEntry->farRdIssued,
+                                                orbEntry->farRdExit);
+            delete orbEntry;
+
+            orbEntry = ORB.at(copyOwPkt->getAddr());
+
             if (orbEntry->handleDirtyLine) {
                 handleDirtyCacheLine(orbEntry);
             }
@@ -588,7 +627,45 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
         orbEntry->isHit) {
             // DONE
             // send the respond to the requestor
-            sendRespondToRequestor(orbEntry->owPkt, frontendLatency + backendLatency);
+            // ***
+            // PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
+            //                                  false,
+            //                                  orbEntry->owPkt->isRead());
+            // farMemCtrl->callMemIntfAccess(copyOwPkt);
+            // sendRespondToRequestor(orbEntry->owPkt, frontendLatency + backendLatency);
+
+            PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
+                                             false,
+                                             orbEntry->owPkt->isRead());
+
+            accessAndRespond(orbEntry->owPkt,
+                             frontendLatency + backendLatency);
+
+            ORB.at(copyOwPkt->getAddr()) = new reqBufferEntry(
+                                                orbEntry->validEntry,
+                                                orbEntry->arrivalTick,
+                                                orbEntry->tagDC,
+                                                orbEntry->indexDC,
+                                                copyOwPkt,
+                                                orbEntry->pol,
+                                                orbEntry->state,
+                                                orbEntry->issued,
+                                                orbEntry->isHit,
+                                                orbEntry->conflict,
+                                                orbEntry->dirtyLineAddr,
+                                                orbEntry->handleDirtyLine,
+                                                orbEntry->locRdEntered,
+                                                orbEntry->locRdIssued,
+                                                orbEntry->locRdExit,
+                                                orbEntry->locWrEntered,
+                                                orbEntry->locWrIssued,
+                                                orbEntry->locWrExit,
+                                                orbEntry->farRdEntered,
+                                                orbEntry->farRdIssued,
+                                                orbEntry->farRdExit);
+            delete orbEntry;
+
+            orbEntry = ORB.at(copyOwPkt->getAddr());
 
             // clear ORB
             resumeConflictingReq(orbEntry);
@@ -660,7 +737,43 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     ORB.emplace(pkt->getAddr(), orbEntry);
 
     if (pkt->isWrite()) {
-        sendRespondToRequestor(pkt, frontendLatency);
+        // PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
+        //                                  false,
+        //                                  orbEntry->owPkt->isRead());
+        // farMemCtrl->callMemIntfAccess(copyOwPkt);
+        // sendRespondToRequestor(pkt, frontendLatency);
+
+        PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
+                                             false,
+                                             orbEntry->owPkt->isRead());
+
+        accessAndRespond(orbEntry->owPkt, frontendLatency);
+
+        ORB.at(copyOwPkt->getAddr()) = new reqBufferEntry(
+                                            orbEntry->validEntry,
+                                            orbEntry->arrivalTick,
+                                            orbEntry->tagDC,
+                                            orbEntry->indexDC,
+                                            copyOwPkt,
+                                            orbEntry->pol,
+                                            orbEntry->state,
+                                            orbEntry->issued,
+                                            orbEntry->isHit,
+                                            orbEntry->conflict,
+                                            orbEntry->dirtyLineAddr,
+                                            orbEntry->handleDirtyLine,
+                                            orbEntry->locRdEntered,
+                                            orbEntry->locRdIssued,
+                                            orbEntry->locRdExit,
+                                            orbEntry->locWrEntered,
+                                            orbEntry->locWrIssued,
+                                            orbEntry->locWrExit,
+                                            orbEntry->farRdEntered,
+                                            orbEntry->farRdIssued,
+                                            orbEntry->farRdExit);
+        delete orbEntry;
+
+        orbEntry = ORB.at(copyOwPkt->getAddr());
     }
 
     // polManStats.avgORBLen = ORB.size();
@@ -798,6 +911,47 @@ PolicyManager::checkDirty(Addr addr)
             tagMetadataStore.at(index).dirtyLine);
 
     // return alwaysDirty;
+}
+
+void
+PolicyManager::accessAndRespond(PacketPtr pkt, Tick static_latency)
+{
+    DPRINTF(PolicyManager, "Responding to Address %#x.. \n", pkt->getAddr());
+
+    bool needsResponse = pkt->needsResponse();
+    // do the actual memory access which also turns the packet into a
+    // response
+    panic_if(getAddrRange().contains(pkt->getAddr()),
+             "Can't handle address range for packet %s\n", pkt->print());
+    access(pkt);
+
+    // turn packet around to go back to requestor if response expected
+    assert(needsResponse);
+    //if (needsResponse) {
+        // access already turned the packet into a response
+        assert(pkt->isResponse());
+        // response_time consumes the static latency and is charged also
+        // with headerDelay that takes into account the delay provided by
+        // the xbar and also the payloadDelay that takes into account the
+        // number of data beats.
+        Tick response_time = curTick() + static_latency + pkt->headerDelay +
+                             pkt->payloadDelay;
+        // Here we reset the timing of the packet before sending it out.
+        pkt->headerDelay = pkt->payloadDelay = 0;
+
+        // queue the packet in the response queue to be sent out after
+        // the static latency has passed
+        port.schedTimingResp(pkt, response_time);
+    //} 
+    // else {
+    //     // @todo the packet is going to be deleted, and the MemPacket
+    //     // is still having a pointer to it
+    //     pendingDelete.reset(pkt);
+    // }
+
+    DPRINTF(PolicyManager, "Done\n");
+
+    return;
 }
 
 PacketPtr
@@ -1017,6 +1171,30 @@ PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
 
 }
 
+
+void
+PolicyManager::ReqPortPolManager::recvReqRetry()
+{
+    if (this->name() == "system.mem_ctrl.loc_req_port") {
+        polMan.locMemRecvReqRetry();
+    }
+    if (this->name() == "system.mem_ctrl.far_req_port") {
+        polMan.farMemRecvReqRetry();
+    }
+}
+
+bool
+PolicyManager::ReqPortPolManager::recvTimingResp(PacketPtr pkt)
+{
+    if (this->name() == "system.mem_ctrl.loc_req_port") {
+        return polMan.locMemRecvTimingResp(pkt);
+    } else if (this->name() == "system.mem_ctrl.far_req_port") {
+        return polMan.farMemRecvTimingResp(pkt);
+    } else {
+        std::cout << "Port name error, fix it!\n";
+        return false;
+    }
+}
 
 PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
     : statistics::Group(&_polMan),

@@ -1,12 +1,12 @@
 from m5.params import *
 from m5.proxy import *
 from m5.SimObject import SimObject
-from m5.objects.ClockedObject import ClockedObject
+from m5.objects.AbstractMemory import AbstractMemory
 
 class Policy(Enum): vals = ['MainMemory' , 'CascadeLake', 'CascadeLakeNoPartWrs', 'CascadeLakeHBM2',
                             'AlloyCache', 'AlloyCacheHBM2']
 
-class PolicyManager(ClockedObject):
+class PolicyManager(AbstractMemory):
     type = 'PolicyManager'
     cxx_header = "mem/policy_manager.hh"
     cxx_class = 'gem5::memory::PolicyManager'

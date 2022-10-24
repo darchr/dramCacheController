@@ -1205,7 +1205,7 @@ class Packet : public Printable
     const T*
     getConstPtr() const
     {
-        assert(flags.isSet(STATIC_DATA|DYNAMIC_DATA));
+        //assert(flags.isSet(STATIC_DATA|DYNAMIC_DATA));
         return (const T*)data;
     }
 

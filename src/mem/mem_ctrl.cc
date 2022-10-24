@@ -652,7 +652,8 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
 void
 MemCtrl::callMemIntfAccess(PacketPtr pkt)
 {
-    dram->access(pkt);
+    assert (dram->getAddrRange().contains(pkt->getAddr()));
+    dram->functionalAccess(pkt);
 }
 
 void
