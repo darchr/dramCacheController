@@ -15,8 +15,10 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     port(name() + ".port", *this),
     locReqPort(name() + ".loc_req_port", *this),
     farReqPort(name() + ".far_req_port", *this),
-    locMemCtrl(p.loc_mem_ctrl),
-    farMemCtrl(p.far_mem_ctrl),
+    locBurstSize(p.loc_burst_size),
+    farBurstSize(p.far_burst_size),
+    // locMemCtrl(p.loc_mem_ctrl),
+    // farMemCtrl(p.far_mem_ctrl),
     // backingStore(p.backing_store),
     locMemPolicy(p.loc_mem_policy),
     dramCacheSize(p.dram_cache_size),
@@ -27,6 +29,9 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     alwaysHit(p.always_hit), alwaysDirty(p.always_dirty),
     frontendLatency(p.static_frontend_latency),
     backendLatency(p.static_backend_latency),
+    tRP(p.tRP),
+    tRCD_RD(p.tRCD_RD),
+    tRL(p.tRL),
     retryLLC(false), retryLLCFarMemWr(false),
     retryLocMemRead(false), retryFarMemRead(false),
     retryLocMemWrite(false), retryFarMemWrite(false),
@@ -50,6 +55,66 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
 
     tagMetadataStore.resize(dramCacheSize/blockSize);
 
+}
+
+Tick
+PolicyManager::recvAtomic(PacketPtr pkt)
+{
+    if (!getAddrRange().contains(pkt->getAddr())) {
+        panic("Can't handle address range for packet %s\n", pkt->print());
+    }
+
+    DPRINTF(PolicyManager, "recvAtomic: %s 0x%x\n",
+                     pkt->cmdString(), pkt->getAddr());
+
+    panic_if(pkt->cacheResponding(), "Should not see packets where cache "
+             "is responding");
+
+    // do the actual memory access and turn the packet into a response
+    access(pkt);
+
+    if (pkt->hasData()) {
+        // this value is not supposed to be accurate, just enough to
+        // keep things going, mimic a closed page
+        // also this latency can't be 0
+        // panic("Can't handle this process --> implement accessLatency() "
+        //         "according to your interface. pkt: %s\n", pkt->print());
+        return accessLatency();
+    }
+
+    return 0;
+}
+
+Tick
+PolicyManager::recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor)
+{
+    Tick latency = recvAtomic(pkt);
+    getBackdoor(backdoor);
+    return latency;
+}
+
+void
+PolicyManager::recvFunctional(PacketPtr pkt)
+{
+    bool found;
+    
+    if (getAddrRange().contains(pkt->getAddr())) {
+        // rely on the abstract memory
+        functionalAccess(pkt);
+        found = true;
+    } else {
+        found = false;
+    }
+
+    panic_if(!found, "Can't handle address range for packet %s\n",
+             pkt->print());
+}
+
+Tick
+PolicyManager::accessLatency()
+{
+    // THIS IS FOR DRAM ONLY!
+    return (tRP + tRCD_RD + tRL);
 }
 
 void
@@ -94,7 +159,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
 
     const Addr base_addr = pkt->getAddr();
     Addr addr = base_addr;
-    uint32_t burst_size = locMemCtrl->bytesPerBurst();
+    uint32_t burst_size = locBurstSize;
     unsigned size = std::min((addr | (burst_size - 1)) + 1,
                     base_addr + pkt->getSize()) - addr;
 
@@ -103,7 +168,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
 
         // polManStats.writePktSize[ceilLog2(size)]++;
 
-        bool merged = isInWriteQueue.find(locMemCtrl->burstAlign(addr)) !=
+        bool merged = isInWriteQueue.find((addr & ~(Addr(locBurstSize - 1)))) !=
             isInWriteQueue.end();
 
         if (merged) {
@@ -211,6 +276,8 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
 
         if (CRB.size()>=crbMaxSize) {
 
+            DPRINTF(PolicyManager, "CRBfull: %lld\n", pkt->getAddr());
+
             polManStats.totNumConfBufFull++;
 
             retryLLC = true;
@@ -238,7 +305,9 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     }
     // check if ORB or FMWB is full and set retry
     if (pktFarMemWrite.size() >= (orbMaxSize / 2)) {
+
         DPRINTF(PolicyManager, "FMWBfull: %lld\n", pkt->getAddr());
+
         retryLLCFarMemWr = true;
 
         if (pkt->isRead()) {
@@ -251,8 +320,11 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     }
 
     if (ORB.size() >= orbMaxSize) {
+
         DPRINTF(PolicyManager, "ORBfull: addr %lld\n", pkt->getAddr());
+
         polManStats.totNumORBFull++;
+
         retryLLC = true;
 
         if (pkt->isRead()) {
@@ -274,7 +346,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
 
     pktLocMemRead.push_back(pkt->getAddr());
 
-    polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
+    // polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
 
     setNextState(ORB.at(pkt->getAddr()));
 
@@ -398,7 +470,11 @@ PolicyManager::processFarMemWriteEvent()
     }
 
     if (retryLLCFarMemWr && pktFarMemWrite.size()< (orbMaxSize / 2)) {
+
+        DPRINTF(PolicyManager, "retryLLCFarMemWr sent\n");
+
         retryLLCFarMemWr = false;
+
         port.sendRetryReq();
     }
 }
@@ -406,6 +482,7 @@ PolicyManager::processFarMemWriteEvent()
 bool
 PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
 {
+    DPRINTF(PolicyManager, "locMemRecvTimingResp : %lld\n", pkt->getAddr());
     auto orbEntry = ORB.at(pkt->getAddr());
 
     if (pkt->isRead()) {
@@ -418,9 +495,14 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
         orbEntry->locWrExit = curTick();
     }
 
-    setNextState(orbEntry);
+    // IMPORTANT:
+    // orbEntry should not be used as the passed argument in setNextState and
+    // handleNextState functions, reason: it's possible that orbEntry may be
+    // deleted and updated, which will not be reflected here in the scope of
+    // current lines since it's been read at line #475.
+    setNextState(ORB.at(pkt->getAddr()));
 
-    handleNextState(orbEntry);
+    handleNextState(ORB.at(pkt->getAddr()));
 
     delete pkt;
 
@@ -430,12 +512,32 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
 bool
 PolicyManager::farMemRecvTimingResp(PacketPtr pkt)
 {
+    DPRINTF(PolicyManager, "farMemRecvTimingResp : %lld , %s \n", pkt->getAddr(), pkt->cmdString());
+
     if (pkt->isRead()) {
+
         auto orbEntry = ORB.at(pkt->getAddr());
+
+        DPRINTF(PolicyManager, "farMemRecvTimingResp : continuing to far read resp: %d\n",
+        orbEntry->owPkt->isRead());
+
         assert(orbEntry->state == waitingFarMemReadResp);
+
         orbEntry->farRdExit = curTick();
-        setNextState(orbEntry);
-        handleNextState(orbEntry);
+
+        // IMPORTANT:
+        // orbEntry should not be used as the passed argument in setNextState and
+        // handleNextState functions, reason: it's possible that orbEntry may be
+        // deleted and updated, which will not be reflected here in the scope of
+        // current lines since it's been read at line #508.
+        setNextState(ORB.at(pkt->getAddr()));
+
+        // The next line is absolutely required since the orbEntry will
+        // be deleted and renewed within setNextState()
+        // orbEntry = ORB.at(pkt->getAddr());
+
+        handleNextState(ORB.at(pkt->getAddr()));
+
         delete pkt;
     }
     else {
@@ -453,6 +555,7 @@ PolicyManager::locMemRecvReqRetry()
     bool schedRd = false;
     bool schedWr = false;
     if (retryLocMemRead) {
+        
         if (!locMemReadEvent.scheduled() && !pktLocMemRead.empty()) {
             schedule(locMemReadEvent, curTick());
         }
@@ -478,26 +581,35 @@ PolicyManager::locMemRecvReqRetry()
                 schedule(locMemWriteEvent, curTick());
             }
     }
+
+    DPRINTF(PolicyManager, "locMemRecvReqRetry: %d , %d \n", schedRd, schedWr);
 }
 
 void
 PolicyManager::farMemRecvReqRetry()
 {
     assert(retryFarMemRead || retryFarMemWrite);
+
+    bool schedRd = false;
+    bool schedWr = false;
     
     if (retryFarMemRead) {
         if (!farMemReadEvent.scheduled() && !pktFarMemRead.empty()) {
             schedule(farMemReadEvent, curTick());
         }
         retryFarMemRead = false;
+        schedRd = true;
     } else if (retryFarMemWrite) {
         if (!farMemWriteEvent.scheduled() && !pktFarMemWrite.empty()) {
             schedule(farMemWriteEvent, curTick());
         }
         retryFarMemWrite = false;
+        schedWr = true;
     } else {
         panic("Wrong far mem retry event happend.\n");
     }
+
+    DPRINTF(PolicyManager, "farMemRecvReqRetry: %d , %d \n", schedRd, schedWr);
 }
 
 
@@ -736,6 +848,12 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
 
     ORB.emplace(pkt->getAddr(), orbEntry);
 
+    polManStats.avgORBLen = ORB.size();
+    polManStats.avgLocRdQLenStrt = countLocRdInORB();
+    polManStats.avgFarRdQLenStrt = countFarRdInORB();
+    polManStats.avgLocWrQLenStrt = countLocWrInORB();
+    polManStats.avgFarWrQLenStrt = countFarWr();
+
     if (pkt->isWrite()) {
         // PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
         //                                  false,
@@ -747,7 +865,8 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
                                              false,
                                              orbEntry->owPkt->isRead());
 
-        accessAndRespond(orbEntry->owPkt, frontendLatency);
+        accessAndRespond(orbEntry->owPkt,
+                         frontendLatency + backendLatency);
 
         ORB.at(copyOwPkt->getAddr()) = new reqBufferEntry(
                                             orbEntry->validEntry,
@@ -775,13 +894,6 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
 
         orbEntry = ORB.at(copyOwPkt->getAddr());
     }
-
-    // polManStats.avgORBLen = ORB.size();
-    polManStats.avgORBLen = ORB.size();
-    // polManStats.avgLocRdQLenStrt = countLocRdInORB();
-    // polManStats.avgFarRdQLenStrt = countFarRdInORB();
-    // polManStats.avgLocWrQLenStrt = countLocWrInORB();
-    // polManStats.avgFarWrQLenStrt = countFarWr();
 
     checkHitOrMiss(orbEntry);
 
@@ -812,7 +924,7 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     
     Addr addr = pkt->getAddr();
 
-    unsigned burst_size = locMemCtrl->bytesPerBurst();
+    unsigned burst_size = locBurstSize;
 
     unsigned size = std::min((addr | (burst_size - 1)) + 1,
                              addr + pkt->getSize()) - addr;
@@ -916,12 +1028,12 @@ PolicyManager::checkDirty(Addr addr)
 void
 PolicyManager::accessAndRespond(PacketPtr pkt, Tick static_latency)
 {
-    DPRINTF(PolicyManager, "Responding to Address %#x.. \n", pkt->getAddr());
+    DPRINTF(PolicyManager, "Responding to Address %d \n", pkt->getAddr());
 
     bool needsResponse = pkt->needsResponse();
     // do the actual memory access which also turns the packet into a
     // response
-    panic_if(getAddrRange().contains(pkt->getAddr()),
+    panic_if(!getAddrRange().contains(pkt->getAddr()),
              "Can't handle address range for packet %s\n", pkt->print());
     access(pkt);
 
@@ -1044,7 +1156,7 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
 
                 pktLocMemRead.push_back(confAddr);
 
-                polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
+                // polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
 
                 setNextState(ORB.at(confAddr));
 
@@ -1064,6 +1176,7 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
         delete orbEntry;
 
         if (retryLLC) {
+            DPRINTF(PolicyManager, "retryLLC: sent\n");
             retryLLC = false;
             port.sendRetryReq();
         }
@@ -1087,12 +1200,54 @@ PolicyManager::checkConflictInCRB(reqBufferEntry* orbEntry)
     }
 }
 
+unsigned
+PolicyManager::countLocRdInORB()
+{
+    unsigned count =0;
+    for (auto i : ORB) {
+        if (i.second->state == locMemRead) {
+            count++;
+        }
+    }
+    return count;
+}
+
+unsigned
+PolicyManager::countFarRdInORB()
+{
+    unsigned count =0;
+    for (auto i : ORB) {
+        if (i.second->state == farMemRead) {
+            count++;
+        }
+    }
+    return count;
+}
+
+unsigned
+PolicyManager::countLocWrInORB()
+{
+    unsigned count =0;
+    for (auto i : ORB) {
+        if (i.second->state == locMemWrite) {
+            count++;
+        }
+    }
+    return count;
+}
+
+unsigned
+PolicyManager::countFarWr()
+{
+    return pktFarMemWrite.size();
+}
+
 AddrRangeList
 PolicyManager::getAddrRanges()
 {
     // AddrRangeList ranges;
-    AddrRangeList locRanges = locMemCtrl->getAddrRanges();
-    AddrRangeList farRanges = farMemCtrl->getAddrRanges();
+    AddrRangeList locRanges = locReqPort.getAddrRanges();
+    AddrRangeList farRanges = farReqPort.getAddrRanges();
 
     locRanges.merge(farRanges);
     

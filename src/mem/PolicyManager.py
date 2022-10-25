@@ -11,12 +11,18 @@ class PolicyManager(AbstractMemory):
     cxx_header = "mem/policy_manager.hh"
     cxx_class = 'gem5::memory::PolicyManager'
 
+
+    #system = Param.System(Parent.any, "System that the controller belongs to.")
+
     port = ResponsePort("This port responds to memory requests")
     loc_req_port = RequestPort("This port responds to requests for DRAM cache controller")
     far_req_port = RequestPort("This port responds to requests for backing store controller")
 
-    loc_mem_ctrl = Param.MemCtrl("Local memory controller")
-    far_mem_ctrl = Param.MemCtrl("Far memory controller")
+    loc_burst_size = Param.Unsigned(64, "Local memory burst size")
+    far_burst_size = Param.Unsigned(64, "Far memory burst size")
+
+    # loc_mem_ctrl = Param.MemCtrl("Local memory controller")
+    # far_mem_ctrl = Param.MemCtrl("Far memory controller")
 
     loc_mem_policy = Param.Policy('CascadeLakeNoPartWrs', "DRAM Cache Policy")
 
@@ -29,4 +35,8 @@ class PolicyManager(AbstractMemory):
     always_dirty = Param.Bool(False, "Control flag for enforcing clean/dirty")
     static_frontend_latency = Param.Latency("10ns", "Static frontend latency")
     static_backend_latency = Param.Latency("10ns", "Static backend latency")
+
+    tRP = Param.Latency("Row precharge time")
+    tRCD_RD = Param.Latency("RAS to Read CAS delay")
+    tRL = Param.Latency("Read CAS latency")
     

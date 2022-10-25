@@ -613,7 +613,7 @@ void
 MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
                                                 MemInterface* mem_intr)
 {
-    DPRINTF(MemCtrl, "Responding to Address %#x.. \n", pkt->getAddr());
+    DPRINTF(MemCtrl, "Responding to Address %d.. \n", pkt->getAddr());
 
     bool needsResponse = pkt->needsResponse();
     // do the actual memory access which also turns the packet into a
@@ -647,13 +647,6 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
     DPRINTF(MemCtrl, "Done\n");
 
     return;
-}
-
-void
-MemCtrl::callMemIntfAccess(PacketPtr pkt)
-{
-    assert (dram->getAddrRange().contains(pkt->getAddr()));
-    dram->functionalAccess(pkt);
 }
 
 void

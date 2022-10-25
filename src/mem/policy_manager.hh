@@ -61,13 +61,13 @@ class PolicyManager : public AbstractMemory
       protected:
 
         Tick recvAtomic(PacketPtr pkt) override
-                            {return polMan.farMemCtrl->callRecvAtomic(pkt);}
+                            {return polMan.recvAtomic(pkt);}
 
         Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override 
-                            {return polMan.farMemCtrl->callRecvAtomicBackdoor(pkt, backdoor);}
+                            {return polMan.recvAtomicBackdoor(pkt, backdoor);}
 
         void recvFunctional(PacketPtr pkt) override
-                            {polMan.farMemCtrl->callRecvFunctional(pkt);}
+                            {polMan.recvFunctional(pkt);}
 
         bool recvTimingReq(PacketPtr pkt) override
                             {return polMan.recvTimingReq(pkt);}
@@ -101,10 +101,13 @@ class PolicyManager : public AbstractMemory
     ReqPortPolManager locReqPort;
     ReqPortPolManager farReqPort;
 
-    MemCtrl* locMemCtrl;
-    MemCtrl* farMemCtrl;
+    unsigned locBurstSize;
+    unsigned farBurstSize;
 
-    // AbstractMemory* backingStore;
+    // MemCtrl* locMemCtrl;
+    // MemCtrl* farMemCtrl;
+
+    //AbstractMemory* backingStore;
 
     enums::Policy locMemPolicy;
 
@@ -138,6 +141,10 @@ class PolicyManager : public AbstractMemory
      * by the memory.
      */
     const Tick backendLatency;
+
+    Tick tRP;
+    Tick tRCD_RD;
+    Tick tRL;
 
     Tick prevArrival;
 
@@ -345,7 +352,13 @@ class PolicyManager : public AbstractMemory
     void accessAndRespond(PacketPtr pkt, Tick static_latency);
     //reqBufferEntry* makeOrbEntry(reqBufferEntry* orbEntry, PacketPtr copyOwPkt);
     PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd, Request::FlagsType flags = 0);
-    void dirtAdrGen() {}
+    
+    Tick accessLatency();
+
+    unsigned countLocRdInORB();
+    unsigned countFarRdInORB();
+    unsigned countLocWrInORB();
+    unsigned countFarWr();
 
     // unsigned countLocRdInORB() {}
     // unsigned countFarRdInORB() {}
@@ -495,11 +508,12 @@ class PolicyManager : public AbstractMemory
 
     Port &getPort(const std::string &if_name,
                   PortID idx=InvalidPortID);
+    
+    protected:
 
-    // bool requestEventScheduled(uint8_t pseudo_channel = 0) const override;
-    // void restartScheduler(Tick tick,  uint8_t pseudo_channel = 0) override;
-    // bool respondEventScheduled() const override { return locMemReadRespEvent.scheduled(); }
-
+      Tick recvAtomic(PacketPtr pkt);
+      Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor);
+      void recvFunctional(PacketPtr pkt);
 };
 
 } // namespace memory

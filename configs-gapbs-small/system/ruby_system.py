@@ -144,7 +144,11 @@ class MyRubySystem(System):
         #    for i in range(num)
         #    ]
 
-        self.mem_ctrl = PolicyManager()
+        self.mem_ctrl = PolicyManager(range=self.mem_ranges[0])
+        # FOR DDR4
+        self.mem_ctrl.tRP = '14.16ns'
+        self.mem_ctrl.tRCD_RD = '14.16ns'
+        self.mem_ctrl.tRL = '14.16ns'
 
         # self.loc_mem_ctrl = HBMCtrl()
         # self.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '1GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
@@ -154,15 +158,10 @@ class MyRubySystem(System):
         self.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
         
         self.far_mem_ctrl = MemCtrl()
-        self.far_mem_ctrl.dram = DDR4_2400_16x4(range=self.mem_ranges[0])
+        self.far_mem_ctrl.dram = DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
 
-        self.mem_ctrl.loc_mem_ctrl = self.loc_mem_ctrl
-        self.mem_ctrl.far_mem_ctrl = self.far_mem_ctrl
-
-        self.mem_ctrl.loc_mem_ctrl.port = self.mem_ctrl.loc_req_port
-        self.mem_ctrl.far_mem_ctrl.port = self.mem_ctrl.far_req_port
-
-        # # # #self.mem_ctrl.port = self.membus.mem_side_ports
+        self.loc_mem_ctrl.port = self.mem_ctrl.loc_req_port
+        self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
 
         self.mem_ctrl.dram_cache_size = "64MiB"
 

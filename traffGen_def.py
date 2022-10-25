@@ -29,7 +29,7 @@ system.mem_mode = 'timing'
 
 system.generator = PyTrafficGen()
 
-system.policy_manager = PolicyManager(range=AddrRange('1GiB'))
+system.mem_ctrl = PolicyManager(range=AddrRange('1GiB'))
 
 system.loc_mem_ctrl = MemCtrl()
 system.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=False, null=True)
@@ -37,14 +37,14 @@ system.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=F
 system.far_mem_ctrl = MemCtrl()
 system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=False, null=True)
 
-system.policy_manager.loc_mem_ctrl = system.loc_mem_ctrl
-system.policy_manager.far_mem_ctrl = system.far_mem_ctrl
+# system.mem_ctrl.loc_mem_ctrl = system.loc_mem_ctrl
+# system.mem_ctrl.far_mem_ctrl = system.far_mem_ctrl
 
-system.policy_manager.dram_cache_size = "64MiB"
+system.mem_ctrl.dram_cache_size = "64MiB"
 
-system.generator.port = system.policy_manager.port
-system.loc_mem_ctrl.port = system.policy_manager.loc_req_port
-system.far_mem_ctrl.port = system.policy_manager.far_req_port
+system.generator.port = system.mem_ctrl.port
+system.loc_mem_ctrl.port = system.mem_ctrl.loc_req_port
+system.far_mem_ctrl.port = system.mem_ctrl.far_req_port
 
 def createRandomTraffic(tgen):
     yield tgen.createRandom(10000000000,            # duration
@@ -67,7 +67,6 @@ def createLinearTraffic(tgen):
                             options.rd_prct,        # rd_perc
                             0)                      # data_limit
     yield tgen.createExit(0)
-
 
 root = Root(full_system=False, system=system)
 
