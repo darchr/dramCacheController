@@ -35,19 +35,10 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     retryLLC(false), retryLLCFarMemWr(false),
     retryLocMemRead(false), retryFarMemRead(false),
     retryLocMemWrite(false), retryFarMemWrite(false),
-    // stallRds(false), sendFarRdReq(true),
-    // waitingForRetryReqPort(false),
-    // rescheduleLocRead(false),
-    // rescheduleLocWrite(false),
-    // locWrCounter(0), farWrCounter(0),
     maxConf(0),
-    maxLocRdEvQ(0), maxLocRdRespEvQ(0), maxLocWrEvQ(0),
-    maxFarRdEvQ(0), maxFarRdRespEvQ(0), maxFarWrEvQ(0),
     locMemReadEvent([this]{ processLocMemReadEvent(); }, name()),
-    // locMemReadRespEvent([this]{ processLocMemReadRespEvent(); }, name()),
     locMemWriteEvent([this]{ processLocMemWriteEvent(); }, name()),
     farMemReadEvent([this]{ processFarMemReadEvent(); }, name()),
-    // farMemReadRespEvent([this]{ processFarMemReadRespEvent(); }, name()),
     farMemWriteEvent([this]{ processFarMemWriteEvent(); }, name()),
     polManStats(*this)
 {
@@ -278,7 +269,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
 
             DPRINTF(PolicyManager, "CRBfull: %lld\n", pkt->getAddr());
 
-            polManStats.totNumConfBufFull++;
+            polManStats.totNumCRBFull++;
 
             retryLLC = true;
 
@@ -346,7 +337,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
 
     pktLocMemRead.push_back(pkt->getAddr());
 
-    // polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
+    polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
 
     setNextState(ORB.at(pkt->getAddr()));
 
@@ -376,10 +367,12 @@ PolicyManager::processLocMemReadEvent()
         orbEntry->issued = true;
         orbEntry->locRdIssued = curTick();
         pktLocMemRead.pop_front();
+        polManStats.sentLocRdPort++;
     } else {
         DPRINTF(PolicyManager, "loc mem read sending failed: %lld\n", rdLocMemPkt->getAddr());
         retryLocMemRead = true;
         delete rdLocMemPkt;
+        polManStats.failedLocRdPort++;
     }
 
     if (!pktLocMemRead.empty() && !locMemReadEvent.scheduled() && !retryLocMemRead) {
@@ -406,10 +399,12 @@ PolicyManager::processLocMemWriteEvent()
         orbEntry->issued = true;
         orbEntry->locWrIssued = curTick();
         pktLocMemWrite.pop_front();
+        polManStats.sentLocWrPort++;
     } else {
         DPRINTF(PolicyManager, "loc mem write sending failed: %lld\n", wrLocMemPkt->getAddr());
         retryLocMemWrite = true;
         delete wrLocMemPkt;
+        polManStats.failedLocWrPort++;
     }
 
     if (!pktLocMemWrite.empty() && !locMemWriteEvent.scheduled() && !retryLocMemWrite) {
@@ -436,10 +431,12 @@ PolicyManager::processFarMemReadEvent()
         orbEntry->issued = true;
         orbEntry->farRdIssued = curTick();
         pktFarMemRead.pop_front();
+        polManStats.sentFarRdPort++;
     } else {
         DPRINTF(PolicyManager, "far mem read sending failed: %lld\n", rdFarMemPkt->getAddr());
         retryFarMemRead = true;
         delete rdFarMemPkt;
+        polManStats.failedFarRdPort++;
     }
 
     if (!pktFarMemRead.empty() && !farMemReadEvent.scheduled() && !retryFarMemRead) {
@@ -459,10 +456,12 @@ PolicyManager::processFarMemWriteEvent()
     if (farReqPort.sendTimingReq(wrFarMemPkt)) {
         DPRINTF(PolicyManager, "far mem write is sent : %lld\n", wrFarMemPkt->getAddr());
         pktFarMemWrite.pop_front();
+        polManStats.sentFarWrPort++;
     } else {
         DPRINTF(PolicyManager, "far mem write sending failed: %lld\n", wrFarMemPkt->getAddr());
         retryFarMemWrite = true;
         delete wrFarMemPkt;
+        polManStats.failedFarWrPort++;
     }
 
     if (!pktFarMemWrite.empty() && !farMemWriteEvent.scheduled() && !retryFarMemWrite) {
@@ -486,6 +485,9 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
     auto orbEntry = ORB.at(pkt->getAddr());
 
     if (pkt->isRead()) {
+        if (orbEntry->handleDirtyLine && orbEntry->pol == enums::CascadeLakeNoPartWrs) {
+            handleDirtyCacheLine(orbEntry);
+        }
         assert(orbEntry->state == waitingLocMemReadResp);
         orbEntry->locRdExit = curTick();
     }
@@ -651,6 +653,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
         orbEntry->owPkt->isRead() &&
         orbEntry->state == waitingLocMemReadResp &&
         !orbEntry->isHit) {
+            
             orbEntry->state = farMemRead;
             orbEntry->farRdEntered = curTick();
             return;
@@ -661,11 +664,6 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
         orbEntry->owPkt->isRead() &&
         orbEntry->state == waitingFarMemReadResp &&
         !orbEntry->isHit) {
-            // PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
-            //                                  false,
-            //                                  orbEntry->owPkt->isRead());
-            // farMemCtrl->callMemIntfAccess(copyOwPkt);
-            // sendRespondToRequestor(orbEntry->owPkt, frontendLatency + backendLatency);
             
             PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
                                              false,
@@ -700,9 +698,9 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
 
-            if (orbEntry->handleDirtyLine) {
-                handleDirtyCacheLine(orbEntry);
-            }
+            // if (orbEntry->handleDirtyLine) {
+            //     handleDirtyCacheLine(orbEntry);
+            // }
             orbEntry->state = locMemWrite;
             orbEntry->locWrEntered = curTick();
             return;
@@ -739,12 +737,6 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
         orbEntry->isHit) {
             // DONE
             // send the respond to the requestor
-            // ***
-            // PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
-            //                                  false,
-            //                                  orbEntry->owPkt->isRead());
-            // farMemCtrl->callMemIntfAccess(copyOwPkt);
-            // sendRespondToRequestor(orbEntry->owPkt, frontendLatency + backendLatency);
 
             PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
                                              false,
@@ -794,6 +786,8 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             // do a read from far mem
             pktFarMemRead.push_back(orbEntry->owPkt->getAddr());
 
+            polManStats.avgFarRdQLenEnq = pktFarMemRead.size();
+
             if (!farMemReadEvent.scheduled()) {
                 schedule(farMemReadEvent, curTick());
             }
@@ -810,6 +804,9 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
             // do a read from far mem
             pktLocMemWrite.push_back(orbEntry->owPkt->getAddr());
+
+            polManStats.avgLocWrQLenEnq = pktLocMemWrite.size();
+            
 
             if (!locMemWriteEvent.scheduled()) {
                 schedule(locMemWriteEvent, curTick());
@@ -854,12 +851,22 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     polManStats.avgLocWrQLenStrt = countLocWrInORB();
     polManStats.avgFarWrQLenStrt = countFarWr();
 
+    Addr addr = pkt->getAddr();
+    unsigned burst_size = locBurstSize;
+    unsigned size = std::min((addr | (burst_size - 1)) + 1,
+                              addr + pkt->getSize()) - addr;
+    
+    if(pkt->isRead()) {
+        polManStats.bytesReadSys += size;
+        polManStats.readPktSize[ceilLog2(size)]++;
+        polManStats.readReqs++;
+    } else {
+        polManStats.bytesWrittenSys += size;
+        polManStats.writePktSize[ceilLog2(size)]++;
+        polManStats.writeReqs++;
+    }
+
     if (pkt->isWrite()) {
-        // PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
-        //                                  false,
-        //                                  orbEntry->owPkt->isRead());
-        // farMemCtrl->callMemIntfAccess(copyOwPkt);
-        // sendRespondToRequestor(pkt, frontendLatency);
 
         PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
                                              false,
@@ -920,23 +927,6 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     
     tagMetadataStore.at(orbEntry->indexDC).farMemAddr =
                         orbEntry->owPkt->getAddr();
-
-    
-    Addr addr = pkt->getAddr();
-
-    unsigned burst_size = locBurstSize;
-
-    unsigned size = std::min((addr | (burst_size - 1)) + 1,
-                             addr + pkt->getSize()) - addr;
-
-    if (pkt->isRead()) {
-        polManStats.readPktSize[ceilLog2(size)]++;
-        polManStats.readReqs++;
-    } else {
-        polManStats.writePktSize[ceilLog2(size)]++;
-        polManStats.writeReqs++;
-    }
-
 }
 
 bool
@@ -965,6 +955,8 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
     bool currDirty = tagMetadataStore.at(orbEntry->indexDC).dirtyLine;
 
     orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
+    
+    // orbEntry->isHit = alwaysHit;
 
     if (orbEntry->isHit) {
 
@@ -1011,8 +1003,6 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
             
         }
     }
-
-    // orbEntry->isHit = alwaysHit;
 }
 
 bool
@@ -1112,15 +1102,6 @@ PolicyManager::sendRespondToRequestor(PacketPtr pkt, Tick static_latency)
 bool
 PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
 {
-    // if ( locMemPolicy == enums::CascadeLakeNoPartWrs &&
-    //      !(orbEntry->owPkt->isRead() && !orbEntry->isHit)) {
-    //     PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
-    //                                      false,
-    //                                      orbEntry->owPkt->isRead());
-    //     farMemCtrl->callMemIntfAccess(copyOwPkt);
-    // }
-    
-
     bool conflictFound = false;
 
     if (orbEntry->owPkt->isWrite()) {
@@ -1156,7 +1137,7 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
 
                 pktLocMemRead.push_back(confAddr);
 
-                // polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
+                polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
 
                 setNextState(ORB.at(confAddr));
 
@@ -1305,11 +1286,6 @@ PolicyManager::handleDirtyCacheLine(reqBufferEntry* orbEntry)
         }
     }
 
-    if (pktFarMemWrite.size() > maxFarWrEvQ) {
-        maxFarWrEvQ = pktFarMemWrite.size();
-        polManStats.maxFarWrEvQ = pktFarMemWrite.size();
-    }
-
     polManStats.numWrBacks++;
 }
 
@@ -1361,26 +1337,10 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
     ADD_STAT(writeReqs, statistics::units::Count::get(),
              "Number of write requests accepted"),
 
-    ADD_STAT(readBursts, statistics::units::Count::get(),
-             "Number of controller read bursts, including those serviced by "
-             "the write queue"),
-    ADD_STAT(writeBursts, statistics::units::Count::get(),
-             "Number of controller write bursts, including those merged in "
-             "the write queue"),
     ADD_STAT(servicedByWrQ, statistics::units::Count::get(),
              "Number of controller read bursts serviced by the write queue"),
     ADD_STAT(mergedWrBursts, statistics::units::Count::get(),
              "Number of controller write bursts merged with an existing one"),
-
-    ADD_STAT(neitherReadNorWriteReqs, statistics::units::Count::get(),
-             "Number of requests that are neither read nor write"),
-
-    ADD_STAT(avgRdQLen, statistics::units::Rate<
-                statistics::units::Count, statistics::units::Tick>::get(),
-             "Average read queue length when enqueuing"),
-    ADD_STAT(avgWrQLen, statistics::units::Rate<
-                statistics::units::Count, statistics::units::Tick>::get(),
-             "Average write queue length when enqueuing"),
 
     ADD_STAT(numRdRetry, statistics::units::Count::get(),
              "Number of times read queue was full causing retry"),
@@ -1391,16 +1351,6 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
              "Read request sizes (log2)"),
     ADD_STAT(writePktSize, statistics::units::Count::get(),
              "Write request sizes (log2)"),
-
-    // ADD_STAT(rdQLenPdf, statistics::units::Count::get(),
-    //          "What read queue length does an incoming req see"),
-    // ADD_STAT(wrQLenPdf, statistics::units::Count::get(),
-    //          "What write queue length does an incoming req see"),
-
-    // ADD_STAT(rdPerTurnAround, statistics::units::Count::get(),
-    //          "Reads before turning the bus around for writes"),
-    // ADD_STAT(wrPerTurnAround, statistics::units::Count::get(),
-    //          "Writes before turning the bus around for reads"),
 
     ADD_STAT(bytesReadWrQ, statistics::units::Byte::get(),
              "Total number of bytes read from write queue"),
@@ -1421,32 +1371,6 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
     ADD_STAT(avgGap, statistics::units::Rate<
                 statistics::units::Tick, statistics::units::Count>::get(),
              "Average gap between requests"),
-
-    // ADD_STAT(requestorReadBytes, statistics::units::Byte::get(),
-    //          "Per-requestor bytes read from memory"),
-    // ADD_STAT(requestorWriteBytes, statistics::units::Byte::get(),
-    //          "Per-requestor bytes write to memory"),
-    // ADD_STAT(requestorReadRate, statistics::units::Rate<
-    //             statistics::units::Byte, statistics::units::Second>::get(),
-    //          "Per-requestor bytes read from memory rate"),
-    // ADD_STAT(requestorWriteRate, statistics::units::Rate<
-    //             statistics::units::Byte, statistics::units::Second>::get(),
-    //          "Per-requestor bytes write to memory rate"),
-    // ADD_STAT(requestorReadAccesses, statistics::units::Count::get(),
-    //          "Per-requestor read serviced memory accesses"),
-    // ADD_STAT(requestorWriteAccesses, statistics::units::Count::get(),
-    //          "Per-requestor write serviced memory accesses"),
-    // ADD_STAT(requestorReadTotalLat, statistics::units::Tick::get(),
-    //          "Per-requestor read total memory access latency"),
-    // ADD_STAT(requestorWriteTotalLat, statistics::units::Tick::get(),
-    //          "Per-requestor write total memory access latency"),
-    // ADD_STAT(requestorReadAvgLat, statistics::units::Rate<
-    //             statistics::units::Tick, statistics::units::Count>::get(),
-    //          "Per-requestor read average memory access latency"),
-    // ADD_STAT(requestorWriteAvgLat, statistics::units::Rate<
-    //             statistics::units::Tick, statistics::units::Count>::get(),
-    //          "Per-requestor write average memory access latency"),
-////////
 
     ADD_STAT(avgORBLen, statistics::units::Rate<
                 statistics::units::Count, statistics::units::Tick>::get(),
@@ -1483,40 +1407,32 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
             "Total number of packets conflicted on DRAM cache"),
     ADD_STAT(totNumORBFull,
             "Total number of packets ORB full"),
-    ADD_STAT(totNumConfBufFull,
+    ADD_STAT(totNumCRBFull,
             "Total number of packets conflicted yet couldn't "
             "enter confBuffer"),
 
     ADD_STAT(maxNumConf,
             "Maximum number of packets conflicted on DRAM cache"),
-    ADD_STAT(maxLocRdEvQ,
-            "Maximum number of packets in locMemReadEvent concurrently"),
-    ADD_STAT(maxLocRdRespEvQ,
-            "Maximum number of packets in locMemReadRespEvent concurrently"),
-    ADD_STAT(maxLocWrEvQ,
-            "Maximum number of packets in locMemRWriteEvent concurrently"),
-    ADD_STAT(maxFarRdEvQ,
-            "Maximum number of packets in farMemReadEvent concurrently"),
-    ADD_STAT(maxFarRdRespEvQ,
-            "Maximum number of packets in farMemReadRespEvent concurrently"),
-    ADD_STAT(maxFarWrEvQ,
-            "Maximum number of packets in farMemWriteEvent concurrently"),
-    
-    ADD_STAT(rdToWrTurnAround,
-            "Maximum number of packets in farMemReadRespEvent concurrently"),
-    ADD_STAT(wrToRdTurnAround,
-            "Maximum number of packets in farMemWriteEvent concurrently"),
 
-    ADD_STAT(sentRdPort,
-            "Number of read packets successfully sent through the request port to the far memory."),
-    ADD_STAT(failedRdPort,
-            "Number of read packets failed to be sent through the request port to the far memory."),
+    ADD_STAT(sentLocRdPort,
+             "stat"),
+    ADD_STAT(sentLocWrPort,
+             "stat"),
+    ADD_STAT(failedLocRdPort,
+             "stat"),
+    ADD_STAT(failedLocWrPort,
+             "stat"),
     ADD_STAT(recvdRdPort,
-            "Number of read packets resp recvd through the request port from the far memory."),
-    ADD_STAT(sentWrPort,
-            "Number of write packets successfully sent through the request port to the far memory."),
-    ADD_STAT(failedWrPort,
-            "Number of write packets failed to be sent through the request port to the far memory."),
+             "stat"),
+    ADD_STAT(sentFarRdPort,
+             "stat"),
+    ADD_STAT(sentFarWrPort,
+             "stat"),
+    ADD_STAT(failedFarRdPort,
+             "stat"),
+    ADD_STAT(failedFarWrPort,
+             "stat"),
+
     ADD_STAT(totPktsServiceTime,
             "stat"),
     ADD_STAT(totPktsORBTime,
@@ -1533,10 +1449,7 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
             "stat"),
     ADD_STAT(totTimeInFarRead,
             "stat"),
-    ADD_STAT(QTLocRd,
-            "stat"),
-    ADD_STAT(QTLocWr,
-            "stat"),
+
     ADD_STAT(numTotHits,
             "stat"),
     ADD_STAT(numTotMisses,
@@ -1574,12 +1487,6 @@ PolicyManager::PolicyManagerStats::regStats()
 {
     using namespace statistics;
 
-    //assert(polMan.system());
-    //const auto max_requestors = polMan.system()->maxRequestors();
-
-    avgRdQLen.precision(2);
-    avgWrQLen.precision(2);
-
     avgORBLen.precision(4);
     avgLocRdQLenStrt.precision(2);
     avgLocWrQLenStrt.precision(2);
@@ -1594,75 +1501,9 @@ PolicyManager::PolicyManagerStats::regStats()
     readPktSize.init(ceilLog2(polMan.blockSize) + 1);
     writePktSize.init(ceilLog2(polMan.blockSize) + 1);
 
-    // rdQLenPdf.init(polMan.readBufferSize);
-    // wrQLenPdf.init(polMan.writeBufferSize);
-
-    // rdPerTurnAround
-    //     .init(ctrl.readBufferSize)
-    //     .flags(nozero);
-    // wrPerTurnAround
-    //     .init(ctrl.writeBufferSize)
-    //     .flags(nozero);
-
     avgRdBWSys.precision(8);
     avgWrBWSys.precision(8);
     avgGap.precision(2);
-
-    // per-requestor bytes read and written to memory
-    // requestorReadBytes
-    //     .init(max_requestors)
-    //     .flags(nozero | nonan);
-
-    // requestorWriteBytes
-    //     .init(max_requestors)
-    //     .flags(nozero | nonan);
-
-    // per-requestor bytes read and written to memory rate
-    // requestorReadRate
-    //     .flags(nozero | nonan)
-    //     .precision(12);
-
-    // requestorReadAccesses
-    //     .init(max_requestors)
-    //     .flags(nozero);
-
-    // requestorWriteAccesses
-    //     .init(max_requestors)
-    //     .flags(nozero);
-
-    // requestorReadTotalLat
-    //     .init(max_requestors)
-    //     .flags(nozero | nonan);
-
-    // requestorReadAvgLat
-    //     .flags(nonan)
-    //     .precision(2);
-
-    // requestorWriteRate
-    //     .flags(nozero | nonan)
-    //     .precision(12);
-
-    // requestorWriteTotalLat
-    //     .init(max_requestors)
-    //     .flags(nozero | nonan);
-
-    // requestorWriteAvgLat
-    //     .flags(nonan)
-    //     .precision(2);
-
-    // for (int i = 0; i < max_requestors; i++) {
-    //     const std::string requestor = ctrl.system()->getRequestorName(i);
-    //     requestorReadBytes.subname(i, requestor);
-    //     requestorReadRate.subname(i, requestor);
-    //     requestorWriteBytes.subname(i, requestor);
-    //     requestorWriteRate.subname(i, requestor);
-    //     requestorReadAccesses.subname(i, requestor);
-    //     requestorWriteAccesses.subname(i, requestor);
-    //     requestorReadTotalLat.subname(i, requestor);
-    //     requestorReadAvgLat.subname(i, requestor);
-    //     requestorWriteTotalLat.subname(i, requestor);
-    //     requestorWriteAvgLat.subname(i, requestor);
-    // }
 
     // Formula stats
     avgRdBWSys = (bytesReadSys) / simSeconds;
@@ -1670,10 +1511,6 @@ PolicyManager::PolicyManagerStats::regStats()
 
     avgGap = totGap / (readReqs + writeReqs);
 
-    // requestorReadRate = requestorReadBytes / simSeconds;
-    // requestorWriteRate = requestorWriteBytes / simSeconds;
-    // requestorReadAvgLat = requestorReadTotalLat / requestorReadAccesses;
-    // requestorWriteAvgLat = requestorWriteTotalLat / requestorWriteAccesses;
 }
 
 Port &

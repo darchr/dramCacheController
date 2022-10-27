@@ -177,7 +177,7 @@ if args.synthetic == "1":
         file=sys.stderr)
         exit(-1)
 
-    command = "./{} -g {}\n".format(args.benchmark, args.size)
+    command = "./{} -n 1 -g {}\n".format(args.benchmark, args.size)
 else:
     command = "./{} -sf ../{}".format(args.benchmark, args.size)
 

@@ -30,6 +30,9 @@ system.mem_mode = 'timing'
 system.generator = PyTrafficGen()
 
 system.mem_ctrl = PolicyManager(range=AddrRange('1GiB'))
+system.mem_ctrl.tRP = '14.16ns'
+system.mem_ctrl.tRCD_RD = '14.16ns'
+system.mem_ctrl.tRL = '14.16ns'
 
 system.loc_mem_ctrl = MemCtrl()
 system.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=False, null=True)
@@ -37,8 +40,8 @@ system.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=F
 system.far_mem_ctrl = MemCtrl()
 system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=False, null=True)
 
-# system.mem_ctrl.loc_mem_ctrl = system.loc_mem_ctrl
-# system.mem_ctrl.far_mem_ctrl = system.far_mem_ctrl
+system.mem_ctrl.always_hit = False
+system.mem_ctrl.always_dirty = True
 
 system.mem_ctrl.dram_cache_size = "64MiB"
 
@@ -58,7 +61,7 @@ def createRandomTraffic(tgen):
     yield tgen.createExit(0)
 
 def createLinearTraffic(tgen):
-    yield tgen.createLinear(10000000000,            # duration
+    yield tgen.createLinear(20000000000,            # duration
                             0,                      # min_addr
                             AddrRange('1GiB').end,  # max_adr
                             64,                     # block_size

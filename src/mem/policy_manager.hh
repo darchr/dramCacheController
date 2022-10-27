@@ -309,11 +309,7 @@ class PolicyManager : public AbstractMemory
     std::deque <Addr> pktFarMemRead;
 
     // Maintenance variables
-    unsigned maxConf, maxLocRdEvQ, maxLocRdRespEvQ,
-    maxLocWrEvQ, maxFarRdEvQ, maxFarRdRespEvQ, maxFarWrEvQ;
-
-    // needs be reimplemented
-    bool recvTimingReq(PacketPtr pkt);
+    unsigned maxConf;
 
     AddrRangeList getAddrRanges();
 
@@ -321,17 +317,11 @@ class PolicyManager : public AbstractMemory
     void processLocMemReadEvent();
     EventFunctionWrapper locMemReadEvent;
 
-    // void processLocMemReadRespEvent() {}
-    // EventFunctionWrapper locMemReadRespEvent;
-
     void processLocMemWriteEvent();
     EventFunctionWrapper locMemWriteEvent;
 
     void processFarMemReadEvent();
     EventFunctionWrapper farMemReadEvent;
-
-    // void processFarMemReadRespEvent() {}
-    // EventFunctionWrapper farMemReadRespEvent;
 
     void processFarMemWriteEvent();
     EventFunctionWrapper farMemWriteEvent;
@@ -350,20 +340,13 @@ class PolicyManager : public AbstractMemory
     bool resumeConflictingReq(reqBufferEntry* orbEntry);
     void logStatsPolMan(reqBufferEntry* orbEntry);
     void accessAndRespond(PacketPtr pkt, Tick static_latency);
-    //reqBufferEntry* makeOrbEntry(reqBufferEntry* orbEntry, PacketPtr copyOwPkt);
     PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd, Request::FlagsType flags = 0);
-    
     Tick accessLatency();
 
     unsigned countLocRdInORB();
     unsigned countFarRdInORB();
     unsigned countLocWrInORB();
     unsigned countFarWr();
-
-    // unsigned countLocRdInORB() {}
-    // unsigned countFarRdInORB() {}
-    // unsigned countLocWrInORB() {}
-    // unsigned countFarWr() {}
 
     Addr returnIndexDC(Addr pkt_addr, unsigned size);
     Addr returnTagDC(Addr pkt_addr, unsigned size);
@@ -385,57 +368,31 @@ class PolicyManager : public AbstractMemory
 
       const PolicyManager &polMan;
 
-        // All statistics that the model needs to capture
-        statistics::Scalar readReqs;
-        statistics::Scalar writeReqs;
-        statistics::Scalar readBursts;
-        statistics::Scalar writeBursts;
-        statistics::Scalar servicedByWrQ;
-        statistics::Scalar mergedWrBursts;
-        statistics::Scalar neitherReadNorWriteReqs;
-        // Average queue lengths
-        statistics::Average avgRdQLen;
-        statistics::Average avgWrQLen;
+      // All statistics that the model needs to capture
+      statistics::Scalar readReqs;
+      statistics::Scalar writeReqs;
 
-        statistics::Scalar numRdRetry;
-        statistics::Scalar numWrRetry;
-        statistics::Vector readPktSize;
-        statistics::Vector writePktSize;
-        //statistics::Vector rdQLenPdf;
-        //statistics::Vector wrQLenPdf;
-        //statistics::Histogram rdPerTurnAround;
-        //statistics::Histogram wrPerTurnAround;
+      statistics::Scalar servicedByWrQ;
+      statistics::Scalar mergedWrBursts;
 
-        statistics::Scalar bytesReadWrQ;
-        statistics::Scalar bytesReadSys;
-        statistics::Scalar bytesWrittenSys;
-        // Average bandwidth
-        statistics::Formula avgRdBWSys;
-        statistics::Formula avgWrBWSys;
+      statistics::Scalar numRdRetry;
+      statistics::Scalar numWrRetry;
 
-        statistics::Scalar totGap;
-        statistics::Formula avgGap;
+      statistics::Vector readPktSize;
+      statistics::Vector writePktSize;
 
-        // per-requestor bytes read and written to memory
-        // statistics::Vector requestorReadBytes;
-        // statistics::Vector requestorWriteBytes;
+      statistics::Scalar bytesReadWrQ;
+      statistics::Scalar bytesReadSys;
+      statistics::Scalar bytesWrittenSys;
 
-        // per-requestor bytes read and written to memory rate
-        // statistics::Formula requestorReadRate;
-        // statistics::Formula requestorWriteRate;
+      // Average bandwidth
+      statistics::Formula avgRdBWSys;
+      statistics::Formula avgWrBWSys;
 
-        // per-requestor read and write serviced memory accesses
-        // statistics::Vector requestorReadAccesses;
-        // statistics::Vector requestorWriteAccesses;
+      statistics::Scalar totGap;
+      statistics::Formula avgGap;
 
-        // per-requestor read and write total memory access latency
-        // statistics::Vector requestorReadTotalLat;
-        // statistics::Vector requestorWriteTotalLat;
-
-        // per-requestor raed and write average memory access latency
-        // statistics::Formula requestorReadAvgLat;
-        // statistics::Formula requestorWriteAvgLat;
-
+      // DRAM Cache Specific Stats
       statistics::Average avgORBLen;
       statistics::Average avgLocRdQLenStrt;
       statistics::Average avgLocWrQLenStrt;
@@ -447,28 +404,22 @@ class PolicyManager : public AbstractMemory
       statistics::Average avgFarRdQLenEnq;
       statistics::Average avgFarWrQLenEnq;
 
-      
       Stats::Scalar numWrBacks;
       Stats::Scalar totNumConf;
       Stats::Scalar totNumORBFull;
-      Stats::Scalar totNumConfBufFull;
+      Stats::Scalar totNumCRBFull;
 
       Stats::Scalar maxNumConf;
-      Stats::Scalar maxLocRdEvQ;
-      Stats::Scalar maxLocRdRespEvQ;
-      Stats::Scalar maxLocWrEvQ;
-      Stats::Scalar maxFarRdEvQ;
-      Stats::Scalar maxFarRdRespEvQ;
-      Stats::Scalar maxFarWrEvQ;
 
-      Stats::Scalar rdToWrTurnAround;
-      Stats::Scalar wrToRdTurnAround;
-
-      Stats::Scalar sentRdPort;
-      Stats::Scalar failedRdPort;
+      Stats::Scalar sentLocRdPort;
+      Stats::Scalar sentLocWrPort;
+      Stats::Scalar failedLocRdPort;
+      Stats::Scalar failedLocWrPort;
       Stats::Scalar recvdRdPort;
-      Stats::Scalar sentWrPort;
-      Stats::Scalar failedWrPort;
+      Stats::Scalar sentFarRdPort;
+      Stats::Scalar sentFarWrPort;
+      Stats::Scalar failedFarRdPort;
+      Stats::Scalar failedFarWrPort;
 
       Stats::Scalar totPktsServiceTime;
       Stats::Scalar totPktsORBTime;
@@ -478,8 +429,6 @@ class PolicyManager : public AbstractMemory
       Stats::Scalar totTimeInLocRead;
       Stats::Scalar totTimeInLocWrite;
       Stats::Scalar totTimeInFarRead;
-      Stats::Scalar QTLocRd;
-      Stats::Scalar QTLocWr;
 
       Stats::Scalar numTotHits;
       Stats::Scalar numTotMisses;
@@ -514,6 +463,7 @@ class PolicyManager : public AbstractMemory
       Tick recvAtomic(PacketPtr pkt);
       Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor);
       void recvFunctional(PacketPtr pkt);
+      bool recvTimingReq(PacketPtr pkt);
 };
 
 } // namespace memory

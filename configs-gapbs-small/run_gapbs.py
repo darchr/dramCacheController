@@ -70,7 +70,7 @@ def writeBenchScript(dir, benchmark_name, size, synthetic):
     input_file_name = '{}/run_{}_{}'.format(dir, benchmark_name, size)
     if (synthetic):
         with open(input_file_name,"w") as f:
-            f.write('./{} -g {}\n'.format(benchmark_name, size))
+            f.write('./{} -n 1 -g {}\n'.format(benchmark_name, size))
     elif(synthetic==0):
         with open(input_file_name,"w") as f:
             # The workloads that are copied to the disk image using Packer
@@ -158,7 +158,7 @@ if __name__ == "__m5_main__":
             .format(m5.curTick(), exit_event.getCause()))
         exit()
 
-    exit_event = m5.simulate(6000000000000)
+    exit_event = m5.simulate()
 
     # it will exit either if the ROI is done 
     # or if the max number of insts is reached

@@ -1185,9 +1185,6 @@ MemCtrl::CtrlStats::CtrlStats(MemCtrl &_ctrl)
     ADD_STAT(mergedWrBursts, statistics::units::Count::get(),
              "Number of controller write bursts merged with an existing one"),
 
-    ADD_STAT(neitherReadNorWriteReqs, statistics::units::Count::get(),
-             "Number of requests that are neither read nor write"),
-
     ADD_STAT(avgRdQLen, statistics::units::Rate<
                 statistics::units::Count, statistics::units::Tick>::get(),
              "Average read queue length when enqueuing"),
