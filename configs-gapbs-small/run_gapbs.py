@@ -132,15 +132,7 @@ if __name__ == "__m5_main__":
     m5.instantiate()
 
     print("Running the simulation")
-    print("******************************1")
-    print("******************************1")
-    print("******************************1")
-    print("******************************1")
     exit_event = m5.simulate()
-    print("******************************2")
-    print("******************************2")
-    print("******************************2")
-    print("******************************2")
 
     if exit_event.getCause() == "work started count reach":
         print("Done booting Linux")
@@ -151,14 +143,13 @@ if __name__ == "__m5_main__":
         if cpu_type != 'kvm':
             system.switchCpus(system.cpu, system.timingCpu)
             print("Switch to detailed cpu model")
-        print("Switch to detailed cpu model!!!!!!!!!!")
     else:
         print("ROI is not annotated!")
         print('Exiting @ tick {} because {}'
             .format(m5.curTick(), exit_event.getCause()))
         exit()
 
-    exit_event = m5.simulate()
+    exit_event = m5.simulate(2000000000000)
 
     # it will exit either if the ROI is done 
     # or if the max number of insts is reached

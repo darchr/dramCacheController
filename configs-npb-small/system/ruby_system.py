@@ -45,7 +45,7 @@ class MyRubySystem(System):
         self.clk_domain.clock = '4GHz'
         self.clk_domain.voltage_domain = VoltageDomain()
 
-        self.mem_ranges = [AddrRange(Addr('1GiB')), # All data
+        self.mem_ranges = [AddrRange(Addr('2GiB')), # All data
                            AddrRange(0xC0000000, size=0x100000), # For I/0
                            ]
 
@@ -139,10 +139,6 @@ class MyRubySystem(System):
         self._createMemoryControllers(1, DDR3_1600_8x8)
 
     def _createMemoryControllers(self, num, cls):
-        #self.mem_cntrls = [
-        #    MemCtrl(dram = cls(range = self.mem_ranges[0]))
-        #    for i in range(num)
-        #    ]
 
         self.mem_ctrl = PolicyManager(range=self.mem_ranges[0])
         # FOR DDR4
@@ -163,7 +159,7 @@ class MyRubySystem(System):
         self.loc_mem_ctrl.port = self.mem_ctrl.loc_req_port
         self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
 
-        self.mem_ctrl.dram_cache_size = "64MiB"
+        self.mem_ctrl.dram_cache_size = "128MiB"
 
         # self.mem_ctrl = MemCtrl()
         # self.mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0])

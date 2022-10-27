@@ -54,7 +54,7 @@ class MySystem(System):
         #                   ]
 
 
-        self.mem_ranges = [AddrRange(Addr('1GiB')), # All data
+        self.mem_ranges = [AddrRange(Addr('2GiB')), # All data
                            AddrRange(0xC0000000, size=0x100000), # For I/0
                            ]
 
@@ -215,37 +215,30 @@ class MySystem(System):
         self._createMemoryControllers(1, DDR4_2400_16x4)
 
     def _createMemoryControllers(self, num, cls):
-        #kernel_controller = self._createKernelMemoryController(cls)
 
-        #ranges = self._getInterleaveRanges(self.mem_ranges[-1], num, 7, 20)
+        self.mem_ctrl = PolicyManager(range=self.mem_ranges[0])
+        # FOR DDR4
+        self.mem_ctrl.tRP = '14.16ns'
+        self.mem_ctrl.tRCD_RD = '14.16ns'
+        self.mem_ctrl.tRL = '14.16ns'
 
-        #self.mem_cntrls = [
-        #    MemCtrl(dram = cls(range = ranges[i]),
-        #            port = self.membus.mem_side_ports)
-        #    for i in range(num)
-        # + [kernel_controller]
-
-        self.mem_ctrl = PolicyManager()
-
-        self.loc_mem_ctrl = HBMCtrl()
-        self.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '1GiB', masks = [1 << 6], intlvMatch = 0))
-        self.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '1GiB', masks = [1 << 6], intlvMatch = 1))
+        # self.loc_mem_ctrl = HBMCtrl()
+        # self.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '1GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
+        # self.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '1GiB', masks = [1 << 6], intlvMatch = 1), in_addr_map=False, kvm_map=False, null=True)
         
-        # self.loc_mem_ctrl = MemCtrl()
-        # self.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map = False)
-        
+        self.loc_mem_ctrl = MemCtrl()
+        self.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
         
         self.far_mem_ctrl = MemCtrl()
-        self.far_mem_ctrl.dram = DDR4_2400_16x4(range=self.mem_ranges[0])
+        self.far_mem_ctrl.dram = DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
 
-        self.mem_ctrl.loc_mem_ctrl = self.loc_mem_ctrl
-        self.mem_ctrl.far_mem_ctrl = self.far_mem_ctrl
+        self.loc_mem_ctrl.port = self.mem_ctrl.loc_req_port
+        self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
 
-        self.mem_ctrl.loc_mem_ctrl.port = self.mem_ctrl.loc_req_port
-        self.mem_ctrl.far_mem_ctrl.port = self.policy_manager.far_req_port
-        self.mem_ctrl.resp_port = self.membus.mem_side_ports
+        self.mem_ctrl.dram_cache_size = "128MiB"
 
-        self.mem_ctrl.dram_cache_size = "64MiB"
+        # self.mem_ctrl = MemCtrl()
+        # self.mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0])
 
     def _createKernelMemoryController(self, cls):
         return MemCtrl(dram = cls(range = self.mem_ranges[0]),
