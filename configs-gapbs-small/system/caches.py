@@ -42,7 +42,7 @@ class PrefetchCache(Cache):
 
     def __init__(self, options):
         super(PrefetchCache, self).__init__()
-        if not options or options.no_prefetchers:
+        if not options:
             return
         self.prefetcher = StridePrefetcher()
 
@@ -75,9 +75,8 @@ class L1ICache(L1Cache):
 
     def __init__(self, opts=None):
         super(L1ICache, self).__init__(opts)
-        if not opts or not opts.l1i_size:
+        if not opts:
             return
-        self.size = opts.l1i_size
 
     def connectCPU(self, cpu):
         """Connect this cache's port to a CPU icache port"""
@@ -88,9 +87,8 @@ class L1DCache(L1Cache):
 
     def __init__(self, opts=None):
         super(L1DCache, self).__init__(opts)
-        if not opts or not opts.l1d_size:
+        if not opts:
             return
-        self.size = opts.l1d_size
 
     def connectCPU(self, cpu):
         """Connect this cache's port to a CPU dcache port"""
@@ -137,9 +135,8 @@ class L2Cache(PrefetchCache):
 
     def __init__(self, opts=None):
         super(L2Cache, self).__init__(opts)
-        if not opts or not opts.l2_size:
+        if not opts:
             return
-        self.size = opts.l2_size
 
     def connectCPUSideBus(self, bus):
         self.cpu_side = bus.mem_side_ports
@@ -164,7 +161,7 @@ class L3Cache(Cache):
 
     def __init__(self, opts):
         super(L3Cache, self).__init__()
-        self.size = (opts.l3_size)
+        #self.size = (opts.l3_size)
 
     def connectCPUSideBus(self, bus):
         self.cpu_side = bus.mem_side_ports

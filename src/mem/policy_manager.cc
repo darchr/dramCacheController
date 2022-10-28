@@ -1276,14 +1276,18 @@ PolicyManager::handleDirtyCacheLine(reqBufferEntry* orbEntry)
 
     polManStats.avgFarWrQLenEnq = pktFarMemWrite.size();
 
-    if (
-        ((pktFarMemWrite.size() >= (orbMaxSize/2)) || (!pktFarMemWrite.empty() && pktFarMemRead.empty()))
-        // && !waitingForRetryReqPort
-       ) {
-        // sendFarRdReq = false;
-        if (!farMemWriteEvent.scheduled()) {
+    // if (
+    //     ((pktFarMemWrite.size() >= (orbMaxSize/2)) || (!pktFarMemWrite.empty() && pktFarMemRead.empty()))
+    //     // && !waitingForRetryReqPort
+    //    ) {
+    //     // sendFarRdReq = false;
+    //     if (!farMemWriteEvent.scheduled()) {
+    //         schedule(farMemWriteEvent, curTick());
+    //     }
+    // }
+
+    if (!farMemWriteEvent.scheduled()) {
             schedule(farMemWriteEvent, curTick());
-        }
     }
 
     polManStats.numWrBacks++;

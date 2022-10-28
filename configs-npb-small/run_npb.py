@@ -178,7 +178,7 @@ if __name__ == "__m5_main__":
         exit()
 
     # Simulate the ROI
-    exit_event = m5.simulate(2000000000000)
+    exit_event = m5.simulate(5000000000000)
 
     # Reached the end of ROI
     # Finish executing the benchmark

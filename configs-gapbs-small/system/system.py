@@ -40,7 +40,7 @@ class MySystem(System):
         self._opts = opts
         self._no_kvm = no_kvm
 
-        self._host_parallel = not self._opts.no_host_parallel
+        # self._host_parallel = not self._opts.no_host_parallel
 
         # Set up the clock domain and the voltage domain
         self.clk_domain = SrcClockDomain()
@@ -217,18 +217,24 @@ class MySystem(System):
     def _createMemoryControllers(self, num, cls):
 
         self.mem_ctrl = PolicyManager(range=self.mem_ranges[0])
-        # FOR DDR4
-        self.mem_ctrl.tRP = '14.16ns'
-        self.mem_ctrl.tRCD_RD = '14.16ns'
-        self.mem_ctrl.tRL = '14.16ns'
 
-        # self.loc_mem_ctrl = HBMCtrl()
-        # self.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '1GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
-        # self.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '1GiB', masks = [1 << 6], intlvMatch = 1), in_addr_map=False, kvm_map=False, null=True)
+        # FOR DDR4
+        # self.mem_ctrl.tRP = '14.16ns'
+        # self.mem_ctrl.tRCD_RD = '14.16ns'
+        # self.mem_ctrl.tRL = '14.16ns'
+
+        # FOR HBM2
+        self.mem_ctrl.tRP = '14ns'
+        self.mem_ctrl.tRCD_RD = '12ns'
+        self.mem_ctrl.tRL = '18ns'
+
+        self.loc_mem_ctrl = HBMCtrl()
+        self.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '2GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
+        self.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '2GiB', masks = [1 << 6], intlvMatch = 1), in_addr_map=False, kvm_map=False, null=True)
         
-        self.loc_mem_ctrl = MemCtrl()
-        self.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
-        
+        # self.loc_mem_ctrl = MemCtrl()
+        # self.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
+       
         self.far_mem_ctrl = MemCtrl()
         self.far_mem_ctrl.dram = DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
 
@@ -271,7 +277,7 @@ class MySystem(System):
         IO_address_space_base = 0x8000000000000000
         pci_config_address_space_base = 0xc000000000000000
         interrupts_address_space_base = 0xa000000000000000
-        APIC_range_size = 1 << 12;
+        APIC_range_size = 1 << 12
 
         # North Bridge
         self.iobus = IOXBar()
