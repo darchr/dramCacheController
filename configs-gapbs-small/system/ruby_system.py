@@ -143,21 +143,24 @@ class MyRubySystem(System):
         self.mem_ctrl = PolicyManager(range=self.mem_ranges[0])
         
         # FOR DDR4
-        # self.mem_ctrl.tRP = '14.16ns'
-        # self.mem_ctrl.tRCD_RD = '14.16ns'
-        # self.mem_ctrl.tRL = '14.16ns'
+        self.mem_ctrl.tRP = '14.16ns'
+        self.mem_ctrl.tRCD_RD = '14.16ns'
+        self.mem_ctrl.tRL = '14.16ns'
 
         # FOR HBM2
-        self.mem_ctrl.tRP = '14ns'
-        self.mem_ctrl.tRCD_RD = '12ns'
-        self.mem_ctrl.tRL = '18ns'
+        # self.mem_ctrl.tRP = '14ns'
+        # self.mem_ctrl.tRCD_RD = '12ns'
+        # self.mem_ctrl.tRL = '18ns'
 
-        self.loc_mem_ctrl = HBMCtrl()
-        self.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '2GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
-        self.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '2GiB', masks = [1 << 6], intlvMatch = 1), in_addr_map=False, kvm_map=False, null=True)
+        # self.loc_mem_ctrl = HBMCtrl()
+        # self.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '2GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
+        # self.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '2GiB', masks = [1 << 6], intlvMatch = 1), in_addr_map=False, kvm_map=False, null=True)
 
         # self.loc_mem_ctrl = MemCtrl()
         # self.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
+        
+        self.loc_mem_ctrl = MemCtrl()
+        self.loc_mem_ctrl.dram =  DDR4_2400_16x4_Alloy(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
         
         self.far_mem_ctrl = MemCtrl()
         self.far_mem_ctrl.dram = DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)

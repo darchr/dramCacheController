@@ -127,7 +127,7 @@ bool
 PolicyManager::recvTimingReq(PacketPtr pkt)
 {
     // This is where we enter from the outside world
-    DPRINTF(PolicyManager, "recvTimingReq: request %s addr %d size %d\n",
+    DPRINTF(PolicyManager, "recvTimingReq: request %s addr 0x%x size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getSize());
 
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
@@ -1226,24 +1226,12 @@ PolicyManager::countFarWr()
 AddrRangeList
 PolicyManager::getAddrRanges()
 {
-    // AddrRangeList ranges;
-    AddrRangeList locRanges = locReqPort.getAddrRanges();
-    AddrRangeList farRanges = farReqPort.getAddrRanges();
+    // AddrRangeList locRanges = locReqPort.getAddrRanges();
+    // AddrRangeList farRanges = farReqPort.getAddrRanges();
+    // locRanges.merge(farRanges);
+    // return locRanges;
 
-    locRanges.merge(farRanges);
-    
-    // for (auto range = locRanges.rbegin();
-    //         range != locRanges.rend(); ++range) {
-    //     ranges.push_back(range);
-    // }
-
-    // for (auto range = farRanges.rbegin();
-    //         range != farRanges.rend(); ++range) {
-    //     ranges.push_back(range);
-    // }
-    
-    // return ranges;
-    return locRanges;
+    return farReqPort.getAddrRanges();
 }
 
 Addr
