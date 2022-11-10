@@ -763,7 +763,7 @@ class MemCtrl : public qos::MemCtrl
      * @param next_state Check either the current or next bus state
      * @return True when bus is currently in a read state
      */
-    bool inReadBusState(bool next_state) const;
+    bool inReadBusState(bool next_state, MemInterface* mem_intr) const;
 
     /**
      * Check the current direction of the memory channel
@@ -771,7 +771,7 @@ class MemCtrl : public qos::MemCtrl
      * @param next_state Check either the current or next bus state
      * @return True when bus is currently in a write state
      */
-    bool inWriteBusState(bool next_state) const;
+    bool inWriteBusState(bool next_state, MemInterface* mem_intr) const;
 
     uint32_t bytesPerBurst() const;
 
