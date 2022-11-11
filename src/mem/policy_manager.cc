@@ -2,6 +2,7 @@
 
 #include "base/trace.hh"
 #include "debug/PolicyManager.hh"
+#include "sim/sim_exit.hh"
 #include "sim/system.hh"
 
 namespace gem5
@@ -17,9 +18,6 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     farReqPort(name() + ".far_req_port", *this),
     locBurstSize(p.loc_burst_size),
     farBurstSize(p.far_burst_size),
-    // locMemCtrl(p.loc_mem_ctrl),
-    // farMemCtrl(p.far_mem_ctrl),
-    // backingStore(p.backing_store),
     locMemPolicy(p.loc_mem_policy),
     dramCacheSize(p.dram_cache_size),
     blockSize(p.block_size),
@@ -32,6 +30,9 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     tRP(p.tRP),
     tRCD_RD(p.tRCD_RD),
     tRL(p.tRL),
+    numColdMisses(0),
+    cacheWarmupRatio(p.cache_warmup_ratio),
+    resetStatsWarmup(false),
     retryLLC(false), retryLLCFarMemWr(false),
     retryLocMemRead(false), retryFarMemRead(false),
     retryLocMemWrite(false), retryFarMemWrite(false),
@@ -986,6 +987,7 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
             polManStats.numHotMisses++;
         } else {
             polManStats.numColdMisses++;
+            numColdMisses++;
         }
 
         if (orbEntry->owPkt->isRead()) {
@@ -1003,6 +1005,13 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
             
         }
     }
+
+    // if ( numColdMisses >= (unsigned)(cacheWarmupRatio * dramCacheSize/blockSize) && !resetStatsWarmup ) {
+    //    std::cout << curTick() << " --------------------------1\n";
+    //    exitSimLoopNow("cacheIsWarmedup");
+    //    std::cout << curTick() << " --------------------------2\n";
+    //    resetStatsWarmup = true;
+    // }
 }
 
 bool
@@ -1287,7 +1296,7 @@ PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
     polManStats.totPktsServiceTime += ((curTick() - orbEntry->arrivalTick)/1000);
     polManStats.totPktsORBTime += ((curTick() - orbEntry->locRdEntered)/1000);
     polManStats.totTimeFarRdtoSend += ((orbEntry->farRdIssued - orbEntry->farRdEntered)/1000);
-    polManStats.totTimeFarRdtoRecv += ((orbEntry->locRdExit - orbEntry->farRdIssued)/1000);
+    polManStats.totTimeFarRdtoRecv += ((orbEntry->farRdExit - orbEntry->farRdIssued)/1000);
     polManStats.totTimeInLocRead += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
     polManStats.totTimeInLocWrite += ((orbEntry->locWrExit - orbEntry->locWrEntered)/1000);
     polManStats.totTimeInFarRead += ((orbEntry->farRdExit - orbEntry->farRdEntered)/1000);

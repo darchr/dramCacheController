@@ -70,7 +70,7 @@ def writeBenchScript(dir, benchmark_name, size, synthetic):
     input_file_name = '{}/run_{}_{}'.format(dir, benchmark_name, size)
     if (synthetic):
         with open(input_file_name,"w") as f:
-            f.write('./{} -n 1 -g {}\n'.format(benchmark_name, size))
+            f.write('./{} -g {}\n'.format(benchmark_name, size))
     elif(synthetic==0):
         with open(input_file_name,"w") as f:
             # The workloads that are copied to the disk image using Packer
@@ -141,20 +141,22 @@ if __name__ == "__m5_main__":
         start_insts = system.totalInsts()
         # switching to atomic cpu if argument cpu == atomic
         if cpu_type != 'kvm':
-            system.switchCpus(system.cpu, system.timingCpu)
-            print("Switch to detailed cpu model")
+            system.switchCpus(system.cpu, system.o3Cpu)
+            print("Switched to detailed cpu model")
     else:
         print("ROI is not annotated!")
         print('Exiting @ tick {} because {}'
             .format(m5.curTick(), exit_event.getCause()))
         exit()
 
-    exit_event = m5.simulate(5000000000000)
-
-    # it will exit either if the ROI is done 
-    # or if the max number of insts is reached
-    m5.stats.dump()
+    print("Before warm-up ************************************************ \n")
     m5.stats.reset()
+    exit_event = m5.simulate(1000000000000)
+    m5.stats.dump()
+
+    m5.stats.reset()
+    exit_event = m5.simulate(3000000000000)
+    m5.stats.dump()
 
     print('Exiting @ tick {} because {}'
         .format(m5.curTick(), exit_event.getCause()))

@@ -45,7 +45,7 @@ class MyRubySystem(System):
         self.clk_domain.clock = '4GHz'
         self.clk_domain.voltage_domain = VoltageDomain()
 
-        self.mem_ranges = [AddrRange(Addr('2GiB')), # All data
+        self.mem_ranges = [AddrRange(Addr('1GiB')), # All data
                            AddrRange(0xC0000000, size=0x100000), # For I/0
                            ]
 
@@ -152,13 +152,16 @@ class MyRubySystem(System):
         # self.mem_ctrl.tRCD_RD = '12ns'
         # self.mem_ctrl.tRL = '18ns'
 
+        # HBM2
         # self.loc_mem_ctrl = HBMCtrl()
         # self.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '2GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
         # self.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '2GiB', masks = [1 << 6], intlvMatch = 1), in_addr_map=False, kvm_map=False, null=True)
 
+        # DDR4
         # self.loc_mem_ctrl = MemCtrl()
         # self.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
         
+        # Alloy
         self.loc_mem_ctrl = MemCtrl()
         self.loc_mem_ctrl.dram =  DDR4_2400_16x4_Alloy(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
         
@@ -168,7 +171,13 @@ class MyRubySystem(System):
         self.loc_mem_ctrl.port = self.mem_ctrl.loc_req_port
         self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
 
-        self.mem_ctrl.dram_cache_size = "128MiB"
+        self.mem_ctrl.orb_max_size = 128
+        self.loc_mem_ctrl.dram.read_buffer_size = 64
+        self.loc_mem_ctrl.dram.write_buffer_size = 64
+        self.far_mem_ctrl.dram.read_buffer_size = 64
+        self.far_mem_ctrl.dram.write_buffer_size = 64
+
+        self.mem_ctrl.dram_cache_size = "64MiB"
 
         # self.mem_ctrl = MemCtrl()
         # self.mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0])

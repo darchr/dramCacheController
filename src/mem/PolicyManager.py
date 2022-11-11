@@ -39,4 +39,6 @@ class PolicyManager(AbstractMemory):
     tRP = Param.Latency("Row precharge time")
     tRCD_RD = Param.Latency("RAS to Read CAS delay")
     tRL = Param.Latency("Read CAS latency")
+
+    cache_warmup_ratio = Param.Float(0.7, "DRAM cache warmup ratio, after that it'll reset the stats")
     

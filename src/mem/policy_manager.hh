@@ -104,11 +104,6 @@ class PolicyManager : public AbstractMemory
     unsigned locBurstSize;
     unsigned farBurstSize;
 
-    // MemCtrl* locMemCtrl;
-    // MemCtrl* farMemCtrl;
-
-    //AbstractMemory* backingStore;
-
     enums::Policy locMemPolicy;
 
     /**
@@ -145,6 +140,10 @@ class PolicyManager : public AbstractMemory
     Tick tRP;
     Tick tRCD_RD;
     Tick tRL;
+
+    unsigned numColdMisses;
+    float cacheWarmupRatio;
+    bool resetStatsWarmup;
 
     Tick prevArrival;
 
