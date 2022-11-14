@@ -149,6 +149,9 @@ if __name__ == "__m5_main__":
             .format(m5.curTick(), exit_event.getCause()))
         exit()
 
+
+    system.switchCpus(system.cpu, system.o3Cpu)
+
     exit_event = m5.simulate(2000000000000)
     m5.stats.dump()
     m5.stats.reset()

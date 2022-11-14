@@ -126,6 +126,11 @@ class MyRubySystem(System):
 				   for i in range(num_cpus)]
         self.createCPUThreads(self.timingCpu)
 
+        self.o3Cpu = [DerivO3CPU(cpu_id = i,
+                                     switched_out = True)
+				   for i in range(num_cpus)]
+        self.createCPUThreads(self.o3Cpu)
+
     def switchCpus(self, old, new):
         assert(new[0].switchedOut())
         m5.switchCpus(self, list(zip(old, new)))
