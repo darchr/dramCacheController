@@ -183,7 +183,7 @@ if __name__ == "__m5_main__":
     m5.stats.dump()
 
     system.switchCpus(system.timingCpu, system.o3Cpu)
-    print("Switched to O3 CPU cpu model")
+    print("Switched to O3 CPU cpu model ************************************************")
 
     m5.stats.reset()
     exit_event = m5.simulate(3000000000000)
