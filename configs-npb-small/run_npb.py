@@ -179,11 +179,16 @@ if __name__ == "__m5_main__":
 
     print("Before warm-up ************************************************ \n")
     m5.stats.reset()
-    exit_event = m5.simulate(1000000000000)
+    exit_event = m5.simulate(100000000000)
     m5.stats.dump()
 
+<<<<<<< HEAD
     system.switchCpus(system.timingCpu, system.o3Cpu)
     print("Switched to O3 CPU cpu model ************************************************")
+=======
+    # system.switchCpus(system.timingCpu, system.o3Cpu)
+    # print("Switched to O3 CPU cpu model")
+>>>>>>> 311bac374ad93a17f6833c0890c677655d2d75b6
 
     m5.stats.reset()
     exit_event = m5.simulate(3000000000000)
