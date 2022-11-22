@@ -190,11 +190,6 @@ class MyRubySystem(System):
         # DDR4 no cache
         # self.mem_ctrl = MemCtrl()
         # self.mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0])
-<<<<<<< HEAD
-        # self.mem_ctrl.dram.read_buffer_size = 64
-        # self.mem_ctrl.dram.write_buffer_size = 64
-=======
->>>>>>> 311bac374ad93a17f6833c0890c677655d2d75b6
 
         # HBM2 no cache
         # self.mem_ctrl = HBMCtrl()
