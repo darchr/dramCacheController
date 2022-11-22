@@ -336,9 +336,9 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         isInWriteQueue.insert(pkt->getAddr());
     }
 
-    pktLocMemRead.push_back(pkt->getAddr());
+    // pktLocMemRead.push_back(pkt->getAddr());
 
-    polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
+    // polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
 
     setNextState(ORB.at(pkt->getAddr()));
 
@@ -486,7 +486,7 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
     auto orbEntry = ORB.at(pkt->getAddr());
 
     if (pkt->isRead()) {
-        if (orbEntry->handleDirtyLine && orbEntry->pol == enums::CascadeLakeNoPartWrs) {
+        if (orbEntry->handleDirtyLine && orbEntry->pol == enums::RambusHypo) {
             handleDirtyCacheLine(orbEntry);
         }
         assert(orbEntry->state == waitingLocMemReadResp);
@@ -620,52 +620,77 @@ void
 PolicyManager::setNextState(reqBufferEntry* orbEntry)
 {
     orbEntry->issued = false;
+    enums::Policy pol = orbEntry->pol;
+    reqState state = orbEntry->state;
+    bool isRead = orbEntry->owPkt->isRead();
+    bool isHit = orbEntry->isHit;
+    bool isDirty = checkDirty(orbEntry->owPkt->getAddr());
 
-    // start --> read tag
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
-        orbEntry->state == start) {
+    // RD Hit Dirty & Clean, RD Miss Dirty, WR Miss Dirty
+    // start --> read loc
+    if (pol == enums::RambusHypo && state == start &&
+        ((isRead && isHit) || (isRead && !isHit && isDirty) || (!isRead && !isHit && isDirty)) 
+       ) {
             orbEntry->state = locMemRead;
             orbEntry->locRdEntered = curTick();
             return;
     }
-
-    // tag ready && read && hit --> DONE
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
-        orbEntry->owPkt->isRead() &&
-        orbEntry->state == waitingLocMemReadResp &&
-        orbEntry->isHit) {
+    // RD Miss Clean
+    // start --> read far
+    if (pol == enums::RambusHypo && state == start &&
+        (isRead && !isHit && !isDirty)
+       ) {
+            orbEntry->state = farMemRead;
+            orbEntry->farRdEntered = curTick();
+            return;
+    }
+    // WR Hit Dirty & Clean, WR Miss Clean
+    // start --> write loc
+    if (pol == enums::RambusHypo && state == start &&
+        ((!isRead && isHit)|| (!isRead && !isHit && !isDirty)) 
+       ) {
+            orbEntry->state = locMemWrite;
+            orbEntry->locWrEntered = curTick();
+            return;
+    }
+    /////////////////////////////////////////////
+    // RD Hit Dirty & Clean
+    // start --> read loc --> done
+    if (pol == enums::RambusHypo &&
+        isRead && isHit &&
+        state == waitingLocMemReadResp ) {
             // done
             // do nothing
             return;
     }
 
-    // tag ready && write --> loc write
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
-        orbEntry->owPkt->isWrite() &&
-        orbEntry->state == waitingLocMemReadResp) {
+    // RD Miss Dirty:
+    // start --> read loc --> read far
+    if (pol == enums::RambusHypo &&
+        isRead && !isHit && isDirty &&
+        state == waitingLocMemReadResp ) {
+            orbEntry->state = farMemRead;
+            orbEntry->farRdEntered = curTick();
+            return;
+    }
+
+    // WR Miss Dirty:
+    // start --> read loc --> loc write
+    if (pol == enums::RambusHypo &&
+        !isRead && !isHit && isDirty &&
+        state == waitingLocMemReadResp) {
             // write it to the DRAM cache
             orbEntry->state = locMemWrite;
             orbEntry->locWrEntered = curTick();
             return;
     }
 
-    // loc read resp ready && read && miss --> far read
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
-        orbEntry->owPkt->isRead() &&
-        orbEntry->state == waitingLocMemReadResp &&
-        !orbEntry->isHit) {
-            
-            orbEntry->state = farMemRead;
-            orbEntry->farRdEntered = curTick();
-            return;
-    }
-
-    // far read resp ready && read && miss --> loc write
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
-        orbEntry->owPkt->isRead() &&
-        orbEntry->state == waitingFarMemReadResp &&
-        !orbEntry->isHit) {
-            
+    // RD Miss Clean & Dirty
+    // start --> ... --> far read -> loc write
+    if (pol == enums::RambusHypo && 
+        (isRead && !isHit) &&
+        state == waitingFarMemReadResp
+       ) {
             PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
                                              false,
                                              orbEntry->owPkt->isRead());
@@ -698,20 +723,15 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
             delete orbEntry;
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
-
-            // if (orbEntry->handleDirtyLine) {
-            //     handleDirtyCacheLine(orbEntry);
-            // }
             orbEntry->state = locMemWrite;
             orbEntry->locWrEntered = curTick();
             return;
     }
 
     // loc write received
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
-        // orbEntry->owPkt->isRead() &&
-        // !orbEntry->isHit &&
-        orbEntry->state == waitingLocMemWriteResp) {
+    if (pol == enums::RambusHypo &&
+        state == waitingLocMemWriteResp) {
+            assert (!(isRead && isHit));
             // done
             // do nothing
             return;
@@ -721,10 +741,12 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 void
 PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 {
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+    if (orbEntry->pol == enums::RambusHypo &&
         orbEntry->state == locMemRead) {
 
-        assert(!pktLocMemRead.empty());
+        pktLocMemRead.push_back(orbEntry->owPkt->getAddr());
+
+        polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
             
         if (!locMemReadEvent.scheduled()) {
             schedule(locMemReadEvent, curTick());
@@ -732,7 +754,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
         return;
     }
 
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+    if (orbEntry->pol == enums::RambusHypo &&
         orbEntry->owPkt->isRead() &&
         orbEntry->state == waitingLocMemReadResp &&
         orbEntry->isHit) {
@@ -778,11 +800,10 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             return;            
     }
 
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
-        orbEntry->owPkt->isRead() &&
+    if (orbEntry->pol == enums::RambusHypo &&
         orbEntry->state == farMemRead) {
 
-            assert(!orbEntry->isHit);
+            assert(orbEntry->owPkt->isRead() && !orbEntry->isHit);
 
             // do a read from far mem
             pktFarMemRead.push_back(orbEntry->owPkt->getAddr());
@@ -796,7 +817,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     }
 
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+    if (orbEntry->pol == enums::RambusHypo &&
         orbEntry->state == locMemWrite) {
 
             if (orbEntry->owPkt->isRead()) {
@@ -816,9 +837,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     }
 
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
-        // orbEntry->owPkt->isRead() &&
-        // !orbEntry->isHit &&
+    if (orbEntry->pol == enums::RambusHypo &&
         orbEntry->state == waitingLocMemWriteResp) {
             // DONE
             // clear ORB
@@ -955,9 +974,9 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
     bool currValid = tagMetadataStore.at(orbEntry->indexDC).validLine;
     bool currDirty = tagMetadataStore.at(orbEntry->indexDC).dirtyLine;
 
-    orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
+    // orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
     
-    // orbEntry->isHit = alwaysHit;
+    orbEntry->isHit = alwaysHit;
 
     if (orbEntry->isHit) {
 
@@ -1017,11 +1036,11 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
 bool
 PolicyManager::checkDirty(Addr addr)
 {
-    Addr index = returnIndexDC(addr, blockSize);
-    return (tagMetadataStore.at(index).validLine &&
-            tagMetadataStore.at(index).dirtyLine);
+    // Addr index = returnIndexDC(addr, blockSize);
+    // return (tagMetadataStore.at(index).validLine &&
+    //         tagMetadataStore.at(index).dirtyLine);
 
-    // return alwaysDirty;
+    return alwaysDirty;
 }
 
 void
@@ -1144,9 +1163,9 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
 
                 checkConflictInCRB(ORB.at(confAddr));
 
-                pktLocMemRead.push_back(confAddr);
+                // pktLocMemRead.push_back(confAddr);
 
-                polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
+                // polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
 
                 setNextState(ORB.at(confAddr));
 

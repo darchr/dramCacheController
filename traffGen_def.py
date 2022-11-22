@@ -29,16 +29,16 @@ system.mem_mode = 'timing'
 
 system.generator = PyTrafficGen()
 
-system.mem_ctrl = PolicyManager(range=AddrRange('1GiB'))
+system.mem_ctrl = PolicyManager(range=AddrRange('3GiB'))
 system.mem_ctrl.tRP = '14.16ns'
 system.mem_ctrl.tRCD_RD = '14.16ns'
 system.mem_ctrl.tRL = '14.16ns'
 
 system.loc_mem_ctrl = MemCtrl()
-system.loc_mem_ctrl.dram =  DDR4_2400_16x4_Alloy(range=AddrRange('1GiB'),in_addr_map=False, null=True)
+system.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=AddrRange('3GiB'),in_addr_map=False, null=True) #DDR4_2400_16x4_Alloy
 
 system.far_mem_ctrl = MemCtrl()
-system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=False, null=True)
+system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('3GiB'),in_addr_map=False, null=True)
 
 system.mem_ctrl.always_hit = False
 system.mem_ctrl.always_dirty = True
@@ -50,9 +50,9 @@ system.loc_mem_ctrl.port = system.mem_ctrl.loc_req_port
 system.far_mem_ctrl.port = system.mem_ctrl.far_req_port
 
 def createRandomTraffic(tgen):
-    yield tgen.createRandom(10000000000,            # duration
+    yield tgen.createRandom(20000000000,            # duration
                             0,                      # min_addr
-                            AddrRange('1GiB').end,  # max_adr
+                            AddrRange('3GiB').end,  # max_adr
                             64,                     # block_size
                             1000,                   # min_period
                             1000,                   # max_period
@@ -63,7 +63,7 @@ def createRandomTraffic(tgen):
 def createLinearTraffic(tgen):
     yield tgen.createLinear(20000000000,            # duration
                             0,                      # min_addr
-                            AddrRange('1GiB').end,  # max_adr
+                            AddrRange('3GiB').end,  # max_adr
                             64,                     # block_size
                             1000,                   # min_period
                             1000,                   # max_period
