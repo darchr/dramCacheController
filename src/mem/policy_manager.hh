@@ -327,6 +327,7 @@ class PolicyManager : public AbstractMemory
     void accessAndRespond(PacketPtr pkt, Tick static_latency);
     PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd, Request::FlagsType flags = 0);
     Tick accessLatency();
+    void printORB();
 
     unsigned countLocRdInORB();
     unsigned countFarRdInORB();

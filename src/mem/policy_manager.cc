@@ -482,17 +482,22 @@ PolicyManager::processFarMemWriteEvent()
 bool
 PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
 {
-    DPRINTF(PolicyManager, "locMemRecvTimingResp : %lld\n", pkt->getAddr());
+    DPRINTF(PolicyManager, "locMemRecvTimingResp : %lld --> ", pkt->getAddr());
     auto orbEntry = ORB.at(pkt->getAddr());
 
     if (pkt->isRead()) {
+        // std::cout << "rd resp\n";
+        assert(orbEntry->state == waitingLocMemReadResp);
+
         if (orbEntry->handleDirtyLine && orbEntry->pol == enums::RambusHypo) {
+            assert(!orbEntry->isHit);
             handleDirtyCacheLine(orbEntry);
         }
-        assert(orbEntry->state == waitingLocMemReadResp);
+
         orbEntry->locRdExit = curTick();
     }
     else {
+        // std::cout << "wr resp\n";
         assert(pkt->isWrite());
         assert(orbEntry->state == waitingLocMemWriteResp);
         orbEntry->locWrExit = curTick();
@@ -503,6 +508,8 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
     // handleNextState functions, reason: it's possible that orbEntry may be
     // deleted and updated, which will not be reflected here in the scope of
     // current lines since it's been read at line #475.
+    // std::cout << "*: " << curTick() << " " << pkt->getAddr() << "\n";
+
     setNextState(ORB.at(pkt->getAddr()));
 
     handleNextState(ORB.at(pkt->getAddr()));
@@ -602,15 +609,17 @@ PolicyManager::farMemRecvReqRetry()
         }
         retryFarMemRead = false;
         schedRd = true;
-    } else if (retryFarMemWrite) {
+    }
+    if (retryFarMemWrite) {
         if (!farMemWriteEvent.scheduled() && !pktFarMemWrite.empty()) {
             schedule(farMemWriteEvent, curTick());
         }
         retryFarMemWrite = false;
         schedWr = true;
-    } else {
-        panic("Wrong far mem retry event happend.\n");
     }
+    // else {
+    //     panic("Wrong far mem retry event happend.\n");
+    // }
 
     DPRINTF(PolicyManager, "farMemRecvReqRetry: %d , %d \n", schedRd, schedWr);
 }
@@ -619,6 +628,7 @@ PolicyManager::farMemRecvReqRetry()
 void
 PolicyManager::setNextState(reqBufferEntry* orbEntry)
 {
+    // std::cout << "1\n";
     orbEntry->issued = false;
     enums::Policy pol = orbEntry->pol;
     reqState state = orbEntry->state;
@@ -631,6 +641,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     if (pol == enums::RambusHypo && state == start &&
         ((isRead && isHit) || (isRead && !isHit && isDirty) || (!isRead && !isHit && isDirty)) 
        ) {
+        // std::cout << "2\n";
             orbEntry->state = locMemRead;
             orbEntry->locRdEntered = curTick();
             return;
@@ -640,6 +651,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     if (pol == enums::RambusHypo && state == start &&
         (isRead && !isHit && !isDirty)
        ) {
+        // std::cout << "3\n";
             orbEntry->state = farMemRead;
             orbEntry->farRdEntered = curTick();
             return;
@@ -649,6 +661,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     if (pol == enums::RambusHypo && state == start &&
         ((!isRead && isHit)|| (!isRead && !isHit && !isDirty)) 
        ) {
+        // std::cout << "3\n";
             orbEntry->state = locMemWrite;
             orbEntry->locWrEntered = curTick();
             return;
@@ -659,6 +672,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     if (pol == enums::RambusHypo &&
         isRead && isHit &&
         state == waitingLocMemReadResp ) {
+            // std::cout << "4\n";
             // done
             // do nothing
             return;
@@ -669,6 +683,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     if (pol == enums::RambusHypo &&
         isRead && !isHit && isDirty &&
         state == waitingLocMemReadResp ) {
+            // std::cout << "5\n";
             orbEntry->state = farMemRead;
             orbEntry->farRdEntered = curTick();
             return;
@@ -679,6 +694,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     if (pol == enums::RambusHypo &&
         !isRead && !isHit && isDirty &&
         state == waitingLocMemReadResp) {
+            // std::cout << "6\n";
             // write it to the DRAM cache
             orbEntry->state = locMemWrite;
             orbEntry->locWrEntered = curTick();
@@ -691,6 +707,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
         (isRead && !isHit) &&
         state == waitingFarMemReadResp
        ) {
+        // std::cout << "7\n";
             PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
                                              false,
                                              orbEntry->owPkt->isRead());
@@ -731,18 +748,22 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     // loc write received
     if (pol == enums::RambusHypo &&
         state == waitingLocMemWriteResp) {
+            // std::cout << "8\n";
             assert (!(isRead && isHit));
             // done
             // do nothing
             return;
     }
+    // std::cout << "9\n";
 }
 
 void
 PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 {
+    // std::cout << "a\n";
     if (orbEntry->pol == enums::RambusHypo &&
         orbEntry->state == locMemRead) {
+            // std::cout << "b\n";
 
         pktLocMemRead.push_back(orbEntry->owPkt->getAddr());
 
@@ -758,6 +779,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
         orbEntry->owPkt->isRead() &&
         orbEntry->state == waitingLocMemReadResp &&
         orbEntry->isHit) {
+            // std::cout << "c\n";
             // DONE
             // send the respond to the requestor
 
@@ -802,6 +824,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     if (orbEntry->pol == enums::RambusHypo &&
         orbEntry->state == farMemRead) {
+            // std::cout << "d\n";
 
             assert(orbEntry->owPkt->isRead() && !orbEntry->isHit);
 
@@ -819,6 +842,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     if (orbEntry->pol == enums::RambusHypo &&
         orbEntry->state == locMemWrite) {
+            // std::cout << "e\n";
 
             if (orbEntry->owPkt->isRead()) {
                 assert(!orbEntry->isHit);
@@ -839,12 +863,14 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     if (orbEntry->pol == enums::RambusHypo &&
         orbEntry->state == waitingLocMemWriteResp) {
+            // std::cout << "f\n";
             // DONE
             // clear ORB
             resumeConflictingReq(orbEntry);
 
             return;
     }
+    // std::cout << "g\n";
 }
 
 void
@@ -1144,6 +1170,7 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
 
         if (returnIndexDC(entry.second->getAddr(), entry.second->getSize())
             == orbEntry->indexDC) {
+                // std::cout << "res found CRB\n";
 
                 conflictFound = true;
 
@@ -1177,6 +1204,10 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
     }
 
     if (!conflictFound) {
+        // std::cout << "resum no CRB\n";
+        // if (orbEntry->owPkt->getAddr()>=67829504) {
+        //     printORB();
+        // }
 
         ORB.erase(orbEntry->owPkt->getAddr());
 
@@ -1190,7 +1221,7 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
             port.sendRetryReq();
         }
     }
-
+    
     return conflictFound;
 }
 
@@ -1254,11 +1285,6 @@ PolicyManager::countFarWr()
 AddrRangeList
 PolicyManager::getAddrRanges()
 {
-    // AddrRangeList locRanges = locReqPort.getAddrRanges();
-    // AddrRangeList farRanges = farReqPort.getAddrRanges();
-    // locRanges.merge(farRanges);
-    // return locRanges;
-
     return farReqPort.getAddrRanges();
 }
 
@@ -1292,16 +1318,6 @@ PolicyManager::handleDirtyCacheLine(reqBufferEntry* orbEntry)
 
     polManStats.avgFarWrQLenEnq = pktFarMemWrite.size();
 
-    // if (
-    //     ((pktFarMemWrite.size() >= (orbMaxSize/2)) || (!pktFarMemWrite.empty() && pktFarMemRead.empty()))
-    //     // && !waitingForRetryReqPort
-    //    ) {
-    //     // sendFarRdReq = false;
-    //     if (!farMemWriteEvent.scheduled()) {
-    //         schedule(farMemWriteEvent, curTick());
-    //     }
-    // }
-
     if (!farMemWriteEvent.scheduled()) {
             schedule(farMemWriteEvent, curTick());
     }
@@ -1322,6 +1338,26 @@ PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
 
 }
 
+void
+PolicyManager::printORB()
+{
+    // for (auto e = ORB.begin(); e != ORB.end(); ++e) {
+    //     // std::cout << e->second->owPkt->getAddr() << ": " <<  e->second->state << ", ";
+    // }
+    // std::cout << "\n";
+    // std::cout << "sch: " <<
+    // locMemReadEvent.scheduled() << " / " <<
+    // locMemWriteEvent.scheduled() << " / " <<
+    // farMemReadEvent.scheduled() << " / " <<
+    // farMemWriteEvent.scheduled() << " ///// " <<
+    // ORB.size() << " , " <<
+    // CRB.size() << " , " <<
+    // pktLocMemRead.size() << " , " <<
+    // pktLocMemWrite.size() << " , " <<
+    // pktFarMemRead.size() << " , " <<
+    // pktFarMemWrite.size() <<
+    // "\n";
+}
 
 void
 PolicyManager::ReqPortPolManager::recvReqRetry()

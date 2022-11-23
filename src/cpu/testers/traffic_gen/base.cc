@@ -329,8 +329,8 @@ BaseTrafficGen::retryReq()
 void
 BaseTrafficGen::noProgress()
 {
-    fatal("BaseTrafficGen %s spent %llu ticks without making progress",
-          name(), progressCheck);
+    fatal("BaseTrafficGen %s spent %llu ticks without making progress, tick: %llu",
+          name(), progressCheck, curTick());
 }
 
 BaseTrafficGen::StatGroup::StatGroup(statistics::Group *parent)
