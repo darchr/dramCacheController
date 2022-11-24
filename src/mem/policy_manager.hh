@@ -69,8 +69,8 @@ class PolicyManager : public AbstractMemory
         void recvFunctional(PacketPtr pkt) override
                             {polMan.recvFunctional(pkt);}
 
-        bool recvTimingReq(PacketPtr pkt) override
-                            {return polMan.recvTimingReq(pkt);}
+        bool recvTimingReq(PacketPtr pkt) override;
+                            //{return polMan.recvTimingReq(pkt);}
 
         AddrRangeList getAddrRanges() const override
                             {return polMan.getAddrRanges();}
@@ -122,6 +122,8 @@ class PolicyManager : public AbstractMemory
     unsigned crbSize;
     bool alwaysHit;
     bool alwaysDirty;
+
+    bool bypassDcache;
 
     /**
      * Pipeline latency of the controller frontend. The frontend

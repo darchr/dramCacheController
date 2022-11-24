@@ -793,7 +793,7 @@ MemCtrl::inWriteBusState(bool next_state, MemInterface* mem_intr) const
 uint32_t
 MemCtrl::bytesPerBurst() const
 {
-    return dram->bytesPerBurst(); 
+    return dram->bytesPerBurst();
 }
 
 Tick

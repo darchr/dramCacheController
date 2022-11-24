@@ -26,6 +26,7 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     orbMaxSize(p.orb_max_size), orbSize(0),
     crbMaxSize(p.crb_max_size), crbSize(0),
     alwaysHit(p.always_hit), alwaysDirty(p.always_dirty),
+    bypassDcache(p.bypass_dcache),
     frontendLatency(p.static_frontend_latency),
     backendLatency(p.static_backend_latency),
     tRP(p.tRP),
@@ -128,6 +129,9 @@ PolicyManager::init()
 bool
 PolicyManager::recvTimingReq(PacketPtr pkt)
 {
+    if (bypassDcache) {
+        return farReqPort.sendTimingReq(pkt);
+    }
     // This is where we enter from the outside world
     DPRINTF(PolicyManager, "recvTimingReq: request %s addr 0x%x size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getSize());
@@ -528,6 +532,11 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
 bool
 PolicyManager::farMemRecvTimingResp(PacketPtr pkt)
 {
+    if (bypassDcache) {
+        port.schedTimingResp(pkt, curTick());
+        return true;
+    }
+    
     DPRINTF(PolicyManager, "farMemRecvTimingResp : %lld , %s \n", pkt->getAddr(), pkt->cmdString());
 
     if (pkt->isRead()) {
@@ -604,6 +613,11 @@ PolicyManager::locMemRecvReqRetry()
 void
 PolicyManager::farMemRecvReqRetry()
 {
+    if (bypassDcache) {
+        port.sendRetryReq();
+        return;
+    }
+    
     assert(retryFarMemRead || retryFarMemWrite);
 
     bool schedRd = false;
@@ -1569,8 +1583,7 @@ PolicyManager::sendRespondToRequestor(PacketPtr pkt, Tick static_latency)
                                      pkt->isRead());
     copyOwPkt->makeResponse();
 
-    Tick response_time = curTick() + static_latency + copyOwPkt->headerDelay;
-    response_time += copyOwPkt->payloadDelay;
+    Tick response_time = curTick() + static_latency + copyOwPkt->headerDelay + copyOwPkt->payloadDelay;
     // Here we reset the timing of the packet before sending it out.
     copyOwPkt->headerDelay = copyOwPkt->payloadDelay = 0;
 
@@ -2065,6 +2078,13 @@ PolicyManager::unserialize(CheckpointIn &cp)
     }
 }
 
+
+
+bool
+PolicyManager::RespPortPolManager::recvTimingReq(PacketPtr pkt)
+{
+    return polMan.recvTimingReq(pkt);
+}
 
 } // namespace memory
 } // namespace gem5
