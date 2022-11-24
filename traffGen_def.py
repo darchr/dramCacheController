@@ -19,6 +19,30 @@ args.add_argument(
     help="Read Percentage",
 )
 
+args.add_argument(
+    "hit",
+    type=int,
+    help="Read Percentage",
+)
+
+args.add_argument(
+    "dirty",
+    type=int,
+    help="Read Percentage",
+)
+
+# args.add_argument(
+#     "device_loc",
+#     type = str,
+#     help = "Memory device to use as a dram cache (local memory)"
+# )
+
+# args.add_argument(
+#     "device_far",
+#     type = str,
+#     help = "Memory device to use as a backing store (far memory)"
+# )
+
 options = args.parse_args()
 
 system = System()
@@ -29,19 +53,32 @@ system.mem_mode = 'timing'
 
 system.generator = PyTrafficGen()
 
-system.mem_ctrl = PolicyManager(range=AddrRange('1GiB'))
+system.mem_ctrl = PolicyManager(range=AddrRange('3GiB'))
 system.mem_ctrl.tRP = '14.16ns'
 system.mem_ctrl.tRCD_RD = '14.16ns'
 system.mem_ctrl.tRL = '14.16ns'
 
-system.loc_mem_ctrl = MemCtrl()
-system.loc_mem_ctrl.dram =  DDR4_2400_16x4_Alloy(range=AddrRange('1GiB'),in_addr_map=False, null=True)
+# system.loc_mem_ctrl = MemCtrl()
+# system.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=AddrRange('3GiB'),in_addr_map=False, null=True) #DDR4_2400_16x4_Alloy
+
+
+system.loc_mem_ctrl = HBMCtrl()
+system.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
+system.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 1), in_addr_map=False, kvm_map=False, null=True)
+
 
 system.far_mem_ctrl = MemCtrl()
-system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=False, null=True)
+system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('3GiB'),in_addr_map=False, null=True)
 
-system.mem_ctrl.always_hit = False
-system.mem_ctrl.always_dirty = True
+if options.hit==1 :
+    system.mem_ctrl.always_hit = True
+else:
+    system.mem_ctrl.always_hit = False
+
+if options.dirty==1 :
+    system.mem_ctrl.always_dirty = True
+else:
+    system.mem_ctrl.always_dirty = False
 
 system.mem_ctrl.dram_cache_size = "64MiB"
 
@@ -50,9 +87,9 @@ system.loc_mem_ctrl.port = system.mem_ctrl.loc_req_port
 system.far_mem_ctrl.port = system.mem_ctrl.far_req_port
 
 def createRandomTraffic(tgen):
-    yield tgen.createRandom(10000000000,            # duration
+    yield tgen.createRandom(20000000000,            # duration
                             0,                      # min_addr
-                            AddrRange('1GiB').end,  # max_adr
+                            AddrRange('3GiB').end,  # max_adr
                             64,                     # block_size
                             1000,                   # min_period
                             1000,                   # max_period
@@ -61,9 +98,9 @@ def createRandomTraffic(tgen):
     yield tgen.createExit(0)
 
 def createLinearTraffic(tgen):
-    yield tgen.createLinear(20000000000,            # duration
+    yield tgen.createLinear(10000000000,            # duration
                             0,                      # min_addr
-                            AddrRange('1GiB').end,  # max_adr
+                            AddrRange('3GiB').end,  # max_adr
                             64,                     # block_size
                             1000,                   # min_period
                             1000,                   # max_period

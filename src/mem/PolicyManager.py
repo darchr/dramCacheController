@@ -4,7 +4,7 @@ from m5.SimObject import SimObject
 from m5.objects.AbstractMemory import AbstractMemory
 
 class Policy(Enum): vals = ['MainMemory' , 'CascadeLake', 'CascadeLakeNoPartWrs', 'CascadeLakeHBM2',
-                            'AlloyCache', 'AlloyCacheHBM2']
+                            'AlloyCache', 'AlloyCacheHBM2', 'BearWriteOpt']
 
 class PolicyManager(AbstractMemory):
     type = 'PolicyManager'
@@ -24,7 +24,7 @@ class PolicyManager(AbstractMemory):
     # loc_mem_ctrl = Param.MemCtrl("Local memory controller")
     # far_mem_ctrl = Param.MemCtrl("Far memory controller")
 
-    loc_mem_policy = Param.Policy('CascadeLakeNoPartWrs', "DRAM Cache Policy")
+    loc_mem_policy = Param.Policy('BearWriteOpt', "DRAM Cache Policy")
 
     dram_cache_size = Param.MemorySize('128MiB', "DRAM cache block size in bytes")
     block_size = Param.Unsigned(64, "DRAM cache block size in bytes")

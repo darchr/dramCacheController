@@ -336,16 +336,27 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         isInWriteQueue.insert(pkt->getAddr());
     }
 
-    pktLocMemRead.push_back(pkt->getAddr());
+    // pktLocMemRead.push_back(pkt->getAddr());
 
-    polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
+    // polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
 
     setNextState(ORB.at(pkt->getAddr()));
 
     handleNextState(ORB.at(pkt->getAddr()));
 
     DPRINTF(PolicyManager, "Policy manager accepted packet %lld\n", pkt->getAddr());
-
+    // std::cout << "sch: " <<
+    // locMemReadEvent.scheduled() << " / " <<
+    // locMemWriteEvent.scheduled() << " / " <<
+    // farMemReadEvent.scheduled() << " / " <<
+    // farMemWriteEvent.scheduled() << " ///// " <<
+    // ORB.size() << " , " <<
+    // CRB.size() << " , " <<
+    // pktLocMemRead.size() << " , " <<
+    // pktLocMemWrite.size() << " , " <<
+    // pktFarMemRead.size() << " , " <<
+    // pktFarMemWrite.size() <<
+    // "\n";
     return true;
 }
 
@@ -486,7 +497,7 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
     auto orbEntry = ORB.at(pkt->getAddr());
 
     if (pkt->isRead()) {
-        if (orbEntry->handleDirtyLine && orbEntry->pol == enums::CascadeLakeNoPartWrs) {
+        if (orbEntry->handleDirtyLine && orbEntry->pol == enums::BearWriteOpt) {
             handleDirtyCacheLine(orbEntry);
         }
         assert(orbEntry->state == waitingLocMemReadResp);
@@ -602,15 +613,17 @@ PolicyManager::farMemRecvReqRetry()
         }
         retryFarMemRead = false;
         schedRd = true;
-    } else if (retryFarMemWrite) {
+    }
+    if (retryFarMemWrite) {
         if (!farMemWriteEvent.scheduled() && !pktFarMemWrite.empty()) {
             schedule(farMemWriteEvent, curTick());
         }
         retryFarMemWrite = false;
         schedWr = true;
-    } else {
-        panic("Wrong far mem retry event happend.\n");
     }
+    // else {
+    //     panic("Wrong far mem retry event happend.\n");
+    // }
 
     DPRINTF(PolicyManager, "farMemRecvReqRetry: %d , %d \n", schedRd, schedWr);
 }
@@ -622,46 +635,60 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     orbEntry->issued = false;
 
     // start --> read tag
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
-        orbEntry->state == start) {
+    if (orbEntry->pol == enums::BearWriteOpt &&
+        orbEntry->state == start && !(orbEntry->owPkt->isWrite() && orbEntry->isHit)) {
             orbEntry->state = locMemRead;
             orbEntry->locRdEntered = curTick();
+            DPRINTF(PolicyManager, "set: start -> locMemRead : %d\n", orbEntry->owPkt->getAddr());
+            return;
+    }
+
+    if (orbEntry->pol == enums::BearWriteOpt &&
+        orbEntry->state == start && orbEntry->owPkt->isWrite() && orbEntry->isHit) {
+            orbEntry->state = locMemWrite;
+            orbEntry->locRdEntered = curTick();
+            DPRINTF(PolicyManager, "set: start -> locMemWrite : %d\n", orbEntry->owPkt->getAddr());
             return;
     }
 
     // tag ready && read && hit --> DONE
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+    if (orbEntry->pol == enums::BearWriteOpt &&
         orbEntry->owPkt->isRead() &&
         orbEntry->state == waitingLocMemReadResp &&
         orbEntry->isHit) {
+            DPRINTF(PolicyManager, "set: waitingLocMemReadResp -> NONE : %d\n", orbEntry->owPkt->getAddr());
+            
             // done
             // do nothing
             return;
     }
 
     // tag ready && write --> loc write
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+    if (orbEntry->pol == enums::BearWriteOpt &&
         orbEntry->owPkt->isWrite() &&
         orbEntry->state == waitingLocMemReadResp) {
+            assert(!orbEntry->isHit);
             // write it to the DRAM cache
             orbEntry->state = locMemWrite;
             orbEntry->locWrEntered = curTick();
+            DPRINTF(PolicyManager, "set: waitingLocMemReadResp -> locMemWrite : %d\n", orbEntry->owPkt->getAddr());
             return;
     }
 
     // loc read resp ready && read && miss --> far read
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+    if (orbEntry->pol == enums::BearWriteOpt &&
         orbEntry->owPkt->isRead() &&
         orbEntry->state == waitingLocMemReadResp &&
         !orbEntry->isHit) {
             
             orbEntry->state = farMemRead;
             orbEntry->farRdEntered = curTick();
+            DPRINTF(PolicyManager, "set: waitingLocMemReadResp -> farMemRead : %d\n", orbEntry->owPkt->getAddr());
             return;
     }
 
     // far read resp ready && read && miss --> loc write
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+    if (orbEntry->pol == enums::BearWriteOpt &&
         orbEntry->owPkt->isRead() &&
         orbEntry->state == waitingFarMemReadResp &&
         !orbEntry->isHit) {
@@ -704,14 +731,17 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
             // }
             orbEntry->state = locMemWrite;
             orbEntry->locWrEntered = curTick();
+            DPRINTF(PolicyManager, "set: waitingFarMemReadResp -> locMemWrite : %d\n", orbEntry->owPkt->getAddr());
             return;
     }
 
     // loc write received
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+    if (orbEntry->pol == enums::BearWriteOpt &&
         // orbEntry->owPkt->isRead() &&
         // !orbEntry->isHit &&
         orbEntry->state == waitingLocMemWriteResp) {
+            DPRINTF(PolicyManager, "set: waitingLocMemWriteResp -> NONE : %d\n", orbEntry->owPkt->getAddr());
+            
             // done
             // do nothing
             return;
@@ -721,18 +751,20 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 void
 PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 {
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+    if (orbEntry->pol == enums::BearWriteOpt &&
         orbEntry->state == locMemRead) {
 
-        assert(!pktLocMemRead.empty());
-            
+        pktLocMemRead.push_back(orbEntry->owPkt->getAddr());
+
+        polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
+
         if (!locMemReadEvent.scheduled()) {
             schedule(locMemReadEvent, curTick());
         }
         return;
     }
 
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+    if (orbEntry->pol == enums::BearWriteOpt &&
         orbEntry->owPkt->isRead() &&
         orbEntry->state == waitingLocMemReadResp &&
         orbEntry->isHit) {
@@ -778,7 +810,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             return;            
     }
 
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+    if (orbEntry->pol == enums::BearWriteOpt &&
         orbEntry->owPkt->isRead() &&
         orbEntry->state == farMemRead) {
 
@@ -796,7 +828,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     }
 
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+    if (orbEntry->pol == enums::BearWriteOpt &&
         orbEntry->state == locMemWrite) {
 
             if (orbEntry->owPkt->isRead()) {
@@ -816,7 +848,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     }
 
-    if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+    if (orbEntry->pol == enums::BearWriteOpt &&
         // orbEntry->owPkt->isRead() &&
         // !orbEntry->isHit &&
         orbEntry->state == waitingLocMemWriteResp) {
@@ -955,9 +987,9 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
     bool currValid = tagMetadataStore.at(orbEntry->indexDC).validLine;
     bool currDirty = tagMetadataStore.at(orbEntry->indexDC).dirtyLine;
 
-    orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
+    // orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
     
-    // orbEntry->isHit = alwaysHit;
+    orbEntry->isHit = alwaysHit;
 
     if (orbEntry->isHit) {
 
@@ -1017,11 +1049,11 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
 bool
 PolicyManager::checkDirty(Addr addr)
 {
-    Addr index = returnIndexDC(addr, blockSize);
-    return (tagMetadataStore.at(index).validLine &&
-            tagMetadataStore.at(index).dirtyLine);
+    // Addr index = returnIndexDC(addr, blockSize);
+    // return (tagMetadataStore.at(index).validLine &&
+    //         tagMetadataStore.at(index).dirtyLine);
 
-    // return alwaysDirty;
+    return alwaysDirty;
 }
 
 void
@@ -1144,9 +1176,9 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
 
                 checkConflictInCRB(ORB.at(confAddr));
 
-                pktLocMemRead.push_back(confAddr);
+                // pktLocMemRead.push_back(confAddr);
 
-                polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
+                // polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
 
                 setNextState(ORB.at(confAddr));
 
