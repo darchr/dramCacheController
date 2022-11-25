@@ -2,6 +2,7 @@
 
 #include "base/trace.hh"
 #include "debug/PolicyManager.hh"
+#include "debug/Drain.hh"
 #include "sim/sim_exit.hh"
 #include "sim/system.hh"
 
@@ -89,7 +90,7 @@ void
 PolicyManager::recvFunctional(PacketPtr pkt)
 {
     bool found;
-    
+
     if (getAddrRange().contains(pkt->getAddr())) {
         // rely on the abstract memory
         functionalAccess(pkt);
@@ -467,6 +468,12 @@ PolicyManager::processFarMemWriteEvent()
 
     if (!pktFarMemWrite.empty() && !farMemWriteEvent.scheduled() && !retryFarMemWrite) {
         schedule(farMemWriteEvent, curTick()+1000);
+    } else {
+        if (drainState() == DrainState::Draining && pktFarMemWrite.empty() &&
+            ORB.empty()) {
+            DPRINTF(Drain, "PolicyManager done draining in farMemWrite\n");
+            signalDrainDone();
+        }
     }
 
     if (retryLLCFarMemWr && pktFarMemWrite.size()< (orbMaxSize / 2)) {
@@ -558,7 +565,7 @@ PolicyManager::locMemRecvReqRetry()
     bool schedRd = false;
     bool schedWr = false;
     if (retryLocMemRead) {
-        
+
         if (!locMemReadEvent.scheduled() && !pktLocMemRead.empty()) {
             schedule(locMemReadEvent, curTick());
         }
@@ -595,7 +602,7 @@ PolicyManager::farMemRecvReqRetry()
 
     bool schedRd = false;
     bool schedWr = false;
-    
+
     if (retryFarMemRead) {
         if (!farMemReadEvent.scheduled() && !pktFarMemRead.empty()) {
             schedule(farMemReadEvent, curTick());
@@ -654,7 +661,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
         orbEntry->owPkt->isRead() &&
         orbEntry->state == waitingLocMemReadResp &&
         !orbEntry->isHit) {
-            
+
             orbEntry->state = farMemRead;
             orbEntry->farRdEntered = curTick();
             return;
@@ -665,7 +672,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
         orbEntry->owPkt->isRead() &&
         orbEntry->state == waitingFarMemReadResp &&
         !orbEntry->isHit) {
-            
+
             PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
                                              false,
                                              orbEntry->owPkt->isRead());
@@ -725,7 +732,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
         orbEntry->state == locMemRead) {
 
         assert(!pktLocMemRead.empty());
-            
+
         if (!locMemReadEvent.scheduled()) {
             schedule(locMemReadEvent, curTick());
         }
@@ -775,7 +782,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             // clear ORB
             resumeConflictingReq(orbEntry);
 
-            return;            
+            return;
     }
 
     if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
@@ -807,7 +814,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             pktLocMemWrite.push_back(orbEntry->owPkt->getAddr());
 
             polManStats.avgLocWrQLenEnq = pktLocMemWrite.size();
-            
+
 
             if (!locMemWriteEvent.scheduled()) {
                 schedule(locMemWriteEvent, curTick());
@@ -856,7 +863,7 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     unsigned burst_size = locBurstSize;
     unsigned size = std::min((addr | (burst_size - 1)) + 1,
                               addr + pkt->getSize()) - addr;
-    
+
     if(pkt->isRead()) {
         polManStats.bytesReadSys += size;
         polManStats.readPktSize[ceilLog2(size)]++;
@@ -925,7 +932,7 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     } else {
         tagMetadataStore.at(orbEntry->indexDC).dirtyLine = true;
     }
-    
+
     tagMetadataStore.at(orbEntry->indexDC).farMemAddr =
                         orbEntry->owPkt->getAddr();
 }
@@ -956,7 +963,7 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
     bool currDirty = tagMetadataStore.at(orbEntry->indexDC).dirtyLine;
 
     orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
-    
+
     // orbEntry->isHit = alwaysHit;
 
     if (orbEntry->isHit) {
@@ -1002,7 +1009,7 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
             } else {
                 polManStats.numWrMissClean++;
             }
-            
+
         }
     }
 
@@ -1053,7 +1060,7 @@ PolicyManager::accessAndRespond(PacketPtr pkt, Tick static_latency)
         // queue the packet in the response queue to be sent out after
         // the static latency has passed
         port.schedTimingResp(pkt, response_time);
-    //} 
+    //}
     // else {
     //     // @todo the packet is going to be deleted, and the MemPacket
     //     // is still having a pointer to it
@@ -1080,7 +1087,7 @@ PolicyManager::getPacket(Addr addr, unsigned size, const MemCmd& cmd,
     PacketPtr pkt = new Packet(req, cmd);
 
     uint8_t* pkt_data = new uint8_t[req->getSize()];
-    
+
     pkt->dataDynamic(pkt_data);
 
     if (cmd.isWrite()) {
@@ -1097,8 +1104,9 @@ PolicyManager::sendRespondToRequestor(PacketPtr pkt, Tick static_latency)
                                      false,
                                      pkt->isRead());
     copyOwPkt->makeResponse();
-    
-    Tick response_time = curTick() + static_latency + copyOwPkt->headerDelay + copyOwPkt->payloadDelay;
+
+    Tick response_time = curTick() + static_latency + copyOwPkt->headerDelay;
+    response_time += copyOwPkt->payloadDelay;
     // Here we reset the timing of the packet before sending it out.
     copyOwPkt->headerDelay = copyOwPkt->payloadDelay = 0;
 
@@ -1169,6 +1177,12 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
             DPRINTF(PolicyManager, "retryLLC: sent\n");
             retryLLC = false;
             port.sendRetryReq();
+        } else {
+            if (drainState() == DrainState::Draining && ORB.empty() &&
+                pktFarMemWrite.empty()) {
+                DPRINTF(Drain, "PolicyManager done draining\n");
+                signalDrainDone();
+            }
         }
     }
 
@@ -1388,7 +1402,7 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
     ADD_STAT(avgFarWrQLenStrt, statistics::units::Rate<
                 statistics::units::Count, statistics::units::Tick>::get(),
              "Average far write queue length"),
-    
+
     ADD_STAT(avgLocRdQLenEnq, statistics::units::Rate<
                 statistics::units::Count, statistics::units::Tick>::get(),
              "Average local read queue length when enqueuing"),
@@ -1479,7 +1493,7 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
             "stat"),
     ADD_STAT(numWrHitClean,
             "stat")
-    
+
 {
 }
 
@@ -1531,6 +1545,77 @@ PolicyManager::getPort(const std::string &if_name, PortID idx)
         panic("PORT NAME ERROR !!!!\n");
     }
 }
+
+DrainState
+PolicyManager::drain()
+{
+    if (!ORB.empty() || !pktFarMemWrite.empty()) {
+        DPRINTF(Drain, "DRAM cache is not drained! Have %d in ORB and %d in "
+                "writeback queue.\n", ORB.size(), pktFarMemWrite.size());
+        return DrainState::Draining;
+    } else {
+        return DrainState::Drained;
+    }
+}
+
+void
+PolicyManager::serialize(CheckpointOut &cp) const
+{
+    ScopedCheckpointSection sec(cp, "tagMetadataStore");
+    paramOut(cp, "numEntries", tagMetadataStore.size());
+
+    int count = 0;
+    for (auto const &entry : tagMetadataStore) {
+        ScopedCheckpointSection sec_entry(cp,csprintf("Entry%d", count++));
+        if (entry.validLine) {
+            paramOut(cp, "validLine", entry.validLine);
+            paramOut(cp, "tagDC", entry.tagDC);
+            paramOut(cp, "indexDC", entry.indexDC);
+            paramOut(cp, "dirtyLine", entry.dirtyLine);
+            paramOut(cp, "farMemAddr", entry.farMemAddr);
+        } else {
+            paramOut(cp, "validLine", entry.validLine);
+        }
+    }
+}
+
+void
+PolicyManager::unserialize(CheckpointIn &cp)
+{
+    ScopedCheckpointSection sec(cp, "tagMetadataStore");
+    int num_entries = 0;
+    paramIn(cp, "numEntries", num_entries);
+    warn_if(num_entries > tagMetadataStore.size(), "Unserializing larger tag "
+            "store into a smaller tag store. Stopping when index doesn't fit");
+    warn_if(num_entries < tagMetadataStore.size(), "Unserializing smaller "
+            "tag store into a larger tag store. Not fully warmed up.");
+
+    for (int i = 0; i < num_entries; i++) {
+        ScopedCheckpointSection sec_entry(cp,csprintf("Entry%d", i));
+
+        bool valid = false;
+        paramIn(cp, "validLine", valid);
+        if (valid) {
+            Addr tag = 0;
+            Addr index = 0;
+            bool dirty = false;
+            Addr far_addr = 0;
+            paramIn(cp, "tagDC", tag);
+            paramIn(cp, "indexDC", index);
+            paramIn(cp, "dirtyLine", dirty);
+            paramIn(cp, "farMemAddr", far_addr);
+            if (index < tagMetadataStore.size()) {
+                // Only insert if this entry fits into the current store.
+                tagMetadataStore[index].tagDC = tag;
+                tagMetadataStore[index].indexDC = index;
+                tagMetadataStore[index].validLine = valid;
+                tagMetadataStore[index].dirtyLine = dirty;
+                tagMetadataStore[index].farMemAddr = far_addr;
+            }
+        }
+    }
+}
+
 
 } // namespace memory
 } // namespace gem5

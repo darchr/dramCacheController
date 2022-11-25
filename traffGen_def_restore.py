@@ -73,30 +73,9 @@ def createLinearTraffic(tgen):
 
 root = Root(full_system=False, system=system)
 
-m5.instantiate()
+m5.instantiate("m5out/cpt-test")
+m5.stats.reset()
 
-if options.traffic_mode == 'linear':
-    system.generator.start(createLinearTraffic(system.generator))
-elif options.traffic_mode == 'random':
-    system.generator.start(createRandomTraffic(system.generator))
-else:
-    print('Wrong traffic type! Exiting!')
-    exit()
-
+system.generator.start(createLinearTraffic(system.generator))
 exit_event = m5.simulate()
 print(f"Exit reason {exit_event.getCause()}")
-
-# for testing checkpointing
-# exit_event = m5.simulate(1000000000)
-# print(f"Exit reason {exit_event.getCause()}")
-
-# # print("Draining")
-# # m5.drain()
-# # print("Done draining!")
-# m5.stats.dump()
-# m5.checkpoint(m5.options.outdir + '/cpt-test')
-# m5.stats.reset()
-
-# system.generator.start(createLinearTraffic(system.generator))
-# exit_event = m5.simulate()
-# print(f"Exit reason {exit_event.getCause()}")

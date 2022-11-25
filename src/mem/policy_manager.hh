@@ -63,7 +63,7 @@ class PolicyManager : public AbstractMemory
         Tick recvAtomic(PacketPtr pkt) override
                             {return polMan.recvAtomic(pkt);}
 
-        Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override 
+        Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override
                             {return polMan.recvAtomicBackdoor(pkt, backdoor);}
 
         void recvFunctional(PacketPtr pkt) override
@@ -76,7 +76,7 @@ class PolicyManager : public AbstractMemory
                             {return polMan.getAddrRanges();}
 
     };
-    
+
     class ReqPortPolManager : public RequestPort
     {
       public:
@@ -199,7 +199,7 @@ class PolicyManager : public AbstractMemory
 
         enums::Policy pol;
         reqState state;
-        
+
         bool issued;
         bool isHit;
         bool conflict;
@@ -226,7 +226,7 @@ class PolicyManager : public AbstractMemory
           bool _validEntry, Tick _arrivalTick,
           Addr _tagDC, Addr _indexDC,
           PacketPtr _owPkt,
-          enums::Policy _pol, reqState _state,  
+          enums::Policy _pol, reqState _state,
           bool _issued, bool _isHit, bool _conflict,
           Addr _dirtyLineAddr, bool _handleDirtyLine,
           Tick _locRdEntered, Tick _locRdIssued, Tick _locRdExit,
@@ -300,7 +300,7 @@ class PolicyManager : public AbstractMemory
      * to be written back to the backing memory.
      * These packets are not maintained in the ORB.
      */
-    std::deque <timeReqPair> pktFarMemWrite; 
+    std::deque <timeReqPair> pktFarMemWrite;
 
     // Maintenance Queues
     std::deque <Addr> pktLocMemRead;
@@ -456,7 +456,14 @@ class PolicyManager : public AbstractMemory
 
     Port &getPort(const std::string &if_name,
                   PortID idx=InvalidPortID);
-    
+
+    // For preparing for checkpoints
+    DrainState drain() override;
+
+    // Serializes the tag state so that we don't have to warm up each time.
+    void serialize(CheckpointOut &cp) const override;
+    void unserialize(CheckpointIn &cp) override;
+
     protected:
 
       Tick recvAtomic(PacketPtr pkt);
