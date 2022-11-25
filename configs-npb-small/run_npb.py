@@ -181,14 +181,10 @@ if __name__ == "__m5_main__":
     m5.stats.reset()
     exit_event = m5.simulate(100000000000)
     m5.stats.dump()
+    print("End of warm-up ************************************************ \n")
 
-<<<<<<< HEAD
     system.switchCpus(system.timingCpu, system.o3Cpu)
     print("Switched to O3 CPU cpu model ************************************************")
-=======
-    # system.switchCpus(system.timingCpu, system.o3Cpu)
-    # print("Switched to O3 CPU cpu model")
->>>>>>> 311bac374ad93a17f6833c0890c677655d2d75b6
 
     m5.stats.reset()
     exit_event = m5.simulate(3000000000000)
@@ -197,28 +193,10 @@ if __name__ == "__m5_main__":
     # Reached the end of ROI
     # Finish executing the benchmark
 
-    print("Dump stats at the end of the ROI!")
-    m5.stats.dump()
+    print("Dumped stats at the end of the ROI!")
     end_tick = m5.curTick()
     end_insts = system.totalInsts()
     m5.stats.reset()
-
-    # Switching back to KVM does not work
-    # with Ruby mem protocols, so not
-    # switching back to simulate the remaining
-    # part
-
-    if args.mem_sys == 'classic':
-        # switch cpu back to kvm if atomic/timing was used for ROI
-        if args.cpu == 'atomic':
-            system.switchCpus(system.atomicCpu, system.cpu)
-        if args.cpu == 'timing':
-            system.switchCpus(system.timingCpu, system.cpu)
-
-        # Simulate the remaning part of the benchmark
-        exit_event = m5.simulate()
-    else:
-        print("Ruby Mem: Not Switching back to KVM!")
 
     print("Done with the simulation")
     print()
