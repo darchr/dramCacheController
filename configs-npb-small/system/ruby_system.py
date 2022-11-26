@@ -34,11 +34,13 @@ from .fs_tools import *
 
 class MyRubySystem(System):
 
-    def __init__(self, kernel, disk, mem_sys, num_cpus, opts):
+    def __init__(self, kernel, disk, mem_sys, num_cpus, opts, restore=False):
         super(MyRubySystem, self).__init__()
         self._opts = opts
 
-        self._host_parallel = True
+        # Use parallel if using KVM. Don't use parallel is restoring cpt
+        self._host_parallel = not restore
+        self._restore = restore
 
         # Set up the clock domain and the voltage domain
         self.clk_domain = SrcClockDomain()
@@ -80,10 +82,18 @@ class MyRubySystem(System):
         elif mem_sys == 'MOESI_CMP_directory':
             from .MOESI_CMP_directory import MOESICMPDirCache
             self.caches = MOESICMPDirCache()
-        self.caches.setup(self, self.cpu, self.mem_ctrl,
+        if self._restore:
+            cpus = self.o3Cpu
+        else:
+            cpus = self.cpu
+        self.caches.setup(self, cpus, self.mem_ctrl,
                           [self.pc.south_bridge.ide.dma,
                           self.iobus.mem_side_ports],
                           self.iobus)
+
+        self.caches.access_backing_store = True
+        self.caches.phys_mem = SimpleMemory(range=self.mem_ranges[0],
+                                           in_addr_map=False)
 
         if self._host_parallel:
             # To get the KVM CPUs to run on different host CPUs
@@ -109,27 +119,33 @@ class MyRubySystem(System):
 
     def createCPU(self, num_cpus):
 
-        # Note KVM needs a VM and atomic_noncaching
-        self.cpu = [X86KvmCPU(cpu_id = i)
+        if not self._restore:
+            # Note KVM needs a VM and atomic_noncaching
+            self.cpu = [X86KvmCPU(cpu_id = i)
+                        for i in range(num_cpus)]
+            self.kvm_vm = KvmVM()
+            self.mem_mode = 'atomic_noncaching'
+            self.createCPUThreads(self.cpu)
+
+            self.atomicCpu = [AtomicSimpleCPU(cpu_id = i,
+                                                switched_out = True)
+                                for i in range(num_cpus)]
+            self.createCPUThreads(self.atomicCpu)
+
+            self.timingCpu = [TimingSimpleCPU(cpu_id = i,
+                                        switched_out = True)
                     for i in range(num_cpus)]
-        self.kvm_vm = KvmVM()
-        self.mem_mode = 'atomic_noncaching'
-        self.createCPUThreads(self.cpu)
+            self.createCPUThreads(self.timingCpu)
 
-        self.atomicCpu = [AtomicSimpleCPU(cpu_id = i,
-                                            switched_out = True)
-                            for i in range(num_cpus)]
-        self.createCPUThreads(self.atomicCpu)
-
-        self.timingCpu = [TimingSimpleCPU(cpu_id = i,
-                                     switched_out = True)
-				   for i in range(num_cpus)]
-        self.createCPUThreads(self.timingCpu)
-
-        self.o3Cpu = [DerivO3CPU(cpu_id = i,
-                                     switched_out = True)
-				   for i in range(num_cpus)]
-        self.createCPUThreads(self.o3Cpu)
+            self.o3Cpu = [DerivO3CPU(cpu_id = i,
+                                        switched_out = True)
+                    for i in range(num_cpus)]
+            self.createCPUThreads(self.o3Cpu)
+        else:
+            self.o3Cpu = [DerivO3CPU(cpu_id = i)
+                    for i in range(num_cpus)]
+            self.mem_mode = 'timing'
+            self.createCPUThreads(self.o3Cpu)
 
     def switchCpus(self, old, new):
         assert(new[0].switchedOut())
@@ -144,9 +160,9 @@ class MyRubySystem(System):
         self._createMemoryControllers(1, DDR3_1600_8x8)
 
     def _createMemoryControllers(self, num, cls):
-        
-        self.mem_ctrl = PolicyManager(range=self.mem_ranges[0])
-        
+
+        self.mem_ctrl = PolicyManager(range=self.mem_ranges[0], kvm_map=False)
+
         # FOR DDR4
         # self.mem_ctrl.tRP = '14.16ns'
         # self.mem_ctrl.tRCD_RD = '14.16ns'
@@ -165,11 +181,11 @@ class MyRubySystem(System):
         # DDR4 cache
         # self.loc_mem_ctrl = MemCtrl()
         # self.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
-        
+
         # Alloy cache
         # self.loc_mem_ctrl = MemCtrl()
         # self.loc_mem_ctrl.dram =  DDR4_2400_16x4_Alloy(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
-        
+
         # main memory
         self.far_mem_ctrl = MemCtrl()
         self.far_mem_ctrl.dram = DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
