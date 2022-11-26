@@ -95,6 +95,9 @@ RubySystem::RubySystem(const Params &p)
     // Create the profiler
     m_profiler = new Profiler(p, this);
     m_phys_mem = p.phys_mem;
+
+    fatal_if(m_access_backing_store && !m_phys_mem, "If using access backing "
+        "store, a phys_mem must be provided to the Ruby system.");
 }
 
 void
