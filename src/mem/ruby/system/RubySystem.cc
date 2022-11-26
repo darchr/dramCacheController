@@ -218,6 +218,11 @@ RubySystem::memWriteback()
     }
     DPRINTF(RubyCacheTrace, "Cache Trace Complete\n");
 
+    if (m_access_backing_store) {
+        // Nothing to flush if we're using access backing store.
+        return;
+    }
+
     // save the current tick value
     Tick curtick_original = curTick();
     DPRINTF(RubyCacheTrace, "Recording current tick %ld\n", curtick_original);
