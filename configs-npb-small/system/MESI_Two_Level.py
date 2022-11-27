@@ -266,7 +266,7 @@ class DirController(Directory_Controller):
         self.ruby_system = ruby_system
         self.directory = RubyDirectoryMemory()
         # Connect this directory to the memory side.
-        self.memory_out_port = mem_ctrls[0].port
+        self.memory_out_port = self.ruby_system.membus.cpu_side_ports
         self.connectQueues(ruby_system)
 
     def connectQueues(self, ruby_system):

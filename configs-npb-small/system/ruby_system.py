@@ -47,9 +47,20 @@ class MyRubySystem(System):
         self.clk_domain.clock = '5GHz'
         self.clk_domain.voltage_domain = VoltageDomain()
 
-        self.mem_ranges = [AddrRange(Addr('2GiB')), # All data
+        mem_size = '4GB'
+        self.mem_ranges = [AddrRange('100MB'), # For kernel
                            AddrRange(0xC0000000, size=0x100000), # For I/0
+                           AddrRange(Addr('4GB'), size = mem_size) # All data
                            ]
+
+        # Create the main memory bus
+        # This connects to main memory
+        self.membus = SystemXBar(width = 64) # 64-byte width
+        self.membus.badaddr_responder = BadAddr()
+        self.membus.default = Self.badaddr_responder.pio
+
+        # Set up the system port for functional access from the simulator
+        self.system_port = self.membus.cpu_side_ports
 
         self.initFS(num_cpus)
 
@@ -70,7 +81,7 @@ class MyRubySystem(System):
         self.createCPU(num_cpus)
 
         # self.intrctrl = IntrControl()
-        self.createMemoryControllersDDR3()
+        self.createMemoryControllersDDR4()
 
         # Create the cache hierarchy for the system.
         if mem_sys == 'MI_example':
@@ -156,12 +167,15 @@ class MyRubySystem(System):
         disk2 = CowDisk(img_path_2)
         self.pc.south_bridge.ide.disks = [disk0, disk2]
 
-    def createMemoryControllersDDR3(self):
-        self._createMemoryControllers(1, DDR3_1600_8x8)
+    def createMemoryControllersDDR4(self):
+        self._createMemoryControllers(1, DDR4_2400_16x4)
 
     def _createMemoryControllers(self, num, cls):
 
-        self.mem_ctrl = PolicyManager(range=self.mem_ranges[0], kvm_map=False)
+        self.mem_ctrl_kernel = self._createKernelMemoryController(cls)
+
+
+        self.mem_ctrl = PolicyManager(range=self.mem_ranges[2], kvm_map=False)
 
         # FOR DDR4
         # self.mem_ctrl.tRP = '14.16ns'
@@ -192,6 +206,7 @@ class MyRubySystem(System):
 
         self.loc_mem_ctrl.port = self.mem_ctrl.loc_req_port
         self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
+        self.mem_ctrl.port = self.membus.mem_side_ports
 
         self.mem_ctrl.orb_max_size = 128
         self.loc_mem_ctrl.dram.read_buffer_size = 32
@@ -217,6 +232,10 @@ class MyRubySystem(System):
         # self.mem_ctrl.dram.write_buffer_size = 32
         # self.mem_ctrl.dram_2.read_buffer_size = 32
         # self.mem_ctrl.dram_2.write_buffer_size = 32
+
+    def _createKernelMemoryController(self, cls):
+        return MemCtrl(dram = cls(range = self.mem_ranges[0]),
+                       port = self.membus.mem_side_ports)
 
 
     def initFS(self, cpus):
