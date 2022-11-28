@@ -281,20 +281,6 @@ class PolicyManager : public AbstractMemory
     bool retryLocMemWrite;
     bool retryFarMemWrite;
 
-    // Counters and flags to keep track of read/write switchings
-    // stallRds: A flag to stop processing reads and switching to writes
-    // bool stallRds;
-    // bool sendFarRdReq;
-    // bool waitingForRetryReqPort;
-    // bool rescheduleLocRead;
-    // bool rescheduleLocWrite;
-    // float locWrDrainPerc;
-    // unsigned writeHighThreshold;
-    // unsigned minLocWrPerSwitch;
-    // unsigned minFarWrPerSwitch;
-    // unsigned locWrCounter;
-    // unsigned farWrCounter;
-
     /**
      * A queue for evicted dirty lines of DRAM cache,
      * to be written back to the backing memory.

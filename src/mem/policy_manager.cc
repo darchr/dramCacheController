@@ -337,9 +337,9 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         isInWriteQueue.insert(pkt->getAddr());
     }
 
-    pktLocMemRead.push_back(pkt->getAddr());
+    // pktLocMemRead.push_back(pkt->getAddr());
 
-    polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
+    // polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
 
     setNextState(ORB.at(pkt->getAddr()));
 
@@ -493,10 +493,16 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
     auto orbEntry = ORB.at(pkt->getAddr());
 
     if (pkt->isRead()) {
-        if (orbEntry->handleDirtyLine && orbEntry->pol == enums::CascadeLakeNoPartWrs) {
+        assert(orbEntry->state == waitingLocMemReadResp);
+
+        if (orbEntry->handleDirtyLine && 
+            (orbEntry->pol == enums::CascadeLakeNoPartWrs || 
+            orbEntry->pol == enums::RambusHypo ||
+            orbEntry->pol ==  enums::BearWriteOpt)
+        ) {
+            assert(!orbEntry->isHit);
             handleDirtyCacheLine(orbEntry);
         }
-        assert(orbEntry->state == waitingLocMemReadResp);
         orbEntry->locRdExit = curTick();
     }
     else {
@@ -609,24 +615,30 @@ PolicyManager::farMemRecvReqRetry()
         }
         retryFarMemRead = false;
         schedRd = true;
-    } else if (retryFarMemWrite) {
+    }
+    if (retryFarMemWrite) {
         if (!farMemWriteEvent.scheduled() && !pktFarMemWrite.empty()) {
             schedule(farMemWriteEvent, curTick());
         }
         retryFarMemWrite = false;
         schedWr = true;
-    } else {
-        panic("Wrong far mem retry event happend.\n");
     }
+    // else {
+    //     panic("Wrong far mem retry event happend.\n");
+    // }
 
     DPRINTF(PolicyManager, "farMemRecvReqRetry: %d , %d \n", schedRd, schedWr);
 }
-
 
 void
 PolicyManager::setNextState(reqBufferEntry* orbEntry)
 {
     orbEntry->issued = false;
+    enums::Policy pol = orbEntry->pol;
+    reqState state = orbEntry->state;
+    bool isRead = orbEntry->owPkt->isRead();
+    bool isHit = orbEntry->isHit;
+    bool isDirty = checkDirty(orbEntry->owPkt->getAddr());
 
     // start --> read tag
     if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
@@ -723,15 +735,250 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
             // do nothing
             return;
     }
+
+    ////////////////////////////////////////////////////////////////////////
+    /// RambusHypo
+
+    // RD Hit Dirty & Clean, RD Miss Dirty, WR Miss Dirty
+    // start --> read loc
+    if (pol == enums::RambusHypo && state == start &&
+        ((isRead && isHit) || (isRead && !isHit && isDirty) || (!isRead && !isHit && isDirty)) 
+       ) {
+            orbEntry->state = locMemRead;
+            orbEntry->locRdEntered = curTick();
+            return;
+    }
+    // RD Miss Clean
+    // start --> read far
+    if (pol == enums::RambusHypo && state == start &&
+        (isRead && !isHit && !isDirty)
+       ) {
+            orbEntry->state = farMemRead;
+            orbEntry->farRdEntered = curTick();
+            return;
+    }
+    // WR Hit Dirty & Clean, WR Miss Clean
+    // start --> write loc
+    if (pol == enums::RambusHypo && state == start &&
+        ((!isRead && isHit)|| (!isRead && !isHit && !isDirty)) 
+       ) {
+            orbEntry->state = locMemWrite;
+            orbEntry->locWrEntered = curTick();
+            return;
+    }
+
+    // RD Hit Dirty & Clean
+    // start --> read loc --> done
+    if (pol == enums::RambusHypo &&
+        isRead && isHit &&
+        state == waitingLocMemReadResp ) {
+            // done
+            // do nothing
+            return;
+    }
+
+    // RD Miss Dirty:
+    // start --> read loc --> read far
+    if (pol == enums::RambusHypo &&
+        isRead && !isHit && isDirty &&
+        state == waitingLocMemReadResp ) {
+            orbEntry->state = farMemRead;
+            orbEntry->farRdEntered = curTick();
+            return;
+    }
+
+    // WR Miss Dirty:
+    // start --> read loc --> loc write
+    if (pol == enums::RambusHypo &&
+        !isRead && !isHit && isDirty &&
+        state == waitingLocMemReadResp) {
+            // write it to the DRAM cache
+            orbEntry->state = locMemWrite;
+            orbEntry->locWrEntered = curTick();
+            return;
+    }
+
+    // RD Miss Clean & Dirty
+    // start --> ... --> far read -> loc write
+    if (pol == enums::RambusHypo && 
+        (isRead && !isHit) &&
+        state == waitingFarMemReadResp
+       ) {
+            PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
+                                             false,
+                                             orbEntry->owPkt->isRead());
+
+            accessAndRespond(orbEntry->owPkt,
+                             frontendLatency + backendLatency + backendLatency);
+
+            ORB.at(copyOwPkt->getAddr()) = new reqBufferEntry(
+                                                orbEntry->validEntry,
+                                                orbEntry->arrivalTick,
+                                                orbEntry->tagDC,
+                                                orbEntry->indexDC,
+                                                copyOwPkt,
+                                                orbEntry->pol,
+                                                orbEntry->state,
+                                                orbEntry->issued,
+                                                orbEntry->isHit,
+                                                orbEntry->conflict,
+                                                orbEntry->dirtyLineAddr,
+                                                orbEntry->handleDirtyLine,
+                                                orbEntry->locRdEntered,
+                                                orbEntry->locRdIssued,
+                                                orbEntry->locRdExit,
+                                                orbEntry->locWrEntered,
+                                                orbEntry->locWrIssued,
+                                                orbEntry->locWrExit,
+                                                orbEntry->farRdEntered,
+                                                orbEntry->farRdIssued,
+                                                orbEntry->farRdExit);
+            delete orbEntry;
+
+            orbEntry = ORB.at(copyOwPkt->getAddr());
+            orbEntry->state = locMemWrite;
+            orbEntry->locWrEntered = curTick();
+            return;
+    }
+
+    // loc write received
+    if (pol == enums::RambusHypo &&
+        state == waitingLocMemWriteResp) {
+            assert (!(isRead && isHit));
+            // done
+            // do nothing
+            return;
+    }
+
+    ////////////////////////////////////////////////////////////////////////
+    // BEAR Write optimized
+    if (orbEntry->pol == enums::BearWriteOpt &&
+        orbEntry->state == start && !(orbEntry->owPkt->isWrite() && orbEntry->isHit)) {
+            orbEntry->state = locMemRead;
+            orbEntry->locRdEntered = curTick();
+            DPRINTF(PolicyManager, "set: start -> locMemRead : %d\n", orbEntry->owPkt->getAddr());
+            return;
+    }
+
+    if (orbEntry->pol == enums::BearWriteOpt &&
+        orbEntry->state == start && orbEntry->owPkt->isWrite() && orbEntry->isHit) {
+            orbEntry->state = locMemWrite;
+            orbEntry->locRdEntered = curTick();
+            DPRINTF(PolicyManager, "set: start -> locMemWrite : %d\n", orbEntry->owPkt->getAddr());
+            return;
+    }
+
+    // tag ready && read && hit --> DONE
+    if (orbEntry->pol == enums::BearWriteOpt &&
+        orbEntry->owPkt->isRead() &&
+        orbEntry->state == waitingLocMemReadResp &&
+        orbEntry->isHit) {
+            DPRINTF(PolicyManager, "set: waitingLocMemReadResp -> NONE : %d\n", orbEntry->owPkt->getAddr());
+            
+            // done
+            // do nothing
+            return;
+    }
+
+    // tag ready && write --> loc write
+    if (orbEntry->pol == enums::BearWriteOpt &&
+        orbEntry->owPkt->isWrite() &&
+        orbEntry->state == waitingLocMemReadResp) {
+            assert(!orbEntry->isHit);
+            // write it to the DRAM cache
+            orbEntry->state = locMemWrite;
+            orbEntry->locWrEntered = curTick();
+            DPRINTF(PolicyManager, "set: waitingLocMemReadResp -> locMemWrite : %d\n", orbEntry->owPkt->getAddr());
+            return;
+    }
+
+    // loc read resp ready && read && miss --> far read
+    if (orbEntry->pol == enums::BearWriteOpt &&
+        orbEntry->owPkt->isRead() &&
+        orbEntry->state == waitingLocMemReadResp &&
+        !orbEntry->isHit) {
+            
+            orbEntry->state = farMemRead;
+            orbEntry->farRdEntered = curTick();
+            DPRINTF(PolicyManager, "set: waitingLocMemReadResp -> farMemRead : %d\n", orbEntry->owPkt->getAddr());
+            return;
+    }
+
+    // far read resp ready && read && miss --> loc write
+    if (orbEntry->pol == enums::BearWriteOpt &&
+        orbEntry->owPkt->isRead() &&
+        orbEntry->state == waitingFarMemReadResp &&
+        !orbEntry->isHit) {
+            
+            PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
+                                             false,
+                                             orbEntry->owPkt->isRead());
+
+            accessAndRespond(orbEntry->owPkt,
+                             frontendLatency + backendLatency + backendLatency);
+
+            ORB.at(copyOwPkt->getAddr()) = new reqBufferEntry(
+                                                orbEntry->validEntry,
+                                                orbEntry->arrivalTick,
+                                                orbEntry->tagDC,
+                                                orbEntry->indexDC,
+                                                copyOwPkt,
+                                                orbEntry->pol,
+                                                orbEntry->state,
+                                                orbEntry->issued,
+                                                orbEntry->isHit,
+                                                orbEntry->conflict,
+                                                orbEntry->dirtyLineAddr,
+                                                orbEntry->handleDirtyLine,
+                                                orbEntry->locRdEntered,
+                                                orbEntry->locRdIssued,
+                                                orbEntry->locRdExit,
+                                                orbEntry->locWrEntered,
+                                                orbEntry->locWrIssued,
+                                                orbEntry->locWrExit,
+                                                orbEntry->farRdEntered,
+                                                orbEntry->farRdIssued,
+                                                orbEntry->farRdExit);
+            delete orbEntry;
+
+            orbEntry = ORB.at(copyOwPkt->getAddr());
+
+            // if (orbEntry->handleDirtyLine) {
+            //     handleDirtyCacheLine(orbEntry);
+            // }
+            orbEntry->state = locMemWrite;
+            orbEntry->locWrEntered = curTick();
+            DPRINTF(PolicyManager, "set: waitingFarMemReadResp -> locMemWrite : %d\n", orbEntry->owPkt->getAddr());
+            return;
+    }
+
+    // loc write received
+    if (orbEntry->pol == enums::BearWriteOpt &&
+        // orbEntry->owPkt->isRead() &&
+        // !orbEntry->isHit &&
+        orbEntry->state == waitingLocMemWriteResp) {
+            DPRINTF(PolicyManager, "set: waitingLocMemWriteResp -> NONE : %d\n", orbEntry->owPkt->getAddr());
+            
+            // done
+            // do nothing
+            return;
+    }
 }
 
 void
 PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 {
+    ////////////////////////////////////////////////////////////////////////
+    // CascadeLakeNoPartWrs
+
     if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
         orbEntry->state == locMemRead) {
 
-        assert(!pktLocMemRead.empty());
+        // assert(!pktLocMemRead.empty());
+
+        pktLocMemRead.push_back(orbEntry->owPkt->getAddr());
+
+        polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
 
         if (!locMemReadEvent.scheduled()) {
             schedule(locMemReadEvent, curTick());
@@ -824,6 +1071,223 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
     }
 
     if (orbEntry->pol == enums::CascadeLakeNoPartWrs &&
+        // orbEntry->owPkt->isRead() &&
+        // !orbEntry->isHit &&
+        orbEntry->state == waitingLocMemWriteResp) {
+            // DONE
+            // clear ORB
+            resumeConflictingReq(orbEntry);
+
+            return;
+    }
+
+    ////////////////////////////////////////////////////////////////////////
+    // Rambus Hypo
+    if (orbEntry->pol == enums::RambusHypo &&
+        orbEntry->state == locMemRead) {
+
+        pktLocMemRead.push_back(orbEntry->owPkt->getAddr());
+
+        polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
+            
+        if (!locMemReadEvent.scheduled()) {
+            schedule(locMemReadEvent, curTick());
+        }
+        return;
+    }
+
+    if (orbEntry->pol == enums::RambusHypo &&
+        orbEntry->owPkt->isRead() &&
+        orbEntry->state == waitingLocMemReadResp &&
+        orbEntry->isHit) {
+            // DONE
+            // send the respond to the requestor
+
+            PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
+                                             false,
+                                             orbEntry->owPkt->isRead());
+
+            accessAndRespond(orbEntry->owPkt,
+                             frontendLatency + backendLatency);
+
+            ORB.at(copyOwPkt->getAddr()) = new reqBufferEntry(
+                                                orbEntry->validEntry,
+                                                orbEntry->arrivalTick,
+                                                orbEntry->tagDC,
+                                                orbEntry->indexDC,
+                                                copyOwPkt,
+                                                orbEntry->pol,
+                                                orbEntry->state,
+                                                orbEntry->issued,
+                                                orbEntry->isHit,
+                                                orbEntry->conflict,
+                                                orbEntry->dirtyLineAddr,
+                                                orbEntry->handleDirtyLine,
+                                                orbEntry->locRdEntered,
+                                                orbEntry->locRdIssued,
+                                                orbEntry->locRdExit,
+                                                orbEntry->locWrEntered,
+                                                orbEntry->locWrIssued,
+                                                orbEntry->locWrExit,
+                                                orbEntry->farRdEntered,
+                                                orbEntry->farRdIssued,
+                                                orbEntry->farRdExit);
+            delete orbEntry;
+
+            orbEntry = ORB.at(copyOwPkt->getAddr());
+
+            // clear ORB
+            resumeConflictingReq(orbEntry);
+
+            return;            
+    }
+
+    if (orbEntry->pol == enums::RambusHypo &&
+        orbEntry->state == farMemRead) {
+
+            assert(orbEntry->owPkt->isRead() && !orbEntry->isHit);
+
+            // do a read from far mem
+            pktFarMemRead.push_back(orbEntry->owPkt->getAddr());
+
+            polManStats.avgFarRdQLenEnq = pktFarMemRead.size();
+
+            if (!farMemReadEvent.scheduled()) {
+                schedule(farMemReadEvent, curTick());
+            }
+            return;
+
+    }
+
+    if (orbEntry->pol == enums::RambusHypo &&
+        orbEntry->state == locMemWrite) {
+
+            if (orbEntry->owPkt->isRead()) {
+                assert(!orbEntry->isHit);
+            }
+
+            // do a read from far mem
+            pktLocMemWrite.push_back(orbEntry->owPkt->getAddr());
+
+            polManStats.avgLocWrQLenEnq = pktLocMemWrite.size();
+            
+
+            if (!locMemWriteEvent.scheduled()) {
+                schedule(locMemWriteEvent, curTick());
+            }
+            return;
+
+    }
+
+    if (orbEntry->pol == enums::RambusHypo &&
+        orbEntry->state == waitingLocMemWriteResp) {
+            // DONE
+            // clear ORB
+            resumeConflictingReq(orbEntry);
+
+            return;
+    }
+
+    ////////////////////////////////////////////////////////////////////////
+    // BEAR Write Optmized
+    if (orbEntry->pol == enums::BearWriteOpt &&
+        orbEntry->state == locMemRead) {
+
+        pktLocMemRead.push_back(orbEntry->owPkt->getAddr());
+
+        polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
+
+        if (!locMemReadEvent.scheduled()) {
+            schedule(locMemReadEvent, curTick());
+        }
+        return;
+    }
+
+    if (orbEntry->pol == enums::BearWriteOpt &&
+        orbEntry->owPkt->isRead() &&
+        orbEntry->state == waitingLocMemReadResp &&
+        orbEntry->isHit) {
+            // DONE
+            // send the respond to the requestor
+
+            PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
+                                             false,
+                                             orbEntry->owPkt->isRead());
+
+            accessAndRespond(orbEntry->owPkt,
+                             frontendLatency + backendLatency);
+
+            ORB.at(copyOwPkt->getAddr()) = new reqBufferEntry(
+                                                orbEntry->validEntry,
+                                                orbEntry->arrivalTick,
+                                                orbEntry->tagDC,
+                                                orbEntry->indexDC,
+                                                copyOwPkt,
+                                                orbEntry->pol,
+                                                orbEntry->state,
+                                                orbEntry->issued,
+                                                orbEntry->isHit,
+                                                orbEntry->conflict,
+                                                orbEntry->dirtyLineAddr,
+                                                orbEntry->handleDirtyLine,
+                                                orbEntry->locRdEntered,
+                                                orbEntry->locRdIssued,
+                                                orbEntry->locRdExit,
+                                                orbEntry->locWrEntered,
+                                                orbEntry->locWrIssued,
+                                                orbEntry->locWrExit,
+                                                orbEntry->farRdEntered,
+                                                orbEntry->farRdIssued,
+                                                orbEntry->farRdExit);
+            delete orbEntry;
+
+            orbEntry = ORB.at(copyOwPkt->getAddr());
+
+            // clear ORB
+            resumeConflictingReq(orbEntry);
+
+            return;            
+    }
+
+    if (orbEntry->pol == enums::BearWriteOpt &&
+        orbEntry->owPkt->isRead() &&
+        orbEntry->state == farMemRead) {
+
+            assert(!orbEntry->isHit);
+
+            // do a read from far mem
+            pktFarMemRead.push_back(orbEntry->owPkt->getAddr());
+
+            polManStats.avgFarRdQLenEnq = pktFarMemRead.size();
+
+            if (!farMemReadEvent.scheduled()) {
+                schedule(farMemReadEvent, curTick());
+            }
+            return;
+
+    }
+
+    if (orbEntry->pol == enums::BearWriteOpt &&
+        orbEntry->state == locMemWrite) {
+
+            if (orbEntry->owPkt->isRead()) {
+                assert(!orbEntry->isHit);
+            }
+
+            // do a read from far mem
+            pktLocMemWrite.push_back(orbEntry->owPkt->getAddr());
+
+            polManStats.avgLocWrQLenEnq = pktLocMemWrite.size();
+            
+
+            if (!locMemWriteEvent.scheduled()) {
+                schedule(locMemWriteEvent, curTick());
+            }
+            return;
+
+    }
+
+    if (orbEntry->pol == enums::BearWriteOpt &&
         // orbEntry->owPkt->isRead() &&
         // !orbEntry->isHit &&
         orbEntry->state == waitingLocMemWriteResp) {
@@ -1152,9 +1616,9 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
 
                 checkConflictInCRB(ORB.at(confAddr));
 
-                pktLocMemRead.push_back(confAddr);
+                // pktLocMemRead.push_back(confAddr);
 
-                polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
+                // polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
 
                 setNextState(ORB.at(confAddr));
 
@@ -1249,11 +1713,6 @@ PolicyManager::countFarWr()
 AddrRangeList
 PolicyManager::getAddrRanges()
 {
-    // AddrRangeList locRanges = locReqPort.getAddrRanges();
-    // AddrRangeList farRanges = farReqPort.getAddrRanges();
-    // locRanges.merge(farRanges);
-    // return locRanges;
-
     return farReqPort.getAddrRanges();
 }
 
@@ -1286,16 +1745,6 @@ PolicyManager::handleDirtyCacheLine(reqBufferEntry* orbEntry)
     pktFarMemWrite.push_back(std::make_pair(curTick(), wbPkt));
 
     polManStats.avgFarWrQLenEnq = pktFarMemWrite.size();
-
-    // if (
-    //     ((pktFarMemWrite.size() >= (orbMaxSize/2)) || (!pktFarMemWrite.empty() && pktFarMemRead.empty()))
-    //     // && !waitingForRetryReqPort
-    //    ) {
-    //     // sendFarRdReq = false;
-    //     if (!farMemWriteEvent.scheduled()) {
-    //         schedule(farMemWriteEvent, curTick());
-    //     }
-    // }
 
     if (!farMemWriteEvent.scheduled()) {
             schedule(farMemWriteEvent, curTick());

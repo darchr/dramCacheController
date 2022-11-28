@@ -34,18 +34,20 @@ from .fs_tools import *
 
 class MyRubySystem(System):
 
-    def __init__(self, kernel, disk, mem_sys, num_cpus):
+    def __init__(self, kernel, disk, mem_sys, num_cpus, opts, restore=False):
         super(MyRubySystem, self).__init__()
-        #self._opts = opts
+        self._opts = opts
 
-        self._host_parallel = True
+        # Use parallel if using KVM. Don't use parallel is restoring cpt
+        self._host_parallel = not restore
+        self._restore = restore
 
         # Set up the clock domain and the voltage domain
         self.clk_domain = SrcClockDomain()
         self.clk_domain.clock = '5GHz'
         self.clk_domain.voltage_domain = VoltageDomain()
 
-        self.mem_ranges = [AddrRange(Addr('2GiB')), # All data
+        self.mem_ranges = [AddrRange(Addr('3GiB')), # All data
                            AddrRange(0xC0000000, size=0x100000), # For I/0
                            ]
 
@@ -67,7 +69,7 @@ class MyRubySystem(System):
         # Create the CPUs for our system.
         self.createCPU(num_cpus)
 
-        #self.intrctrl = IntrControl()
+        # self.intrctrl = IntrControl()
         self.createMemoryControllersDDR3()
 
         # Create the cache hierarchy for the system.
@@ -80,10 +82,18 @@ class MyRubySystem(System):
         elif mem_sys == 'MOESI_CMP_directory':
             from .MOESI_CMP_directory import MOESICMPDirCache
             self.caches = MOESICMPDirCache()
-        self.caches.setup(self, self.cpu, self.mem_ctrl,
+        if self._restore:
+            cpus = self.o3Cpu
+        else:
+            cpus = self.cpu
+        self.caches.setup(self, cpus, self.mem_ctrl,
                           [self.pc.south_bridge.ide.dma,
                           self.iobus.mem_side_ports],
                           self.iobus)
+
+        self.caches.access_backing_store = True
+        self.caches.phys_mem = SimpleMemory(range=self.mem_ranges[0],
+                                           in_addr_map=False)
 
         if self._host_parallel:
             # To get the KVM CPUs to run on different host CPUs
@@ -109,27 +119,33 @@ class MyRubySystem(System):
 
     def createCPU(self, num_cpus):
 
-        # Note KVM needs a VM and atomic_noncaching
-        self.cpu = [X86KvmCPU(cpu_id = i)
+        if not self._restore:
+            # Note KVM needs a VM and atomic_noncaching
+            self.cpu = [X86KvmCPU(cpu_id = i)
+                        for i in range(num_cpus)]
+            self.kvm_vm = KvmVM()
+            self.mem_mode = 'atomic_noncaching'
+            self.createCPUThreads(self.cpu)
+
+            self.atomicCpu = [AtomicSimpleCPU(cpu_id = i,
+                                                switched_out = True)
+                                for i in range(num_cpus)]
+            self.createCPUThreads(self.atomicCpu)
+
+            self.timingCpu = [TimingSimpleCPU(cpu_id = i,
+                                        switched_out = True)
                     for i in range(num_cpus)]
-        self.kvm_vm = KvmVM()
-        self.mem_mode = 'atomic_noncaching'
-        self.createCPUThreads(self.cpu)
+            self.createCPUThreads(self.timingCpu)
 
-        self.atomicCpu = [AtomicSimpleCPU(cpu_id = i,
-                                            switched_out = True)
-                            for i in range(num_cpus)]
-        self.createCPUThreads(self.atomicCpu)
-
-        self.timingCpu = [TimingSimpleCPU(cpu_id = i,
-                                     switched_out = True)
-				   for i in range(num_cpus)]
-        self.createCPUThreads(self.timingCpu)
-
-        self.o3Cpu = [DerivO3CPU(cpu_id = i,
-                                     switched_out = True)
-				   for i in range(num_cpus)]
-        self.createCPUThreads(self.o3Cpu)
+            self.o3Cpu = [DerivO3CPU(cpu_id = i,
+                                        switched_out = True)
+                    for i in range(num_cpus)]
+            self.createCPUThreads(self.o3Cpu)
+        else:
+            self.o3Cpu = [DerivO3CPU(cpu_id = i)
+                    for i in range(num_cpus)]
+            self.mem_mode = 'timing'
+            self.createCPUThreads(self.o3Cpu)
 
     def switchCpus(self, old, new):
         assert(new[0].switchedOut())
@@ -145,8 +161,8 @@ class MyRubySystem(System):
 
     def _createMemoryControllers(self, num, cls):
 
-        self.mem_ctrl = PolicyManager(range=self.mem_ranges[0])
-        
+        self.mem_ctrl = PolicyManager(range=self.mem_ranges[0], kvm_map=False)
+
         # FOR DDR4
         # self.mem_ctrl.tRP = '14.16ns'
         # self.mem_ctrl.tRCD_RD = '14.16ns'
@@ -159,17 +175,17 @@ class MyRubySystem(System):
 
         # HBM2 cache
         self.loc_mem_ctrl = HBMCtrl()
-        self.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '2GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
-        self.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '2GiB', masks = [1 << 6], intlvMatch = 1), in_addr_map=False, kvm_map=False, null=True)
+        self.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
+        self.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 1), in_addr_map=False, kvm_map=False, null=True)
 
         # DDR4 cache
         # self.loc_mem_ctrl = MemCtrl()
         # self.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
-        
+
         # Alloy cache
         # self.loc_mem_ctrl = MemCtrl()
         # self.loc_mem_ctrl.dram =  DDR4_2400_16x4_Alloy(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
-        
+
         # main memory
         self.far_mem_ctrl = MemCtrl()
         self.far_mem_ctrl.dram = DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
@@ -178,14 +194,16 @@ class MyRubySystem(System):
         self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
 
         self.mem_ctrl.orb_max_size = 128
+        self.mem_ctrl.dram_cache_size = "128MiB"
+        self.mem_ctrl.loc_mem_policy = 'CascadeLakeNoPartWrs'
+
         self.loc_mem_ctrl.dram.read_buffer_size = 32
         self.loc_mem_ctrl.dram.write_buffer_size = 32
         self.loc_mem_ctrl.dram_2.read_buffer_size = 32
         self.loc_mem_ctrl.dram_2.write_buffer_size = 32
+
         self.far_mem_ctrl.dram.read_buffer_size = 64
         self.far_mem_ctrl.dram.write_buffer_size = 64
-
-        self.mem_ctrl.dram_cache_size = "128MiB"
 
         # DDR4 no cache
         # self.mem_ctrl = MemCtrl()
@@ -195,13 +213,12 @@ class MyRubySystem(System):
 
         # HBM2 no cache
         # self.mem_ctrl = HBMCtrl()
-        # self.mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '2GiB', masks = [1 << 6], intlvMatch = 0))
-        # self.mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '2GiB', masks = [1 << 6], intlvMatch = 1))
+        # self.mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 0))
+        # self.mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 1))
         # self.mem_ctrl.dram.read_buffer_size = 32
         # self.mem_ctrl.dram.write_buffer_size = 32
         # self.mem_ctrl.dram_2.read_buffer_size = 32
         # self.mem_ctrl.dram_2.write_buffer_size = 32
-
 
 
     def initFS(self, cpus):

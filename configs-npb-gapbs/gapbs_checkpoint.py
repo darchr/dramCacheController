@@ -1,6 +1,6 @@
-#Copyright (c) 2020 The Regents of the University of California.
-#All Rights Reserved
-#
+# -*- coding: utf-8 -*-
+# Copyright (c) 2019 The Regents of the University of California.
+# All rights reserved.
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
 # met: redistributions of source code must retain the above copyright
@@ -24,42 +24,21 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-
+# Authors: Jason Lowe-Power, Ayaz Akram
 
 """ Script to run GAP Benchmark suites workloads.
     The workloads have two modes: synthetic and real graphs.
 """
-
+import argparse
+import time
 import m5
 import m5.ticks
 from m5.objects import *
 
-import argparse
-
 from system import *
 
-def parse_arguments():
-    parser = argparse.ArgumentParser(description=
-                                "gem5 config file to run GAPBS")
-    parser.add_argument("kernel", type = str, help = "Path to vmlinux")
-    parser.add_argument("disk", type = str,
-                        help = "Path to the disk image containing GAPBS")
-    parser.add_argument("cpu_type", type = str, help = "Name of the detailed CPU")
-    parser.add_argument("num_cpus", type = int, help = "Number of CPUs")
-    parser.add_argument("mem_sys", type = str,
-                        help = "Memory model, Classic or MI_example")
-    parser.add_argument("benchmark", type = str,
-                        help = "Name of the GAPBS")
-    parser.add_argument("synthetic", type = int,
-                        help = "1 for synthetic graph, 0 for real graph")
-    parser.add_argument("graph", type = str,
-                        help = "synthetic=1: integer number. synthetic=0: graph")
-    parser.add_argument("-z", "--allow-listeners", default = False,
-                        action = "store_true",
-                        help = "Turn on listeners (e.g. gdb listener port);"
-                               "The listeners are off by default")
-    return parser.parse_args()
-
+supported_protocols = ["MESI_Two_Level"]
+supported_cpu_types = ['kvm', 'atomic', 'timing']
 
 def writeBenchScript(dir, benchmark_name, size, synthetic):
     """
@@ -82,39 +61,49 @@ def writeBenchScript(dir, benchmark_name, size, synthetic):
 
     return input_file_name
 
+def parse_options():
+
+    parser = argparse.ArgumentParser(description='For use with gem5. This '
+                'runs a GAPBS applications. This only works '
+                'with x86 ISA.')
+
+    # The manditry position arguments.
+    parser.add_argument("kernel", type=str,
+                        help="Path to the kernel binary to boot")
+    parser.add_argument("disk", type=str,
+                        help="Path to the disk image to boot")
+    parser.add_argument("cpu", type=str, choices=supported_cpu_types,
+                        help="The type of CPU to use in the system")
+    parser.add_argument("num_cpus", type=int, help="Number of CPU cores")
+    
+    parser.add_argument("mem_sys", type=str, choices=supported_protocols,
+                        help="Type of memory system or coherence protocol")
+    parser.add_argument("benchmark", type=str,
+                        help="The NPB application to run")
+    parser.add_argument("synthetic", type = int,
+                        help = "1 for synthetic graph, 0 for real graph")
+    parser.add_argument("graph", type = str,
+                        help = "synthetic=1: integer number. synthetic=0: graph")
+
+    return parser.parse_args()
+
 if __name__ == "__m5_main__":
-    args = parse_arguments()
+    args = parse_options()
 
 
-    kernel = args.kernel
-    disk = args.disk
-    cpu_type = args.cpu_type
-    num_cpus = args.num_cpus
-    mem_sys = args.mem_sys
-    benchmark_name = args.benchmark
-    benchmark_size = args.graph
-    synthetic = args.synthetic
-    allow_listeners = args.allow_listeners
-
-    if (mem_sys == "classic"):
-        system = MySystem(kernel, disk, cpu_type, num_cpus)
-    elif (mem_sys == "MI_example" or "MESI_Two_Level"):
-        system = MyRubySystem(kernel, disk, mem_sys, num_cpus)
+    # create the system we are going to simulate
+    system = MyRubySystem(args.kernel, args.disk, args.mem_sys,
+                          args.num_cpus, args)
 
     system.m5ops_base = 0xffff0000
 
-    # For workitems to work correctly
-    # This will cause the simulator to exit simulation when the first work
-    # item is reached and when the first work item is finished.
-    system.work_begin_exit_count = 1
-    system.work_end_exit_count = 1
+    # Exit from guest on workbegin/workend
+    system.exit_on_work_items = True
 
-    # Read in the script file passed in via an option.
-    # This file gets read and executed by the simulated system after boot.
-    # Note: The disk image needs to be configured to do this.
-
-    system.readfile = writeBenchScript(m5.options.outdir, benchmark_name,
-                                       benchmark_size, synthetic)
+    # Create and pass a script to the simulated system to run the reuired
+    # benchmark
+    system.readfile = writeBenchScript(m5.options.outdir, args.benchmark,
+                                       args.graph, args.synthetic)
 
     # set up the root SimObject and start the simulation
     root = Root(full_system = True, system = system)
@@ -125,41 +114,41 @@ if __name__ == "__m5_main__":
         # Note: The simulator is quite picky about this number!
         root.sim_quantum = int(1e9) # 1 ms
 
-    # if not allow_listeners:
-    #     m5.disableAllListeners()
+    # needed for long running jobs
+    # m5.disableAllListeners()
 
     # instantiate all of the objects we've created above
     m5.instantiate()
 
+    globalStart = time.time()
+
     print("Running the simulation")
+    print("Using cpu: {}".format(args.cpu))
     exit_event = m5.simulate()
 
-    if exit_event.getCause() == "work started count reach":
+    if exit_event.getCause() == "workbegin":
         print("Done booting Linux")
+        # Reached the start of ROI
+        # start of ROI is marked by an
+        # m5_work_begin() call
+        print("Resetting stats at the start of ROI!")
         m5.stats.reset()
         start_tick = m5.curTick()
         start_insts = system.totalInsts()
-        # switching to atomic cpu if argument cpu == atomic
-        if cpu_type != 'kvm':
+        # switching cpu if argument cpu == atomic or timing
+        if args.cpu == 'atomic':
+            system.switchCpus(system.cpu, system.atomicCpu)
+        if args.cpu == 'timing':
             system.switchCpus(system.cpu, system.timingCpu)
-            print("Switched to TIMING CPU model")
     else:
-        print("ROI is not annotated!")
-        print('Exiting @ tick {} because {}'
-            .format(m5.curTick(), exit_event.getCause()))
+        print("Unexpected termination of simulation !")
         exit()
 
     print("Before warm-up ************************************************ \n")
     m5.stats.reset()
     exit_event = m5.simulate(100000000000)
     m5.stats.dump()
+    print("End of warm-up ************************************************ \n")
 
     system.switchCpus(system.timingCpu, system.o3Cpu)
-    print("Switched to O3 CPU cpu model ************************************************")
-
-    m5.stats.reset()
-    exit_event = m5.simulate(3000000000000)
-    m5.stats.dump()
-
-    print('Exiting @ tick {} because {}'
-        .format(m5.curTick(), exit_event.getCause()))
+    m5.checkpoint(m5.options.outdir + '/cpt')
