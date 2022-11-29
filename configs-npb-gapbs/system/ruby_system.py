@@ -169,19 +169,19 @@ class MyRubySystem(System):
         self.mem_ctrl.tRL = '18ns'
 
         self.membusPolManLocMem = SystemXBar()
-        # system.membusPolManLocMem.frontend_latency = options.xbarLatency
-        # system.membusPolManLocMem.response_latency  = options.xbarLatency
-        # system.membusPolManLocMem.max_routing_table_size = 900000
+        # self.membusPolManLocMem.frontend_latency = options.xbarLatency
+        # self.membusPolManLocMem.response_latency  = options.xbarLatency
+        # self.membusPolManLocMem.max_routing_table_size = 900000
         self.membusPolManLocMem.cpu_side_ports = self.mem_ctrl.loc_req_port
 
 
-        loc_ranges = ['0', '375MiB', '750MiB', '1125MiB', '1500MiB', '1875MiB', '2250MiB', '2625MiB', '3000MiB']
+        loc_ranges = ['0', '384MiB', '768MiB', '1152MiB', '1536MiB', '1920MiB', '2304MiB', '2688MiB', '3000MiB']
 
         self.loc_mem_ctrlrs = [HBMCtrl() for i in range(8)]
 
         for i in range (0,8):
-            self.loc_mem_ctrlrs[i].dram = HBM_2000_4H_1x64(range=AddrRange(start = loc_ranges[i], end = loc_ranges[i+1], intlvMatch = 0), in_addr_map=False, in_addr_map=False, kvm_map=False, null=True)
-            self.loc_mem_ctrlrs[i].dram_2 = HBM_2000_4H_1x64(range=AddrRange(start = loc_ranges[i], end = loc_ranges[i+1], intlvMatch = 0), in_addr_map=False, in_addr_map=False, kvm_map=False, null=True)
+            self.loc_mem_ctrlrs[i].dram = HBM_2000_4H_1x64(range=AddrRange(start = loc_ranges[i], end = loc_ranges[i+1], masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
+            self.loc_mem_ctrlrs[i].dram_2 = HBM_2000_4H_1x64(range=AddrRange(start = loc_ranges[i], end = loc_ranges[i+1], masks = [1 << 6], intlvMatch = 1), in_addr_map=False, kvm_map=False, null=True)
             self.loc_mem_ctrlrs[i].port = self.membusPolManLocMem.mem_side_ports
             # self.loc_mem_ctrlrs.dram.read_buffer_size = 4
             # self.loc_mem_ctrlrs.dram.write_buffer_size = 4
