@@ -123,5 +123,12 @@ if __name__ == "__m5_main__":
     
     globalStart = time.time()
     
-    print("Running the simulation")
-    exit_event = m5.simulate(10000000000)
+    print("Running the simulation ************************************** \n")
+    print("Simulating 10 intervals of 100ms each! \n")
+
+    for interval_number in range(10):
+        print("Interval number: {} \n".format(interval_number))
+        exit_event = m5.simulate(100000000000)
+        m5.stats.dump()
+
+    print("End of simulation ******************************************** \n")
