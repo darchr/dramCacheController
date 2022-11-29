@@ -30,6 +30,7 @@
 import m5
 from m5.objects import *
 from .fs_tools import *
+from math import log
 
 
 class MyRubySystem(System):
@@ -175,13 +176,16 @@ class MyRubySystem(System):
         self.membusPolManLocMem.cpu_side_ports = self.mem_ctrl.loc_req_port
 
 
-        loc_ranges = ['0', '384MiB', '768MiB', '1152MiB', '1536MiB', '1920MiB', '2304MiB', '2688MiB', '3072MiB']
+        # loc_ranges = ['0', '384MiB', '768MiB', '1152MiB', '1536MiB', '1920MiB', '2304MiB', '2688MiB', '3072MiB']
 
         self.loc_mem_ctrlrs = [HBMCtrl() for i in range(8)]
+        print("Hello")
+        loc_ranges = interleave_addresses(HBM_2000_4H_1x64, 8, 64, 0, '3GiB')
+        print(loc_ranges)
 
         for i in range (0,8):
-            self.loc_mem_ctrlrs[i].dram = HBM_2000_4H_1x64(range=AddrRange(start = loc_ranges[i], end = loc_ranges[i+1], masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
-            self.loc_mem_ctrlrs[i].dram_2 = HBM_2000_4H_1x64(range=AddrRange(start = loc_ranges[i], end = loc_ranges[i+1], masks = [1 << 6], intlvMatch = 1), in_addr_map=False, kvm_map=False, null=True)
+            self.loc_mem_ctrlrs[i].dram = HBM_2000_4H_1x64(range=loc_ranges[2*i], in_addr_map=False, kvm_map=False, null=True)
+            self.loc_mem_ctrlrs[i].dram_2 = HBM_2000_4H_1x64(range=loc_ranges[2*i+1], in_addr_map=False, kvm_map=False, null=True)
             self.loc_mem_ctrlrs[i].port = self.membusPolManLocMem.mem_side_ports
             # self.loc_mem_ctrlrs.dram.read_buffer_size = 4
             # self.loc_mem_ctrlrs.dram.write_buffer_size = 4
@@ -197,7 +201,6 @@ class MyRubySystem(System):
 
         self.mem_ctrl.orb_max_size = 128
         self.mem_ctrl.dram_cache_size = "128MiB"
-        self.mem_ctrl.loc_mem_policy = 'CascadeLakeNoPartWrs'
 
 
     def initFS(self, cpus):
@@ -293,3 +296,47 @@ class MyRubySystem(System):
                                     range_type=2))
 
         self.workload.e820_table.entries = entries
+
+
+def interleave_addresses(dram_class, num_chnl, intlv_size, start, size):
+    print(dram_class)
+    # if dram_class.addr_mapping == "RoRaBaChCo":
+    #     rowbuffer_size = (
+    #         dram_class.device_rowbuffer_size.value
+    #         * dram_class.devices_per_rank.value
+    #     )
+    #     intlv_low_bit = log(rowbuffer_size, 2)
+    # elif dram_class.addr_mapping in ["RoRaBaCoCh", "RoCoRaBaCh"]:
+    #     intlv_low_bit = log(intlv_size, 2)
+    # else:
+    #     raise ValueError(
+    #         "Only these address mappings are supported: "
+    #         "RoRaBaChCo, RoRaBaCoCh, RoCoRaBaCh"
+    #     )
+
+    # assert dram_class.addr_mapping == 'RoRaBaCoCh'
+
+    intlv_low_bit = log(intlv_size, 2)
+    intlv_bits = log(num_chnl, 2)
+    mask_list = []
+
+    for ib in range(int(intlv_bits)):
+        mask_list.append(1 << int(ib + intlv_low_bit))
+
+    # for interleaving across pseudo channels (at 64B currently)
+    mask_list.insert(0, 1 << 6)
+    ret_list = []
+    for i in range(num_chnl):
+        ret_list.append(AddrRange(
+            start=start,
+            size=size,
+            masks=mask_list,
+            intlvMatch=(i << 1) | 0,
+        ))
+        ret_list.append(AddrRange(
+            start=start,
+            size=size,
+            masks=mask_list,
+            intlvMatch=(i << 1) | 1,
+        ))
+    return ret_list
