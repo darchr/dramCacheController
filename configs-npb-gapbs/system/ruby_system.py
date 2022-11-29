@@ -175,7 +175,7 @@ class MyRubySystem(System):
         self.membusPolManLocMem.cpu_side_ports = self.mem_ctrl.loc_req_port
 
 
-        loc_ranges = ['0', '384MiB', '768MiB', '1152MiB', '1536MiB', '1920MiB', '2304MiB', '2688MiB', '3000MiB']
+        loc_ranges = ['0', '384MiB', '768MiB', '1152MiB', '1536MiB', '1920MiB', '2304MiB', '2688MiB', '3072MiB']
 
         self.loc_mem_ctrlrs = [HBMCtrl() for i in range(8)]
 
