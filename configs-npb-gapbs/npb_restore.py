@@ -63,7 +63,7 @@ def writeBenchScript(dir, bench):
 
 supported_protocols = ["classic", "MI_example", "MESI_Two_Level",
                         "MOESI_CMP_directory"]
-supported_cpu_types = ['kvm', 'atomic', 'timing']
+supported_cpu_types = ['kvm', 'atomic', 'timing', 'o3']
 benchmark_choices = ['bt.A.x', 'cg.A.x', 'ep.A.x', 'ft.A.x',
                      'is.A.x', 'lu.A.x', 'mg.A.x', 'sp.A.x',
                      'bt.B.x', 'cg.B.x', 'ep.B.x', 'ft.B.x',
@@ -156,5 +156,12 @@ if __name__ == "__m5_main__":
 
     globalStart = time.time()
 
-    print("Running the simulation")
-    exit_event = m5.simulate(10000000000)
+    print("Running the simulation ************************************** \n")
+    print("Simulating 10 intervals of 100ms each! \n")
+
+    for interval_number in range(10):
+        print("Interval number: {} \n".format(interval_number))
+        exit_event = m5.simulate(100000000000)
+        m5.stats.dump()
+
+    print("End of simulation ******************************************** \n")

@@ -162,6 +162,7 @@ class MyRubySystem(System):
     def _createMemoryControllers(self, num, cls):
 
         self.mem_ctrl = PolicyManager(range=self.mem_ranges[0], kvm_map=False)
+        self.mem_ctrl.bypass_dcache = True
 
         # FOR DDR4
         # self.mem_ctrl.tRP = '14.16ns'
