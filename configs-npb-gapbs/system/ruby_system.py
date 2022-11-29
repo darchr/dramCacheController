@@ -195,7 +195,6 @@ class MyRubySystem(System):
 
         self.mem_ctrl.orb_max_size = 128
         self.mem_ctrl.dram_cache_size = "128MiB"
-        self.mem_ctrl.loc_mem_policy = 'RambusHypo'
 
         self.loc_mem_ctrl.dram.read_buffer_size = 32
         self.loc_mem_ctrl.dram.write_buffer_size = 32
