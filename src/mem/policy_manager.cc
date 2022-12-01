@@ -1438,9 +1438,9 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
     bool currValid = tagMetadataStore.at(orbEntry->indexDC).validLine;
     bool currDirty = tagMetadataStore.at(orbEntry->indexDC).dirtyLine;
 
-    // orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
+    orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
 
-    orbEntry->isHit = alwaysHit;
+    // orbEntry->isHit = alwaysHit;
 
     if (orbEntry->isHit) {
 
@@ -1500,11 +1500,11 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
 bool
 PolicyManager::checkDirty(Addr addr)
 {
-    // Addr index = returnIndexDC(addr, blockSize);
-    // return (tagMetadataStore.at(index).validLine &&
-    //         tagMetadataStore.at(index).dirtyLine);
+    Addr index = returnIndexDC(addr, blockSize);
+    return (tagMetadataStore.at(index).validLine &&
+            tagMetadataStore.at(index).dirtyLine);
 
-    return alwaysDirty;
+    // return alwaysDirty;
 }
 
 void
