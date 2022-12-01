@@ -604,7 +604,7 @@ PolicyManager::locMemRecvReqRetry()
 void
 PolicyManager::farMemRecvReqRetry()
 {
-    assert(retryFarMemRead || retryFarMemWrite);
+    // assert(retryFarMemRead || retryFarMemWrite);
 
     bool schedRd = false;
     bool schedWr = false;
@@ -626,6 +626,18 @@ PolicyManager::farMemRecvReqRetry()
     // else {
     //     panic("Wrong far mem retry event happend.\n");
     // }
+    if (!schedRd && !schedWr) {
+        // panic("Wrong local mem retry event happend.\n");
+
+        // TODO: there are cases where none of retryFarMemRead and retryFarMemWrite
+        // are true, yet farMemRecvReqRetry() is called. I should fix this later.
+        if (!farMemReadEvent.scheduled() && !pktFarMemRead.empty()) {
+            schedule(farMemReadEvent, curTick());
+        }
+        if (!farMemWriteEvent.scheduled() && !pktFarMemWrite.empty()) {
+            schedule(farMemWriteEvent, curTick());
+        }
+    }
 
     DPRINTF(PolicyManager, "farMemRecvReqRetry: %d , %d \n", schedRd, schedWr);
 }
@@ -980,7 +992,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
         polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
 
-        if (!locMemReadEvent.scheduled()) {
+        if (!locMemReadEvent.scheduled() && !retryLocMemRead) {
             schedule(locMemReadEvent, curTick());
         }
         return;
@@ -1043,7 +1055,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
             polManStats.avgFarRdQLenEnq = pktFarMemRead.size();
 
-            if (!farMemReadEvent.scheduled()) {
+            if (!farMemReadEvent.scheduled() && !retryFarMemRead) {
                 schedule(farMemReadEvent, curTick());
             }
             return;
@@ -1063,7 +1075,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             polManStats.avgLocWrQLenEnq = pktLocMemWrite.size();
 
 
-            if (!locMemWriteEvent.scheduled()) {
+            if (!locMemWriteEvent.scheduled() && !retryLocMemWrite) {
                 schedule(locMemWriteEvent, curTick());
             }
             return;
@@ -1090,7 +1102,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
         polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
             
-        if (!locMemReadEvent.scheduled()) {
+        if (!locMemReadEvent.scheduled() && !retryLocMemRead) {
             schedule(locMemReadEvent, curTick());
         }
         return;
@@ -1152,7 +1164,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
             polManStats.avgFarRdQLenEnq = pktFarMemRead.size();
 
-            if (!farMemReadEvent.scheduled()) {
+            if (!farMemReadEvent.scheduled() && !retryFarMemRead) {
                 schedule(farMemReadEvent, curTick());
             }
             return;
@@ -1172,7 +1184,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             polManStats.avgLocWrQLenEnq = pktLocMemWrite.size();
             
 
-            if (!locMemWriteEvent.scheduled()) {
+            if (!locMemWriteEvent.scheduled() && !retryLocMemWrite) {
                 schedule(locMemWriteEvent, curTick());
             }
             return;
@@ -1197,7 +1209,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
         polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
 
-        if (!locMemReadEvent.scheduled()) {
+        if (!locMemReadEvent.scheduled() && !retryLocMemRead) {
             schedule(locMemReadEvent, curTick());
         }
         return;
@@ -1260,7 +1272,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
             polManStats.avgFarRdQLenEnq = pktFarMemRead.size();
 
-            if (!farMemReadEvent.scheduled()) {
+            if (!farMemReadEvent.scheduled() && !retryFarMemRead) {
                 schedule(farMemReadEvent, curTick());
             }
             return;
@@ -1280,7 +1292,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             polManStats.avgLocWrQLenEnq = pktLocMemWrite.size();
             
 
-            if (!locMemWriteEvent.scheduled()) {
+            if (!locMemWriteEvent.scheduled() && !retryLocMemWrite) {
                 schedule(locMemWriteEvent, curTick());
             }
             return;
@@ -1426,9 +1438,9 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
     bool currValid = tagMetadataStore.at(orbEntry->indexDC).validLine;
     bool currDirty = tagMetadataStore.at(orbEntry->indexDC).dirtyLine;
 
-    orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
+    // orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
 
-    // orbEntry->isHit = alwaysHit;
+    orbEntry->isHit = alwaysHit;
 
     if (orbEntry->isHit) {
 
@@ -1488,11 +1500,11 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
 bool
 PolicyManager::checkDirty(Addr addr)
 {
-    Addr index = returnIndexDC(addr, blockSize);
-    return (tagMetadataStore.at(index).validLine &&
-            tagMetadataStore.at(index).dirtyLine);
+    // Addr index = returnIndexDC(addr, blockSize);
+    // return (tagMetadataStore.at(index).validLine &&
+    //         tagMetadataStore.at(index).dirtyLine);
 
-    // return alwaysDirty;
+    return alwaysDirty;
 }
 
 void
@@ -1746,7 +1758,7 @@ PolicyManager::handleDirtyCacheLine(reqBufferEntry* orbEntry)
 
     polManStats.avgFarWrQLenEnq = pktFarMemWrite.size();
 
-    if (!farMemWriteEvent.scheduled()) {
+    if (!farMemWriteEvent.scheduled() && !retryFarMemWrite) {
             schedule(farMemWriteEvent, curTick());
     }
 

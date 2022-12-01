@@ -169,7 +169,7 @@ class MyRubySystem(System):
         self.mem_ctrl.tRCD_RD = '12ns'
         self.mem_ctrl.tRL = '18ns'
 
-        self.membusPolManLocMem = SystemXBar()
+        self.membusPolManLocMem = L2XBar(width=64)
         # self.membusPolManLocMem.frontend_latency = options.xbarLatency
         # self.membusPolManLocMem.response_latency  = options.xbarLatency
         # self.membusPolManLocMem.max_routing_table_size = 900000
@@ -179,9 +179,8 @@ class MyRubySystem(System):
         # loc_ranges = ['0', '384MiB', '768MiB', '1152MiB', '1536MiB', '1920MiB', '2304MiB', '2688MiB', '3072MiB']
 
         self.loc_mem_ctrlrs = [HBMCtrl() for i in range(8)]
-        print("Hello")
-        loc_ranges = interleave_addresses(HBM_2000_4H_1x64, 8, 64, 0, '3GiB')
-        print(loc_ranges)
+
+        loc_ranges = interleave_addresses(HBM_2000_4H_1x64, 8, 128, 0, '3GiB')
 
         for i in range (0,8):
             self.loc_mem_ctrlrs[i].dram = HBM_2000_4H_1x64(range=loc_ranges[2*i], in_addr_map=False, kvm_map=False, null=True)
@@ -195,7 +194,10 @@ class MyRubySystem(System):
         # main memory
         self.far_mem_ctrl = MemCtrl()
         self.far_mem_ctrl.dram = NVM_2400_1x64(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
-        self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
+        #self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
+        self.membusPolManFarMem = L2XBar(width=64)
+        self.membusPolManFarMem.cpu_side_ports = self.mem_ctrl.far_req_port
+        self.membusPolManFarMem.mem_side_ports = self.far_mem_ctrl.port
         self.far_mem_ctrl.dram.read_buffer_size = 64
         self.far_mem_ctrl.dram.write_buffer_size = 64
 
@@ -299,7 +301,6 @@ class MyRubySystem(System):
 
 
 def interleave_addresses(dram_class, num_chnl, intlv_size, start, size):
-    print(dram_class)
     # if dram_class.addr_mapping == "RoRaBaChCo":
     #     rowbuffer_size = (
     #         dram_class.device_rowbuffer_size.value
