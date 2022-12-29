@@ -497,7 +497,7 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
 
         if (orbEntry->handleDirtyLine && 
             (orbEntry->pol == enums::CascadeLakeNoPartWrs || 
-            orbEntry->pol == enums::RambusHypo ||
+            orbEntry->pol == enums::Oracle ||
             orbEntry->pol ==  enums::BearWriteOpt)
         ) {
             assert(!orbEntry->isHit);
@@ -749,11 +749,11 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     }
 
     ////////////////////////////////////////////////////////////////////////
-    /// RambusHypo
+    /// Oracle
 
     // RD Hit Dirty & Clean, RD Miss Dirty, WR Miss Dirty
     // start --> read loc
-    if (pol == enums::RambusHypo && state == start &&
+    if (pol == enums::Oracle && state == start &&
         ((isRead && isHit) || (isRead && !isHit && isDirty) || (!isRead && !isHit && isDirty)) 
        ) {
             orbEntry->state = locMemRead;
@@ -762,7 +762,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     }
     // RD Miss Clean
     // start --> read far
-    if (pol == enums::RambusHypo && state == start &&
+    if (pol == enums::Oracle && state == start &&
         (isRead && !isHit && !isDirty)
        ) {
             orbEntry->state = farMemRead;
@@ -771,7 +771,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     }
     // WR Hit Dirty & Clean, WR Miss Clean
     // start --> write loc
-    if (pol == enums::RambusHypo && state == start &&
+    if (pol == enums::Oracle && state == start &&
         ((!isRead && isHit)|| (!isRead && !isHit && !isDirty)) 
        ) {
             orbEntry->state = locMemWrite;
@@ -781,7 +781,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 
     // RD Hit Dirty & Clean
     // start --> read loc --> done
-    if (pol == enums::RambusHypo &&
+    if (pol == enums::Oracle &&
         isRead && isHit &&
         state == waitingLocMemReadResp ) {
             // done
@@ -791,7 +791,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 
     // RD Miss Dirty:
     // start --> read loc --> read far
-    if (pol == enums::RambusHypo &&
+    if (pol == enums::Oracle &&
         isRead && !isHit && isDirty &&
         state == waitingLocMemReadResp ) {
             orbEntry->state = farMemRead;
@@ -801,7 +801,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 
     // WR Miss Dirty:
     // start --> read loc --> loc write
-    if (pol == enums::RambusHypo &&
+    if (pol == enums::Oracle &&
         !isRead && !isHit && isDirty &&
         state == waitingLocMemReadResp) {
             // write it to the DRAM cache
@@ -812,7 +812,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 
     // RD Miss Clean & Dirty
     // start --> ... --> far read -> loc write
-    if (pol == enums::RambusHypo && 
+    if (pol == enums::Oracle && 
         (isRead && !isHit) &&
         state == waitingFarMemReadResp
        ) {
@@ -854,7 +854,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     }
 
     // loc write received
-    if (pol == enums::RambusHypo &&
+    if (pol == enums::Oracle &&
         state == waitingLocMemWriteResp) {
             assert (!(isRead && isHit));
             // done
@@ -1095,7 +1095,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     ////////////////////////////////////////////////////////////////////////
     // Rambus Hypo
-    if (orbEntry->pol == enums::RambusHypo &&
+    if (orbEntry->pol == enums::Oracle &&
         orbEntry->state == locMemRead) {
 
         pktLocMemRead.push_back(orbEntry->owPkt->getAddr());
@@ -1108,7 +1108,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
         return;
     }
 
-    if (orbEntry->pol == enums::RambusHypo &&
+    if (orbEntry->pol == enums::Oracle &&
         orbEntry->owPkt->isRead() &&
         orbEntry->state == waitingLocMemReadResp &&
         orbEntry->isHit) {
@@ -1154,7 +1154,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             return;            
     }
 
-    if (orbEntry->pol == enums::RambusHypo &&
+    if (orbEntry->pol == enums::Oracle &&
         orbEntry->state == farMemRead) {
 
             assert(orbEntry->owPkt->isRead() && !orbEntry->isHit);
@@ -1171,7 +1171,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     }
 
-    if (orbEntry->pol == enums::RambusHypo &&
+    if (orbEntry->pol == enums::Oracle &&
         orbEntry->state == locMemWrite) {
 
             if (orbEntry->owPkt->isRead()) {
@@ -1191,7 +1191,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     }
 
-    if (orbEntry->pol == enums::RambusHypo &&
+    if (orbEntry->pol == enums::Oracle &&
         orbEntry->state == waitingLocMemWriteResp) {
             // DONE
             // clear ORB

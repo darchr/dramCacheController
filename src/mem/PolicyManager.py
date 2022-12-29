@@ -3,7 +3,7 @@ from m5.proxy import *
 from m5.SimObject import SimObject
 from m5.objects.AbstractMemory import AbstractMemory
 
-class Policy(Enum): vals = ['CascadeLakeNoPartWrs', 'RambusHypo', 'BearWriteOpt']
+class Policy(Enum): vals = ['CascadeLakeNoPartWrs', 'Oracle', 'BearWriteOpt']
 
 class PolicyManager(AbstractMemory):
     type = 'PolicyManager'
