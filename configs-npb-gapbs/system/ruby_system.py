@@ -191,12 +191,7 @@ class MyRubySystem(System):
         self.far_mem_ctrl.dram = DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
 
         self.loc_mem_ctrl.port = self.mem_ctrl.loc_req_port
-        #self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
-        self.membusPolManFarMem = L2XBar(width=64)
-        self.membusPolManFarMem.cpu_side_ports = self.mem_ctrl.far_req_port
-        self.membusPolManFarMem.mem_side_ports = self.far_mem_ctrl.port
-        self.membusPolManFarMem.frontend_latency = 250
-        self.membusPolManFarMem.response_latency = 250
+        self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
 
         self.mem_ctrl.orb_max_size = 128
         self.mem_ctrl.dram_cache_size = "128MiB"
