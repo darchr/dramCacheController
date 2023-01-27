@@ -172,8 +172,9 @@ class PolicyManager : public AbstractMemory
      */
     enum reqState
     {
-      start,
-      locMemRead,  waitingLocMemReadResp,
+      start, 
+      tagCheck, waitingTCtag, //WaitingTCdata,
+      locMemRead,  waitingLocMemReadResp, locRdRespReady,
       locMemWrite, waitingLocMemWriteResp,
       farMemRead,  waitingFarMemReadResp,
       farMemWrite, waitingFarMemWriteResp
@@ -203,15 +204,21 @@ class PolicyManager : public AbstractMemory
         bool issued;
         bool isHit;
         bool conflict;
+        //bool fbDirtyData = false;
 
         Addr dirtyLineAddr;
         bool handleDirtyLine;
+
+        bool waitingForDirtyData;
 
         // recording the tick when the req transitions into a new stats.
         // The subtract between each two consecutive states entrance ticks,
         // is the number of ticks the req spent in the proceeded state.
         // The subtract between entrance and issuance ticks for each state,
         // is the number of ticks for waiting time in that state.
+        Tick tagCheckEntered;
+        Tick tagCheckIssued;
+        Tick tagCheckExit;
         Tick locRdEntered;
         Tick locRdIssued;
         Tick locRdExit;
@@ -229,6 +236,8 @@ class PolicyManager : public AbstractMemory
           enums::Policy _pol, reqState _state,
           bool _issued, bool _isHit, bool _conflict,
           Addr _dirtyLineAddr, bool _handleDirtyLine,
+          bool _waitingForDirtyData,
+          Tick _tagCheckEntered, Tick _tagCheckIssued, Tick _tagCheckExit,
           Tick _locRdEntered, Tick _locRdIssued, Tick _locRdExit,
           Tick _locWrEntered, Tick _locWrIssued, Tick _locWrExit,
           Tick _farRdEntered, Tick _farRdIssued, Tick _farRdExit)
@@ -239,6 +248,8 @@ class PolicyManager : public AbstractMemory
         pol(_pol), state(_state),
         issued(_issued), isHit(_isHit), conflict(_conflict),
         dirtyLineAddr(_dirtyLineAddr), handleDirtyLine(_handleDirtyLine),
+        waitingForDirtyData(_waitingForDirtyData),
+        tagCheckEntered(_tagCheckEntered), tagCheckIssued(_tagCheckIssued), tagCheckExit(_tagCheckExit),
         locRdEntered(_locRdEntered), locRdIssued(_locRdIssued), locRdExit(_locRdExit),
         locWrEntered(_locWrEntered), locWrIssued(_locWrIssued), locWrExit(_locWrExit),
         farRdEntered(_farRdEntered), farRdIssued(_farRdIssued), farRdExit(_farRdExit)
@@ -276,6 +287,7 @@ class PolicyManager : public AbstractMemory
      */
     bool retryLLC;
     bool retryLLCFarMemWr;
+    bool retryTagCheck;
     bool retryLocMemRead;
     bool retryFarMemRead;
     bool retryLocMemWrite;
@@ -289,6 +301,7 @@ class PolicyManager : public AbstractMemory
     std::deque <timeReqPair> pktFarMemWrite;
 
     // Maintenance Queues
+    std::deque <Addr> pktTagCheck; // Used only for Rambus policy
     std::deque <Addr> pktLocMemRead;
     std::deque <Addr> pktLocMemWrite;
     std::deque <Addr> pktFarMemRead;
@@ -299,6 +312,11 @@ class PolicyManager : public AbstractMemory
     AddrRangeList getAddrRanges();
 
     // events
+
+    // Used only for Rambus policy
+    void processTagCheckEvent();
+    EventFunctionWrapper tagCheckEvent;
+
     void processLocMemReadEvent();
     EventFunctionWrapper locMemReadEvent;
 
@@ -379,11 +397,13 @@ class PolicyManager : public AbstractMemory
 
       // DRAM Cache Specific Stats
       statistics::Average avgORBLen;
+      statistics::Average avgTagCheckQLenStrt;
       statistics::Average avgLocRdQLenStrt;
       statistics::Average avgLocWrQLenStrt;
       statistics::Average avgFarRdQLenStrt;
       statistics::Average avgFarWrQLenStrt;
 
+      statistics::Average avgTagCheckQLenEnq;
       statistics::Average avgLocRdQLenEnq;
       statistics::Average avgLocWrQLenEnq;
       statistics::Average avgFarRdQLenEnq;
@@ -396,6 +416,8 @@ class PolicyManager : public AbstractMemory
 
       Stats::Scalar maxNumConf;
 
+      Stats::Scalar sentTagCheckPort;
+      Stats::Scalar failedTagCheckPort;
       Stats::Scalar sentLocRdPort;
       Stats::Scalar sentLocWrPort;
       Stats::Scalar failedLocRdPort;

@@ -33,15 +33,25 @@ system.mem_ctrl = PolicyManager(range=AddrRange('1GiB'))
 system.mem_ctrl.tRP = '14.16ns'
 system.mem_ctrl.tRCD_RD = '14.16ns'
 system.mem_ctrl.tRL = '14.16ns'
+system.mem_ctrl.loc_mem_policy = 'Rambus'
 
 system.loc_mem_ctrl = MemCtrl()
-system.loc_mem_ctrl.dram =  DDR4_2400_16x4_Alloy(range=AddrRange('1GiB'),in_addr_map=False, null=True)
+system.loc_mem_ctrl.dram = HBM_2000_4H_1x64(range=AddrRange('1GiB'), in_addr_map=False, null=True)
+
+system.loc_mem_ctrl.dram.device_rowbuffer_size = "2KiB"
+system.loc_mem_ctrl.dram.banks_per_rank = 8
+system.loc_mem_ctrl.dram.bank_groups_per_rank = 2
+
+system.loc_mem_ctrl.dram.burst_length = 8
+system.loc_mem_ctrl.dram.tCCD_L = "6ns"
+system.loc_mem_ctrl.dram.tBURST = "4ns"
+    
 
 system.far_mem_ctrl = MemCtrl()
 system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=False, null=True)
 
-system.mem_ctrl.always_hit = False
-system.mem_ctrl.always_dirty = True
+system.mem_ctrl.always_hit = True
+system.mem_ctrl.always_dirty = False
 
 system.mem_ctrl.dram_cache_size = "64MiB"
 
@@ -61,7 +71,7 @@ def createRandomTraffic(tgen):
     yield tgen.createExit(0)
 
 def createLinearTraffic(tgen):
-    yield tgen.createLinear(2000000000,            # duration
+    yield tgen.createLinear(10000000000,            # duration
                             0,                      # min_addr
                             AddrRange('1GiB').end,  # max_adr
                             64,                     # block_size

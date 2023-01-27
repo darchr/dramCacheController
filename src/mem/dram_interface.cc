@@ -426,10 +426,127 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     DPRINTF(DRAM, "Schedule RD/WR burst at tick %d\n", cmd_at);
 
     // update the packet ready time
-    if (mem_pkt->isRead()) {
-        mem_pkt->readyTime = cmd_at + tRL + tBURST;
+    if(mem_pkt->isTagCheck) {
+
+        // Calculating the tag check ready time
+        mem_pkt->tagCheckReady = cmd_at + tRLFAST + tCK;
+
+        // tag is sent back only for Rd Miss Cleans, for other cases tag is already known.
+        if (mem_pkt->owIsRead && !mem_pkt->isHit && !mem_pkt->isDirty && !flushBuffer.empty()) {
+            mem_pkt->tagCheckReady += tTAGBURST;
+        }
+        stats.tagBursts++;
+
+        // Calculating the data ready time
+        // Rd Hit
+        if (mem_pkt->owIsRead && mem_pkt->isHit) {
+            mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
+
+            // stats
+            // Every respQueue which will generate an event, increment count
+            ++rank_ref.outstandingEvents;
+
+            stats.readBursts++;
+            if (row_hit)
+                stats.readRowHits++;
+            stats.bytesRead += burstSize;
+            stats.perBankRdBursts[mem_pkt->bankId]++;
+
+            // Update latency stats
+            stats.totMemAccLat += mem_pkt->readyTime - mem_pkt->entryTime;
+            stats.totQLat += cmd_at - mem_pkt->entryTime;
+            stats.totBusLat += tBURST;
+        }
+
+        // Rd Miss Clean
+        if (mem_pkt->owIsRead && !mem_pkt->isHit && !mem_pkt->isDirty) {
+
+            if (flushBuffer.empty()) {
+                assert(mem_pkt->fbEmpty);
+                mem_pkt->readyTime = cmd_at + tRLFAST + tCCD_L;
+                // mem_pkt->readyTime = cmd_at + tRLFAST + tCK;
+
+                // update the burst gap
+                burst_gap = tCCD_L;
+                stats.totBusLat += tCCD_L;
+
+            } else {
+                mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
+                mem_pkt->fbEmpty = false;
+                // mem_pkt->readyTime = cmd_at + tHM2DQ + tRFB + tBURST;
+
+                stats.totBusLat += tBURST;
+            }
+
+            // stats
+            // Every respQueue which will generate an event, increment count
+            ++rank_ref.outstandingEvents;
+
+            //stats.readBursts++;
+            if (row_hit)
+                stats.readRowHits++;
+            //stats.bytesRead += burstSize;
+            //stats.perBankRdBursts[mem_pkt->bankId]++;
+
+            // Update latency stats
+            stats.totMemAccLat += mem_pkt->readyTime - mem_pkt->entryTime;
+            stats.totQLat += cmd_at - mem_pkt->entryTime;
+            // stats.totBusLat += tBURST;
+
+        }
+
+        // Rd Miss Dirty
+        if (mem_pkt->owIsRead && !mem_pkt->isHit && mem_pkt->isDirty) {
+            mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
+
+            // stats
+            // Every respQueue which will generate an event, increment count
+            ++rank_ref.outstandingEvents;
+
+            stats.readBursts++;
+            if (row_hit)
+                stats.readRowHits++;
+            stats.bytesRead += burstSize;
+            stats.perBankRdBursts[mem_pkt->bankId]++;
+
+            // Update latency stats
+            stats.totMemAccLat += mem_pkt->readyTime - mem_pkt->entryTime;
+            stats.totQLat += cmd_at - mem_pkt->entryTime;
+            stats.totBusLat += tBURST;
+        }
+
+        // Wr
+        if (!mem_pkt->owIsRead) {
+            mem_pkt->readyTime = cmd_at + tRTW + tBURST;
+
+            // stats
+            if (!rank_ref.writeDoneEvent.scheduled()) {
+                schedule(rank_ref.writeDoneEvent, mem_pkt->readyTime);
+                // New event, increment count
+                ++rank_ref.outstandingEvents;
+
+            } else if (rank_ref.writeDoneEvent.when() < mem_pkt->readyTime) {
+                reschedule(rank_ref.writeDoneEvent, mem_pkt->readyTime);
+            }
+            // will remove write from queue when returned to parent function
+            // decrement count for DRAM rank
+            --rank_ref.writeEntries;
+
+            stats.writeBursts++;
+            if (row_hit)
+                stats.writeRowHits++;
+            stats.bytesWritten += burstSize;
+            stats.perBankWrBursts[mem_pkt->bankId]++;
+        }
+
     } else {
-        mem_pkt->readyTime = cmd_at + tWL + tBURST;
+        assert(mem_pkt->tagCheckReady == MaxTick);
+        if (mem_pkt->isRead()) {
+            mem_pkt->readyTime = cmd_at + tRL + tBURST;
+
+        } else {
+            mem_pkt->readyTime = cmd_at + tWL + tBURST;
+        }
     }
 
     rank_ref.lastBurstTick = cmd_at;
@@ -574,45 +691,49 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     }
 
     // Update the stats and schedule the next request
-    if (mem_pkt->isRead()) {
-        // Every respQueue which will generate an event, increment count
-        ++rank_ref.outstandingEvents;
-
-        stats.readBursts++;
-        if (row_hit)
-            stats.readRowHits++;
-        stats.bytesRead += burstSize;
-        stats.perBankRdBursts[mem_pkt->bankId]++;
-
-        // Update latency stats
-        stats.totMemAccLat += mem_pkt->readyTime - mem_pkt->entryTime;
-        stats.totQLat += cmd_at - mem_pkt->entryTime;
-        stats.totBusLat += tBURST;
+    if (mem_pkt->isTagCheck) {
+        // stats are already calculated
     } else {
-        // Schedule write done event to decrement event count
-        // after the readyTime has been reached
-        // Only schedule latest write event to minimize events
-        // required; only need to ensure that final event scheduled covers
-        // the time that writes are outstanding and bus is active
-        // to holdoff power-down entry events
-        if (!rank_ref.writeDoneEvent.scheduled()) {
-            schedule(rank_ref.writeDoneEvent, mem_pkt->readyTime);
-            // New event, increment count
+        if (mem_pkt->isRead()) {
+            // Every respQueue which will generate an event, increment count
             ++rank_ref.outstandingEvents;
 
-        } else if (rank_ref.writeDoneEvent.when() < mem_pkt->readyTime) {
-            reschedule(rank_ref.writeDoneEvent, mem_pkt->readyTime);
+            stats.readBursts++;
+            if (row_hit)
+                stats.readRowHits++;
+            stats.bytesRead += burstSize;
+            stats.perBankRdBursts[mem_pkt->bankId]++;
+
+            // Update latency stats
+            stats.totMemAccLat += mem_pkt->readyTime - mem_pkt->entryTime;
+            stats.totQLat += cmd_at - mem_pkt->entryTime;
+            stats.totBusLat += tBURST;
+        } else {
+            // Schedule write done event to decrement event count
+            // after the readyTime has been reached
+            // Only schedule latest write event to minimize events
+            // required; only need to ensure that final event scheduled covers
+            // the time that writes are outstanding and bus is active
+            // to holdoff power-down entry events
+            if (!rank_ref.writeDoneEvent.scheduled()) {
+                schedule(rank_ref.writeDoneEvent, mem_pkt->readyTime);
+                // New event, increment count
+                ++rank_ref.outstandingEvents;
+
+            } else if (rank_ref.writeDoneEvent.when() < mem_pkt->readyTime) {
+                reschedule(rank_ref.writeDoneEvent, mem_pkt->readyTime);
+            }
+            // will remove write from queue when returned to parent function
+            // decrement count for DRAM rank
+            --rank_ref.writeEntries;
+
+            stats.writeBursts++;
+            if (row_hit)
+                stats.writeRowHits++;
+            stats.bytesWritten += burstSize;
+            stats.perBankWrBursts[mem_pkt->bankId]++;
+
         }
-        // will remove write from queue when returned to parent function
-        // decrement count for DRAM rank
-        --rank_ref.writeEntries;
-
-        stats.writeBursts++;
-        if (row_hit)
-            stats.writeRowHits++;
-        stats.bytesWritten += burstSize;
-        stats.perBankWrBursts[mem_pkt->bankId]++;
-
     }
     // Update bus state to reflect when previous command was issued
     return std::make_pair(cmd_at, cmd_at + burst_gap);
@@ -648,6 +769,7 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
       tRFC(_p.tRFC), tREFI(_p.tREFI), tRRD(_p.tRRD), tRRD_L(_p.tRRD_L),
       tPPD(_p.tPPD), tAAD(_p.tAAD),
       tXAW(_p.tXAW), tXP(_p.tXP), tXS(_p.tXS),
+      tTAGBURST(_p.tTAGBURST), tRLFAST(_p.tRLFAST), tHM2DQ(_p.tHM2DQ), tRFB(_p.tRFB), tWFB(_p.tWFB),
       clkResyncDelay(_p.tBURST_MAX),
       dataClockSync(_p.data_clock_sync),
       burstInterleave(tBURST != tBURST_MIN),
@@ -1856,6 +1978,8 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
              "Number of DRAM read bursts"),
     ADD_STAT(writeBursts, statistics::units::Count::get(),
              "Number of DRAM write bursts"),
+    ADD_STAT(tagBursts, statistics::units::Count::get(),
+             "Number of tag check bursts"),
 
     ADD_STAT(perBankRdBursts, statistics::units::Count::get(),
              "Per bank write bursts"),

@@ -171,6 +171,12 @@ class DRAMInterface(MemInterface):
     # time to exit self-refresh mode with locked DLL
     tXSDLL = Param.Latency("0ns", "Self-refresh exit latency DLL")
 
+    tTAGBURST = Param.Latency("0ns", "tRL_FAST")
+    tRLFAST   = Param.Latency("0ns", "tRL_FAST")
+    tHM2DQ    = Param.Latency("0ns", "tHM2DQ")
+    tRFB      = Param.Latency("0ns", "tRDFB")
+    tWFB      = Param.Latency("0ns", "tRDFB")
+
     # number of data beats per clock. with DDR, default is 2, one per edge
     # used in drampower.cc
     beats_per_clock = Param.Unsigned(2, "Data beats per clock")
@@ -1180,6 +1186,13 @@ class HBM_2000_4H_1x64(DRAMInterface):
 
     # 1000 MHz for 2Gbps DDR data rate
     tCK = "1ns"
+
+    # new
+    tTAGBURST = "1ns"
+    tRLFAST = "1ns"
+    tHM2DQ = "1ns"
+    tRFB = "1ns"
+    tWFB = "1ns"
 
     tRP = "14ns"
 

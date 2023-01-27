@@ -294,6 +294,13 @@ class Packet : public Printable
     typedef uint32_t FlagsType;
     typedef gem5::Flags<FlagsType> Flags;
 
+    bool isTagCheck = false;
+    bool owIsRead = false;
+    bool isHit = false;
+    bool isDirty = false;
+    bool fbEmpty = true;
+    Tick tagCheckReady = MaxTick;
+
   private:
     enum : FlagsType
     {

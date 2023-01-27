@@ -509,6 +509,11 @@ class DRAMInterface : public MemInterface
     const Tick tXAW;
     const Tick tXP;
     const Tick tXS;
+    const Tick tTAGBURST;
+    const Tick tRLFAST;
+    const Tick tHM2DQ;
+    const Tick tRFB;
+    const Tick tWFB;
     const Tick clkResyncDelay;
     const bool dataClockSync;
     const bool burstInterleave;
@@ -578,6 +583,7 @@ class DRAMInterface : public MemInterface
         /** total number of DRAM bursts serviced */
         statistics::Scalar readBursts;
         statistics::Scalar writeBursts;
+        statistics::Scalar tagBursts;
 
         /** DRAM per bank stats */
         statistics::Vector perBankRdBursts;
@@ -649,6 +655,9 @@ class DRAMInterface : public MemInterface
     }
 
   public:
+
+    MemPacketQueue flushBuffer;
+
     /**
      * Initialize the DRAM interface and verify parameters
      */

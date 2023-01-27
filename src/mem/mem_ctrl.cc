@@ -255,6 +255,12 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
             MemPacket* mem_pkt;
             mem_pkt = mem_intr->decodePacket(pkt, addr, size, true,
                                                     mem_intr->pseudoChannel);
+            mem_pkt->isTagCheck = pkt->isTagCheck;
+            mem_pkt->owIsRead = pkt->owIsRead;
+            mem_pkt->isHit = pkt->isHit;
+            mem_pkt->isDirty = pkt->isDirty;
+            mem_pkt->fbEmpty = pkt->fbEmpty;
+            mem_pkt->tagCheckReady = pkt->tagCheckReady;
 
             // Increment read entries of the rank (dram)
             // Increment count to trigger issue of non-deterministic read (nvm)
@@ -330,6 +336,13 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
             MemPacket* mem_pkt;
             mem_pkt = mem_intr->decodePacket(pkt, addr, size, false,
                                                     mem_intr->pseudoChannel);
+            mem_pkt->isTagCheck = pkt->isTagCheck;
+            mem_pkt->owIsRead = pkt->owIsRead;
+            mem_pkt->isHit = pkt->isHit;
+            mem_pkt->isDirty = pkt->isDirty;
+            mem_pkt->fbEmpty = pkt->fbEmpty;
+            mem_pkt->tagCheckReady = pkt->tagCheckReady;
+
             // Default readyTime to Max if nvm interface;
             //will be reset once read is issued
             mem_pkt->readyTime = MaxTick;
@@ -654,6 +667,68 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
     DPRINTF(MemCtrl, "Done\n");
 
     return;
+}
+
+void
+MemCtrl::sendTagCheckRespond(MemPacket* mem_pkt)
+{
+    DPRINTF(MemCtrl, "sendTagCheckRespond : %d \n", mem_pkt->addr);
+    assert(mem_pkt->tagCheckReady != MaxTick);
+
+    PacketPtr tagCheckResPkt;
+
+    if (mem_pkt->isRead()) {
+        tagCheckResPkt = getPacket(mem_pkt->addr,
+                                   8,
+                                   MemCmd::ReadReq);
+    } else {
+        tagCheckResPkt = getPacket(mem_pkt->addr,
+                                   8,
+                                   MemCmd::WriteReq);
+    }
+
+    tagCheckResPkt->isTagCheck = mem_pkt->isTagCheck;
+    tagCheckResPkt->owIsRead = mem_pkt->owIsRead;
+    tagCheckResPkt->isHit = mem_pkt->isHit;
+    tagCheckResPkt->isDirty = mem_pkt->isDirty;
+    tagCheckResPkt->fbEmpty = mem_pkt->fbEmpty;
+    tagCheckResPkt->tagCheckReady = mem_pkt->tagCheckReady;
+
+    tagCheckResPkt->makeResponse();
+
+    Tick response_time = curTick() + tagCheckResPkt->headerDelay;
+    response_time += tagCheckResPkt->payloadDelay;
+    // Here we reset the timing of the packet before sending it out.
+    tagCheckResPkt->headerDelay = tagCheckResPkt->payloadDelay = 0;
+
+    // queue the packet in the response queue to be sent out after
+    // the static latency has passed
+    port.schedTimingResp(tagCheckResPkt, response_time);
+}
+
+PacketPtr
+MemCtrl::getPacket(Addr addr, unsigned size, const MemCmd& cmd,
+                   Request::FlagsType flags)
+{
+    // Create new request
+    RequestPtr req = std::make_shared<Request>(addr, size, flags,
+                                               0);
+    // Dummy PC to have PC-based prefetchers latch on; get entropy into higher
+    // bits
+    req->setPC(((Addr)0) << 2);
+
+    // Embed it in a packet
+    PacketPtr pkt = new Packet(req, cmd);
+
+    uint8_t* pkt_data = new uint8_t[req->getSize()];
+
+    pkt->dataDynamic(pkt_data);
+
+    if (cmd.isWrite()) {
+        std::fill_n(pkt_data, req->getSize(), (uint8_t)0);
+    }
+
+    return pkt;
 }
 
 void
@@ -1002,6 +1077,10 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
             Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
 
+            if (mem_pkt->isTagCheck) {
+                sendTagCheckRespond(mem_pkt);
+            }
+
             DPRINTF(MemCtrl,
             "Command for %#x, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
@@ -1093,6 +1172,11 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         assert(pktSizeCheck(mem_pkt, mem_intr));
 
         Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
+
+        if (mem_pkt->isTagCheck) {
+                sendTagCheckRespond(mem_pkt);
+        }
+
         DPRINTF(MemCtrl,
         "Command for %#x, issued at %lld.\n", mem_pkt->addr, cmd_at);
 

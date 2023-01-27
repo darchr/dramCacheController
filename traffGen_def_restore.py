@@ -33,9 +33,10 @@ system.mem_ctrl = PolicyManager(range=AddrRange('1GiB'))
 system.mem_ctrl.tRP = '14.16ns'
 system.mem_ctrl.tRCD_RD = '14.16ns'
 system.mem_ctrl.tRL = '14.16ns'
+system.mem_ctrl.loc_mem_policy = 'Rambus'
 
 system.loc_mem_ctrl = MemCtrl()
-system.loc_mem_ctrl.dram =  DDR4_2400_16x4_Alloy(range=AddrRange('1GiB'),in_addr_map=False, null=True)
+system.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=False, null=True)
 
 system.far_mem_ctrl = MemCtrl()
 system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=False, null=True)
