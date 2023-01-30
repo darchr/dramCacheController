@@ -298,7 +298,7 @@ class Packet : public Printable
     bool owIsRead = false;
     bool isHit = false;
     bool isDirty = false;
-    bool fbEmpty = true;
+    bool rdMCHasDirtyData = false;
     Tick tagCheckReady = MaxTick;
 
   private:

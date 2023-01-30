@@ -462,7 +462,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         if (mem_pkt->owIsRead && !mem_pkt->isHit && !mem_pkt->isDirty) {
 
             if (flushBuffer.empty()) {
-                assert(mem_pkt->fbEmpty);
+                assert(!mem_pkt->rdMCHasDirtyData);
                 mem_pkt->readyTime = cmd_at + tRLFAST + tCCD_L;
                 // mem_pkt->readyTime = cmd_at + tRLFAST + tCK;
 
@@ -472,8 +472,11 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
             } else {
                 mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
-                mem_pkt->fbEmpty = false;
+                mem_pkt->rdMCHasDirtyData = true;
                 // mem_pkt->readyTime = cmd_at + tHM2DQ + tRFB + tBURST;
+
+                // MUST BE MODIFIED
+                flushBuffer.pop_front();
 
                 stats.totBusLat += tBURST;
             }
@@ -518,6 +521,11 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         // Wr
         if (!mem_pkt->owIsRead) {
             mem_pkt->readyTime = cmd_at + tRTW + tBURST;
+
+            if (mem_pkt->isDirty) {
+                // THE ARGUMENTS MUST BE MODIFIED
+                flushBuffer.push_back(std::make_pair(1024,1024));
+            }
 
             // stats
             if (!rank_ref.writeDoneEvent.scheduled()) {

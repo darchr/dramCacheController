@@ -656,7 +656,9 @@ class DRAMInterface : public MemInterface
 
   public:
 
-    MemPacketQueue flushBuffer;
+
+    typedef std::pair<unsigned, unsigned> dataTagPair;
+    std::deque<dataTagPair> flushBuffer;
 
     /**
      * Initialize the DRAM interface and verify parameters

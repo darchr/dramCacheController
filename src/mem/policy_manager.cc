@@ -377,7 +377,7 @@ PolicyManager::processTagCheckEvent()
     tagCheckPktPtr->owIsRead = orbEntry->owPkt->isRead();
     tagCheckPktPtr->isHit = orbEntry->isHit;
     tagCheckPktPtr->isDirty = checkDirty(orbEntry->owPkt->getAddr());
-    assert(tagCheckPktPtr->fbEmpty);
+    assert(!tagCheckPktPtr->rdMCHasDirtyData);
 
     if (locReqPort.sendTimingReq(tagCheckPktPtr)) {
         DPRINTF(PolicyManager, "tag check req sent for adr: %lld\n", tagCheckPktPtr->getAddr());
@@ -538,16 +538,17 @@ bool
 PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
 {
     DPRINTF(PolicyManager, "locMemRecvTimingResp : %lld\n", pkt->getAddr());
+
     auto orbEntry = ORB.at(pkt->getAddr());
 
     if(pkt->isTagCheck) {
 
-        std::cout << "a: " << (reqState) orbEntry->state << "\n";
+        std::cout << "a\n";
 
         assert(orbEntry->pol == enums::Rambus);
         assert(orbEntry->state == waitingTCtag);
 
-        if (!pkt->fbEmpty) {
+        if (pkt->rdMCHasDirtyData) {
             assert(orbEntry->owPkt->isRead());
             assert(!orbEntry->isHit);
             assert(!checkDirty(orbEntry->owPkt->getAddr()));
@@ -555,7 +556,7 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
         }
 
         if (orbEntry->owPkt->isRead() && !orbEntry->isHit && checkDirty(orbEntry->owPkt->getAddr())) {
-            assert(pkt->fbEmpty);
+            assert(!pkt->rdMCHasDirtyData);
             orbEntry->waitingForDirtyData = true;
         }
 
@@ -584,22 +585,59 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
 
             if (orbEntry->pol == enums::Rambus) {
                 if (orbEntry->state == waitingLocMemReadResp) {
-                    std::cout << "here\n";
+                    std::cout << "b\n";
                     assert(orbEntry->isHit);
                     orbEntry->tagCheckExit = curTick();
                     orbEntry->state = locRdRespReady;
                 }
                 else {
+                    std::cout << orbEntry->state << "\n";
+                    std::cout << "c\n";
                     assert(!orbEntry->isHit);
-                    assert(orbEntry->waitingForDirtyData);
+                    if (checkDirty(orbEntry->owPkt->getAddr())) {
+                        std::cout << "d\n";
+                        assert(orbEntry->waitingForDirtyData);
+                        handleDirtyCacheLine(orbEntry);
+                        return true;
+                    } else {
+                        if (orbEntry->waitingForDirtyData) {
+                            handleDirtyCacheLine(orbEntry);
+                            return true;
+                        } else {
+                            // nothing to do
+                            return true;
+                        }
+                    }
                 }
             }
 
         }
         else {
             assert(pkt->isWrite());
-            assert(orbEntry->state == waitingLocMemWriteResp);
-            orbEntry->locWrExit = curTick();
+
+            if (orbEntry->pol == enums::CascadeLakeNoPartWrs || 
+                orbEntry->pol == enums::Oracle ||
+                orbEntry->pol ==  enums::BearWriteOpt)
+            {
+                assert(orbEntry->state == waitingLocMemWriteResp);
+                orbEntry->locWrExit = curTick();
+            }
+
+            if (orbEntry->pol == enums::Rambus) {
+                if (orbEntry->state == waitingLocMemWriteResp) {
+                    std::cout << "e\n";
+                    assert(orbEntry->owPkt->isRead());
+                    assert(!orbEntry->isHit);
+                    orbEntry->locWrExit = curTick();
+                }
+                if (orbEntry->state == tagCheck) {
+                    std::cout << "f\n";
+                    assert(orbEntry->owPkt->isWrite());
+                    orbEntry->tagCheckExit = curTick();
+                }
+            }
+
+
         }
     }
 
@@ -2007,6 +2045,8 @@ PolicyManager::sendRespondToRequestor(PacketPtr pkt, Tick static_latency)
 bool
 PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
 {
+    DPRINTF(PolicyManager, "resumeConflictingReq: %d: %d \n", curTick(), orbEntry->owPkt->getAddr());
+
     bool conflictFound = false;
 
     if (orbEntry->owPkt->isWrite()) {
