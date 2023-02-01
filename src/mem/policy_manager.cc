@@ -539,11 +539,15 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
 {
     DPRINTF(PolicyManager, "locMemRecvTimingResp : %lld\n", pkt->getAddr());
 
+    std::cout << "1\n";
+
     auto orbEntry = ORB.at(pkt->getAddr());
+
+    std::cout << "2\n";
 
     if(pkt->isTagCheck) {
 
-        std::cout << "a\n";
+        // std::cout << "a\n";
 
         assert(orbEntry->pol == enums::Rambus);
         assert(orbEntry->state == waitingTCtag);
@@ -585,22 +589,26 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
 
             if (orbEntry->pol == enums::Rambus) {
                 if (orbEntry->state == waitingLocMemReadResp) {
-                    std::cout << "b\n";
+                    // std::cout << "b\n";
                     assert(orbEntry->isHit);
                     orbEntry->tagCheckExit = curTick();
                     orbEntry->state = locRdRespReady;
                 }
                 else {
-                    std::cout << orbEntry->state << "\n";
-                    std::cout << "c\n";
+                    // std::cout << orbEntry->state << "\n";
+                    // std::cout << "c\n";
                     assert(!orbEntry->isHit);
                     if (checkDirty(orbEntry->owPkt->getAddr())) {
-                        std::cout << "d\n";
+                        // std::cout << "d\n";
                         assert(orbEntry->waitingForDirtyData);
+                        std::cout << "3/n";
                         handleDirtyCacheLine(orbEntry);
                         return true;
                     } else {
                         if (orbEntry->waitingForDirtyData) {
+                            assert(orbEntry->dirtyLineAddr==-1);
+                            
+                            std::cout << "4/n";
                             handleDirtyCacheLine(orbEntry);
                             return true;
                         } else {
@@ -625,13 +633,13 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
 
             if (orbEntry->pol == enums::Rambus) {
                 if (orbEntry->state == waitingLocMemWriteResp) {
-                    std::cout << "e\n";
+                    // std::cout << "e\n";
                     assert(orbEntry->owPkt->isRead());
                     assert(!orbEntry->isHit);
                     orbEntry->locWrExit = curTick();
                 }
                 if (orbEntry->state == tagCheck) {
-                    std::cout << "f\n";
+                    // std::cout << "f\n";
                     assert(orbEntry->owPkt->isWrite());
                     orbEntry->tagCheckExit = curTick();
                 }
@@ -1142,7 +1150,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     // start --> read tag
     if (orbEntry->pol == enums::Rambus &&
         orbEntry->state == start) {
-            std::cout << "1\n";
+            // std::cout << "1\n";
             orbEntry->state = tagCheck;
             orbEntry->tagCheckEntered = curTick();
             return;
@@ -1153,7 +1161,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     if (orbEntry->pol == enums::Rambus &&
         orbEntry->state == waitingTCtag &&
         orbEntry->owPkt->isRead() && orbEntry->isHit) {
-            std::cout << "2\n";
+            // std::cout << "2\n";
             // orbEntry->state = waitingLocMemReadResp;
             // do nothing
             return;
@@ -1165,7 +1173,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
         orbEntry->state == waitingTCtag &&
         orbEntry->owPkt->isRead() &&
         !orbEntry->isHit) {
-            std::cout << "3\n";
+            // std::cout << "3\n";
             orbEntry->state = farMemRead;
             orbEntry->farRdEntered = curTick();
             return;
@@ -1176,7 +1184,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     if (orbEntry->pol == enums::Rambus &&
         orbEntry->state == waitingTCtag &&
         orbEntry->owPkt->isWrite()) {
-            std::cout << "4\n";
+            // std::cout << "4\n";
             // done, do nothing and return;
             return;
     }
@@ -1184,7 +1192,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     // tag ready && read && hit --> DONE
     if (orbEntry->pol == enums::Rambus &&
         orbEntry->state == waitingLocMemReadResp) {
-            std::cout << "5\n";
+            // std::cout << "5\n";
             assert(orbEntry->isHit);
             assert(orbEntry->owPkt->isRead());
             // done
@@ -1195,7 +1203,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     // tag ready && read && hit --> DONE
     if (orbEntry->pol == enums::Rambus &&
         orbEntry->state == locRdRespReady) {
-            std::cout << "5_0\n";
+            // std::cout << "5_0\n";
             assert(orbEntry->isHit);
             assert(orbEntry->owPkt->isRead());
             // done
@@ -1206,7 +1214,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     // far read resp ready && read && miss --> loc write
     if (orbEntry->pol == enums::Rambus &&
         orbEntry->state == waitingFarMemReadResp) {
-            std::cout << "6\n";
+            // std::cout << "6\n";
 
             assert(orbEntry->owPkt->isRead());
             assert(!orbEntry->isHit);
@@ -1259,7 +1267,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     // loc write received
     if (orbEntry->pol == enums::Rambus &&
         orbEntry->state == waitingLocMemWriteResp) {
-            std::cout << "7\n";
+            // std::cout << "7\n";
             assert(orbEntry->owPkt->isRead());
             assert(!orbEntry->isHit);
             // done
@@ -1618,7 +1626,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     if (orbEntry->pol == enums::Rambus &&
         orbEntry->state == tagCheck) {
-            std::cout << "8\n";
+            // std::cout << "8\n";
 
         // assert(!pktTagCheck.empty());
 
@@ -1634,13 +1642,13 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     if (orbEntry->pol == enums::Rambus &&
         orbEntry->state == waitingLocMemReadResp) {
-            std::cout << "9\n";
+            // std::cout << "9\n";
             return;
     }
 
     if (orbEntry->pol == enums::Rambus &&
         orbEntry->state == locRdRespReady) {
-            std::cout << "9_0\n";
+            // std::cout << "9_0\n";
             assert(orbEntry->owPkt->isRead());
             assert(orbEntry->isHit);
             // DONE
@@ -1691,7 +1699,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     if (orbEntry->pol == enums::Rambus &&
         orbEntry->owPkt->isWrite()) {
-            std::cout << "10\n";
+            // std::cout << "10\n";
             // DONE
             // respond for writes is already sent to the requestor.
             // clear ORB
@@ -1704,7 +1712,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     if (orbEntry->pol == enums::Rambus &&
         orbEntry->state == farMemRead) {
-            std::cout << "11\n";
+            // std::cout << "11\n";
 
             assert(orbEntry->owPkt->isRead());
             assert(!orbEntry->isHit);
@@ -1723,7 +1731,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     if (orbEntry->pol == enums::Rambus &&
         orbEntry->state == locMemWrite) {
-            std::cout << "12\n";
+            // std::cout << "12\n";
 
             assert(orbEntry->owPkt->isRead());
             assert(!orbEntry->isHit);
@@ -1744,7 +1752,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
         // orbEntry->owPkt->isRead() &&
         // !orbEntry->isHit &&
         orbEntry->state == waitingLocMemWriteResp) {
-            std::cout << "13\n";
+            // std::cout << "13\n";
             // DONE
             // clear ORB
             assert(orbEntry->owPkt->isRead());

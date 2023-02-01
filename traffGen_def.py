@@ -38,9 +38,10 @@ system.mem_ctrl.loc_mem_policy = 'Rambus'
 system.loc_mem_ctrl = MemCtrl()
 system.loc_mem_ctrl.dram = HBM_2000_4H_1x64(range=AddrRange('1GiB'), in_addr_map=False, null=True)
 
-system.loc_mem_ctrl.dram.device_rowbuffer_size = "2KiB"
-system.loc_mem_ctrl.dram.banks_per_rank = 8
-system.loc_mem_ctrl.dram.bank_groups_per_rank = 2
+system.loc_mem_ctrl.dram.device_rowbuffer_size = "512B"
+system.loc_mem_ctrl.dram.banks_per_rank = 32
+system.loc_mem_ctrl.dram.bank_groups_per_rank = 8
+system.loc_mem_ctrl.dram.page_policy = 'close'
 
 system.loc_mem_ctrl.dram.burst_length = 8
 system.loc_mem_ctrl.dram.tCCD_L = "6ns"

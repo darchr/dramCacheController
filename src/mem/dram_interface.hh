@@ -585,6 +585,8 @@ class DRAMInterface : public MemInterface
         statistics::Scalar writeBursts;
         statistics::Scalar tagBursts;
 
+        statistics::Average avgFBLenEnq;
+
         /** DRAM per bank stats */
         statistics::Vector perBankRdBursts;
         statistics::Vector perBankWrBursts;

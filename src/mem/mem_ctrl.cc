@@ -1086,7 +1086,7 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
 
             if (mem_pkt->isTagCheck) {
-                std::cout << "MemCtrlr: " << mem_pkt->tagCheckReady << " / " << mem_pkt->readyTime << "\n";
+                DPRINTF(MemCtrl, "read ready times: tag: %d  data: %d \n", mem_pkt->tagCheckReady, mem_pkt->readyTime);
                 sendTagCheckRespond(mem_pkt);
             }
 
@@ -1184,6 +1184,7 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
         if (mem_pkt->isTagCheck) {
                 //sendTagCheckRespond(mem_pkt);
+                DPRINTF(MemCtrl, "write ready times: tag: %d  data: %d \n", mem_pkt->tagCheckReady, mem_pkt->readyTime);
                 accessAndRespond(mem_pkt->pkt, frontendLatency, mem_intr);
         }
 

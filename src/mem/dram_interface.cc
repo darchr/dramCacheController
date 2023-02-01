@@ -463,12 +463,16 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
             if (flushBuffer.empty()) {
                 assert(!mem_pkt->rdMCHasDirtyData);
-                mem_pkt->readyTime = cmd_at + tRLFAST + tCCD_L;
-                // mem_pkt->readyTime = cmd_at + tRLFAST + tCK;
-
+                // mem_pkt->readyTime = cmd_at + tRLFAST + tCCD_L;
                 // update the burst gap
-                burst_gap = tCCD_L;
-                stats.totBusLat += tCCD_L;
+                // burst_gap = tCCD_L;
+                // stats.totBusLat += tCCD_L;
+
+                mem_pkt->readyTime = cmd_at + tRLFAST + tCK;
+                // update the burst gap
+                burst_gap = tRLFAST + tCK;
+                stats.totBusLat += tRLFAST + tCK;
+
 
             } else {
                 mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
@@ -522,9 +526,11 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         if (!mem_pkt->owIsRead) {
             mem_pkt->readyTime = cmd_at + tRTW + tBURST;
 
-            if (mem_pkt->isDirty) {
+            if (!mem_pkt->isHit && mem_pkt->isDirty) {
                 // THE ARGUMENTS MUST BE MODIFIED
                 flushBuffer.push_back(std::make_pair(1024,1024));
+
+                stats.avgFBLenEnq = flushBuffer.size();
             }
 
             // stats
@@ -1988,6 +1994,10 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
              "Number of DRAM write bursts"),
     ADD_STAT(tagBursts, statistics::units::Count::get(),
              "Number of tag check bursts"),
+    
+    ADD_STAT(avgFBLenEnq, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average flush buffer length when enqueuing"),
 
     ADD_STAT(perBankRdBursts, statistics::units::Count::get(),
              "Per bank write bursts"),
@@ -2059,6 +2069,8 @@ DRAMInterface::DRAMStats::regStats()
     avgQLat.precision(2);
     avgBusLat.precision(2);
     avgMemAccLat.precision(2);
+
+    avgFBLenEnq.precision(2);
 
     readRowHitRate.precision(2);
     writeRowHitRate.precision(2);
