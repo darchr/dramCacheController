@@ -659,7 +659,7 @@ class DRAMInterface : public MemInterface
   public:
 
 
-    typedef std::pair<unsigned, unsigned> dataTagPair;
+    typedef std::pair<unsigned, Addr> dataTagPair;
     std::deque<dataTagPair> flushBuffer;
 
     /**

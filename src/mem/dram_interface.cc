@@ -48,6 +48,7 @@
 #include "debug/DRAM.hh"
 #include "debug/DRAMPower.hh"
 #include "debug/DRAMState.hh"
+#include "debug/MemCtrl.hh"
 #include "sim/system.hh"
 
 namespace gem5
@@ -432,14 +433,14 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         mem_pkt->tagCheckReady = cmd_at + tRLFAST + tCK;
 
         // tag is sent back only for Rd Miss Cleans, for other cases tag is already known.
-        if (mem_pkt->owIsRead && !mem_pkt->isHit && !mem_pkt->isDirty && !flushBuffer.empty()) {
+        if (!mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
             mem_pkt->tagCheckReady += tTAGBURST;
         }
         stats.tagBursts++;
 
         // Calculating the data ready time
         // Rd Hit
-        if (mem_pkt->owIsRead && mem_pkt->isHit) {
+        if (mem_pkt->pkt->owIsRead && mem_pkt->pkt->isHit) {
             mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
 
             // stats
@@ -459,27 +460,40 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         }
 
         // Rd Miss Clean
-        if (mem_pkt->owIsRead && !mem_pkt->isHit && !mem_pkt->isDirty) {
+        if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && !mem_pkt->pkt->isDirty) {
 
             if (flushBuffer.empty()) {
-                assert(!mem_pkt->rdMCHasDirtyData);
-                // mem_pkt->readyTime = cmd_at + tRLFAST + tCCD_L;
-                // update the burst gap
-                // burst_gap = tCCD_L;
-                // stats.totBusLat += tCCD_L;
+                DPRINTF(MemCtrl, "Rd M C FB.empt\n");
+                assert(!mem_pkt->pkt->rdMCHasDirtyData);
 
-                mem_pkt->readyTime = cmd_at + tRLFAST + tCK;
+                // mem_pkt->readyTime = cmd_at + tRL;
+                // // update the burst gap
+                // burst_gap = tRL;
+                // stats.totBusLat += tRL;
+
+                mem_pkt->readyTime = cmd_at + tRLFAST + tCCD_L;
                 // update the burst gap
-                burst_gap = tRLFAST + tCK;
-                stats.totBusLat += tRLFAST + tCK;
+                burst_gap = tCCD_L;
+                stats.totBusLat += tCCD_L;
+
+                // std::cout << tRL << " / " << tWL << " / " << tCCD_L << " / " << tBURST << "\n";
+
+                // mem_pkt->readyTime = cmd_at + tRLFAST + tCK;
+                // // update the burst gap
+                // burst_gap = tRLFAST + tCK;
+                // stats.totBusLat += tRLFAST + tCK;
 
 
             } else {
                 mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
-                mem_pkt->rdMCHasDirtyData = true;
+                assert(!mem_pkt->pkt->rdMCHasDirtyData);
+                mem_pkt->pkt->rdMCHasDirtyData = true;
                 // mem_pkt->readyTime = cmd_at + tHM2DQ + tRFB + tBURST;
 
+                assert(mem_pkt->pkt->dirtyLineAddr == -1);
                 // MUST BE MODIFIED
+                mem_pkt->pkt->dirtyLineAddr = flushBuffer.front().second;
+                DPRINTF(MemCtrl, "Rd M C FB.full: %d\n", mem_pkt->pkt->dirtyLineAddr);
                 flushBuffer.pop_front();
 
                 stats.totBusLat += tBURST;
@@ -503,8 +517,14 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         }
 
         // Rd Miss Dirty
-        if (mem_pkt->owIsRead && !mem_pkt->isHit && mem_pkt->isDirty) {
+        if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
             mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
+
+            assert(!mem_pkt->pkt->rdMCHasDirtyData);
+
+            mem_pkt->pkt->rdMCHasDirtyData = true;
+
+            DPRINTF(MemCtrl, "Rd M D: %d\n", mem_pkt->addr);
 
             // stats
             // Every respQueue which will generate an event, increment count
@@ -523,12 +543,14 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         }
 
         // Wr
-        if (!mem_pkt->owIsRead) {
+        if (!mem_pkt->pkt->owIsRead) {
             mem_pkt->readyTime = cmd_at + tRTW + tBURST;
 
-            if (!mem_pkt->isHit && mem_pkt->isDirty) {
+            if (!mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
                 // THE ARGUMENTS MUST BE MODIFIED
-                flushBuffer.push_back(std::make_pair(1024,1024));
+                flushBuffer.push_back(std::make_pair(-1,mem_pkt->pkt->dirtyLineAddr));
+
+                DPRINTF(MemCtrl, "Wr M D to FB: %d\n", mem_pkt->addr);
 
                 stats.avgFBLenEnq = flushBuffer.size();
             }
@@ -855,17 +877,19 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
                   banksPerRank, bankGroupsPerRank);
         }
         // tCCD_L should be greater than minimal, back-to-back burst delay
-        if (tCCD_L <= tBURST) {
-            fatal("tCCD_L (%d) should be larger than the minimum bus delay "
-                  "(%d) when bank groups per rank (%d) is greater than 1\n",
-                  tCCD_L, tBURST, bankGroupsPerRank);
-        }
+        // if (tCCD_L <= tBURST) {
+        //     fatal("tCCD_L (%d) should be larger than the minimum bus delay "
+        //           "(%d) when bank groups per rank (%d) is greater than 1\n",
+        //           tCCD_L, tBURST, bankGroupsPerRank);
+        // }
+        
         // tCCD_L_WR should be greater than minimal, back-to-back burst delay
-        if (tCCD_L_WR <= tBURST) {
-            fatal("tCCD_L_WR (%d) should be larger than the minimum bus delay "
-                  " (%d) when bank groups per rank (%d) is greater than 1\n",
-                  tCCD_L_WR, tBURST, bankGroupsPerRank);
-        }
+        // if (tCCD_L_WR <= tBURST) {
+        //     fatal("tCCD_L_WR (%d) should be larger than the minimum bus delay "
+        //           " (%d) when bank groups per rank (%d) is greater than 1\n",
+        //           tCCD_L_WR, tBURST, bankGroupsPerRank);
+        // }
+        
         // tRRD_L is greater than minimal, same bank group ACT-to-ACT delay
         // some datasheets might specify it equal to tRRD
         if (tRRD_L < tRRD) {

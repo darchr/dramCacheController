@@ -299,7 +299,9 @@ class Packet : public Printable
     bool isHit = false;
     bool isDirty = false;
     bool rdMCHasDirtyData = false;
-    Tick tagCheckReady = MaxTick;
+    // Tick tagCheckReady = MaxTick;
+    Addr dirtyLineAddr = -1;
+
 
   private:
     enum : FlagsType

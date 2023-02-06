@@ -133,7 +133,7 @@ MemCtrl::recvAtomic(PacketPtr pkt)
 Tick
 MemCtrl::recvAtomicLogic(PacketPtr pkt, MemInterface* mem_intr)
 {
-    DPRINTF(MemCtrl, "recvAtomic: %s 0x%x\n",
+    DPRINTF(MemCtrl, "recvAtomic: %s %d\n",
                      pkt->cmdString(), pkt->getAddr());
 
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
@@ -232,7 +232,7 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
                             stats.servicedByWrQ++;
                             pktsServicedByWrQ++;
                             DPRINTF(MemCtrl,
-                                    "Read to addr %#x with size %d serviced by "
+                                    "Read to addr %d with size %d serviced by "
                                     "write queue\n",
                                     addr, size);
                             stats.bytesReadWrQ += burst_size;
@@ -249,7 +249,7 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
 
             // Make the burst helper for split packets
             if (pkt_count > 1 && burst_helper == NULL) {
-                DPRINTF(MemCtrl, "Read to addr %#x translates to %d "
+                DPRINTF(MemCtrl, "Read to addr %d translates to %d "
                         "memory requests\n", pkt->getAddr(), pkt_count);
                 burst_helper = new BurstHelper(pkt_count);
             }
@@ -258,11 +258,12 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
             mem_pkt = mem_intr->decodePacket(pkt, addr, size, true,
                                                     mem_intr->pseudoChannel);
             mem_pkt->isTagCheck = pkt->isTagCheck;
-            mem_pkt->owIsRead = pkt->owIsRead;
-            mem_pkt->isHit = pkt->isHit;
-            mem_pkt->isDirty = pkt->isDirty;
-            mem_pkt->rdMCHasDirtyData = pkt->rdMCHasDirtyData;
-            mem_pkt->tagCheckReady = pkt->tagCheckReady;
+            // mem_pkt->owIsRead = pkt->owIsRead;
+            // mem_pkt->isHit = pkt->isHit;
+            // mem_pkt->isDirty = pkt->isDirty;
+            // mem_pkt->rdMCHasDirtyData = pkt->rdMCHasDirtyData;
+            // mem_pkt->tagCheckReady = pkt->tagCheckReady;
+            // mem_pkt->dirtyLineAddr = pkt->dirtyLineAddr;
 
             // Increment read entries of the rank (dram)
             // Increment count to trigger issue of non-deterministic read (nvm)
@@ -339,11 +340,12 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
             mem_pkt = mem_intr->decodePacket(pkt, addr, size, false,
                                                     mem_intr->pseudoChannel);
             mem_pkt->isTagCheck = pkt->isTagCheck;
-            mem_pkt->owIsRead = pkt->owIsRead;
-            mem_pkt->isHit = pkt->isHit;
-            mem_pkt->isDirty = pkt->isDirty;
-            mem_pkt->rdMCHasDirtyData = pkt->rdMCHasDirtyData;
-            mem_pkt->tagCheckReady = pkt->tagCheckReady;
+            // mem_pkt->owIsRead = pkt->owIsRead;
+            // mem_pkt->isHit = pkt->isHit;
+            // mem_pkt->isDirty = pkt->isDirty;
+            // mem_pkt->rdMCHasDirtyData = pkt->rdMCHasDirtyData;
+            // mem_pkt->tagCheckReady = pkt->tagCheckReady;
+            // mem_pkt->dirtyLineAddr = pkt->dirtyLineAddr;
 
             // Default readyTime to Max if nvm interface;
             //will be reset once read is issued
@@ -358,6 +360,9 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
 
             writeQueue[mem_pkt->qosValue()].push_back(mem_pkt);
             isInWriteQueue.insert(burstAlign(addr, mem_intr));
+            if (mem_pkt->addr == 3036713728) {
+                std::cout << "added to WQ\n";
+            }
 
             // log packet
             logRequest(MemCtrl::WRITE, pkt->requestorId(),
@@ -390,6 +395,7 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
     // different front end latency
     if (!pkt->isTagCheck) {
         accessAndRespond(pkt, frontendLatency, mem_intr);
+        // std::cout << "here3: " << pkt->getAddr() << " " << pkt->cmdString() << "\n";
     }
 }
 
@@ -400,19 +406,19 @@ MemCtrl::printQs() const
     DPRINTF(MemCtrl, "===READ QUEUE===\n\n");
     for (const auto& queue : readQueue) {
         for (const auto& packet : queue) {
-            DPRINTF(MemCtrl, "Read %#x\n", packet->addr);
+            DPRINTF(MemCtrl, "Read %d\n", packet->addr);
         }
     }
 
     DPRINTF(MemCtrl, "\n===RESP QUEUE===\n\n");
     for (const auto& packet : respQueue) {
-        DPRINTF(MemCtrl, "Response %#x\n", packet->addr);
+        DPRINTF(MemCtrl, "Response %d\n", packet->addr);
     }
 
     DPRINTF(MemCtrl, "\n===WRITE QUEUE===\n\n");
     for (const auto& queue : writeQueue) {
         for (const auto& packet : queue) {
-            DPRINTF(MemCtrl, "Write %#x\n", packet->addr);
+            DPRINTF(MemCtrl, "Write %d\n", packet->addr);
         }
     }
 #endif // TRACING_ON
@@ -422,7 +428,7 @@ bool
 MemCtrl::recvTimingReq(PacketPtr pkt)
 {
     // This is where we enter from the outside world
-    DPRINTF(MemCtrl, "recvTimingReq: request %s addr %#x size %d\n",
+    DPRINTF(MemCtrl, "recvTimingReq: request %s addr %d size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getSize());
 
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
@@ -637,7 +643,7 @@ void
 MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
                                                 MemInterface* mem_intr)
 {
-    DPRINTF(MemCtrl, "Responding to Address %d.. \n", pkt->getAddr());
+    DPRINTF(MemCtrl, "Responding to Address %d: %s.. \n", pkt->getAddr(), pkt->cmdString());
 
     bool needsResponse = pkt->needsResponse();
     // do the actual memory access which also turns the packet into a
@@ -658,6 +664,11 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
                              pkt->payloadDelay;
         // Here we reset the timing of the packet before sending it out.
         pkt->headerDelay = pkt->payloadDelay = 0;
+
+        if (pkt->owIsRead && !pkt->isHit && pkt->isDirty) {
+            // std::cout << pkt->getAddr() << "\n";
+            assert(pkt->rdMCHasDirtyData);
+        }
 
         if (pkt->isTagCheck) {
             pkt->isTagCheck = false;
@@ -695,12 +706,13 @@ MemCtrl::sendTagCheckRespond(MemPacket* mem_pkt)
                                    MemCmd::WriteReq);
     }
 
-    tagCheckResPkt->isTagCheck = mem_pkt->isTagCheck;
-    tagCheckResPkt->owIsRead = mem_pkt->owIsRead;
-    tagCheckResPkt->isHit = mem_pkt->isHit;
-    tagCheckResPkt->isDirty = mem_pkt->isDirty;
-    tagCheckResPkt->rdMCHasDirtyData = mem_pkt->rdMCHasDirtyData;
-    tagCheckResPkt->tagCheckReady = mem_pkt->tagCheckReady;
+    tagCheckResPkt->isTagCheck = mem_pkt->pkt->isTagCheck;
+    tagCheckResPkt->owIsRead = mem_pkt->pkt->owIsRead;
+    tagCheckResPkt->isHit = mem_pkt->pkt->isHit;
+    tagCheckResPkt->isDirty = mem_pkt->pkt->isDirty;
+    tagCheckResPkt->rdMCHasDirtyData = mem_pkt->pkt->rdMCHasDirtyData;
+    // tagCheckResPkt->tagCheckReady = mem_pkt->pkt->tagCheckReady;
+    tagCheckResPkt->dirtyLineAddr = mem_pkt->pkt->dirtyLineAddr;
 
     tagCheckResPkt->makeResponse();
 
@@ -711,7 +723,7 @@ MemCtrl::sendTagCheckRespond(MemPacket* mem_pkt)
 
     // queue the packet in the response queue to be sent out after
     // the static latency has passed
-    port.schedTimingResp(tagCheckResPkt, tagCheckResPkt->tagCheckReady);
+    port.schedTimingResp(tagCheckResPkt, mem_pkt->tagCheckReady);
 }
 
 PacketPtr
@@ -895,7 +907,7 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
     std::tie(cmd_at, mem_intr->nextBurstAt) =
             mem_intr->doBurstAccess(mem_pkt, mem_intr->nextBurstAt, queue);
 
-    DPRINTF(MemCtrl, "Access to %#x, ready at %lld next burst at %lld.\n",
+    DPRINTF(MemCtrl, "Access to %d, ready at %lld next burst at %lld.\n",
             mem_pkt->addr, mem_pkt->readyTime, mem_intr->nextBurstAt);
 
     // Update the minimum timing between the requests, this is a
@@ -1085,13 +1097,18 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
             Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
 
+            // if (mem_pkt->owIsRead && !mem_pkt->isHit && !mem_pkt->isDirty) {
+            //     mem_pkt->pkt->rdMCHasDirtyData = mem_pkt->rdMCHasDirtyData;
+            //     mem_pkt->pkt->dirtyLineAddr = mem_pkt->dirtyLineAddr;
+            // }
+
             if (mem_pkt->isTagCheck) {
-                DPRINTF(MemCtrl, "read ready times: tag: %d  data: %d \n", mem_pkt->tagCheckReady, mem_pkt->readyTime);
+                DPRINTF(MemCtrl, "read times: %d, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
                 sendTagCheckRespond(mem_pkt);
             }
 
             DPRINTF(MemCtrl,
-            "Command for %#x, issued at %lld.\n", mem_pkt->addr, cmd_at);
+            "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
             // sanity check
             assert(pktSizeCheck(mem_pkt, mem_intr));
@@ -1110,6 +1127,10 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
                 assert(!resp_event.scheduled());
                 schedule(resp_event, mem_pkt->readyTime);
             } else {
+                if(resp_queue.back()->readyTime > mem_pkt->readyTime) {
+                    std::cout << mem_pkt->addr << ": " << mem_pkt->readyTime << " / " <<
+                    resp_queue.back()->addr << ": " << resp_queue.back()->readyTime << "\n";
+                }
                 assert(resp_queue.back()->readyTime <= mem_pkt->readyTime);
                 assert(resp_event.scheduled());
             }
@@ -1177,19 +1198,24 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
         auto mem_pkt = *to_write;
 
+        if (mem_pkt->addr == 3036713728) {
+            std::cout << "chosen from WQ\n";
+        }
+
         // sanity check
         assert(pktSizeCheck(mem_pkt, mem_intr));
 
         Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
 
+        DPRINTF(MemCtrl,
+        "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
+
         if (mem_pkt->isTagCheck) {
                 //sendTagCheckRespond(mem_pkt);
-                DPRINTF(MemCtrl, "write ready times: tag: %d  data: %d \n", mem_pkt->tagCheckReady, mem_pkt->readyTime);
-                accessAndRespond(mem_pkt->pkt, frontendLatency, mem_intr);
+                DPRINTF(MemCtrl, "write times: %d, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
+                accessAndRespond(mem_pkt->pkt, 0, mem_intr);
+                // std::cout << "here0: " << mem_pkt->addr << "\n";
         }
-
-        DPRINTF(MemCtrl,
-        "Command for %#x, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
         isInWriteQueue.erase(burstAlign(mem_pkt->addr, mem_intr));
 
@@ -1203,7 +1229,9 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         // remove the request from the queue - the iterator is no longer valid
         writeQueue[mem_pkt->qosValue()].erase(to_write);
 
+        // std::cout << "here1: " << mem_pkt->addr << "\n";
         delete mem_pkt;
+        // std::cout << "here2!\n";
 
         // If we emptied the write queue, or got sufficiently below the
         // threshold (using the minWritesPerSwitch as the hysteresis) and

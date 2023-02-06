@@ -208,8 +208,9 @@ class PolicyManager : public AbstractMemory
 
         Addr dirtyLineAddr;
         bool handleDirtyLine;
+        bool prevDirty = false;
 
-        bool waitingForDirtyData;
+        // bool waitingForDirtyData;
 
         // recording the tick when the req transitions into a new stats.
         // The subtract between each two consecutive states entrance ticks,
@@ -236,7 +237,7 @@ class PolicyManager : public AbstractMemory
           enums::Policy _pol, reqState _state,
           bool _issued, bool _isHit, bool _conflict,
           Addr _dirtyLineAddr, bool _handleDirtyLine,
-          bool _waitingForDirtyData,
+          // bool _waitingForDirtyData,
           Tick _tagCheckEntered, Tick _tagCheckIssued, Tick _tagCheckExit,
           Tick _locRdEntered, Tick _locRdIssued, Tick _locRdExit,
           Tick _locWrEntered, Tick _locWrIssued, Tick _locWrExit,
@@ -248,7 +249,7 @@ class PolicyManager : public AbstractMemory
         pol(_pol), state(_state),
         issued(_issued), isHit(_isHit), conflict(_conflict),
         dirtyLineAddr(_dirtyLineAddr), handleDirtyLine(_handleDirtyLine),
-        waitingForDirtyData(_waitingForDirtyData),
+        // waitingForDirtyData(_waitingForDirtyData),
         tagCheckEntered(_tagCheckEntered), tagCheckIssued(_tagCheckIssued), tagCheckExit(_tagCheckExit),
         locRdEntered(_locRdEntered), locRdIssued(_locRdIssued), locRdExit(_locRdExit),
         locWrEntered(_locWrEntered), locWrIssued(_locWrIssued), locWrExit(_locWrExit),
@@ -337,7 +338,7 @@ class PolicyManager : public AbstractMemory
     void handleRequestorPkt(PacketPtr pkt);
     void checkHitOrMiss(reqBufferEntry* orbEntry);
     bool checkDirty(Addr addr);
-    void handleDirtyCacheLine(reqBufferEntry* orbEntry);
+    void handleDirtyCacheLine(Addr dirtyLineAddr);
     bool checkConflictInDramCache(PacketPtr pkt);
     void checkConflictInCRB(reqBufferEntry* orbEntry);
     bool resumeConflictingReq(reqBufferEntry* orbEntry);
