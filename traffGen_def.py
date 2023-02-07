@@ -44,7 +44,7 @@ system.loc_mem_ctrl.dram.bank_groups_per_rank = 8
 system.loc_mem_ctrl.dram.page_policy = 'close'
 
 system.loc_mem_ctrl.dram.burst_length = 8
-system.loc_mem_ctrl.dram.tCCD_L = "6ns"
+system.loc_mem_ctrl.dram.tCCD_L = "4ns"
 system.loc_mem_ctrl.dram.tBURST = "4ns"
 
 system.far_mem_ctrl = MemCtrl()

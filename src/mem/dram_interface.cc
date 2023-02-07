@@ -400,6 +400,8 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     // the command; need to ensure minimum bus delay requirement is met
     Tick cmd_at = std::max({col_allowed_at, next_burst_at, curTick()});
 
+    std::cout << col_allowed_at << " / " << next_burst_at << " / " << curTick() << "\n";
+
     // verify that we have command bandwidth to issue the burst
     // if not, shift to next burst window
     Tick max_sync = clkResyncDelay + (mem_pkt->isRead() ? tRL : tWL);
@@ -466,24 +468,10 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
                 DPRINTF(MemCtrl, "Rd M C FB.empt\n");
                 assert(!mem_pkt->pkt->rdMCHasDirtyData);
 
-                // mem_pkt->readyTime = cmd_at + tRL;
-                // // update the burst gap
-                // burst_gap = tRL;
-                // stats.totBusLat += tRL;
-
-                mem_pkt->readyTime = cmd_at + tRLFAST + tCCD_L;
+                mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
                 // update the burst gap
-                burst_gap = tCCD_L;
-                stats.totBusLat += tCCD_L;
-
-                // std::cout << tRL << " / " << tWL << " / " << tCCD_L << " / " << tBURST << "\n";
-
-                // mem_pkt->readyTime = cmd_at + tRLFAST + tCK;
-                // // update the burst gap
-                // burst_gap = tRLFAST + tCK;
-                // stats.totBusLat += tRLFAST + tCK;
-
-
+                burst_gap = tBURST;
+                stats.totBusLat += tBURST;
             } else {
                 mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
                 assert(!mem_pkt->pkt->rdMCHasDirtyData);
