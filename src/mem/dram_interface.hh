@@ -514,6 +514,7 @@ class DRAMInterface : public MemInterface
     const Tick tHM2DQ;
     const Tick tRFB;
     const Tick tWFB;
+    const Tick tRTW_int;
     const Tick clkResyncDelay;
     const bool dataClockSync;
     const bool burstInterleave;

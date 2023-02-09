@@ -30,9 +30,9 @@ system.mem_mode = 'timing'
 system.generator = PyTrafficGen()
 
 system.mem_ctrl = PolicyManager(range=AddrRange('1GiB'))
-system.mem_ctrl.tRP = '14.16ns'
-system.mem_ctrl.tRCD_RD = '14.16ns'
-system.mem_ctrl.tRL = '14.16ns'
+system.mem_ctrl.tRP = '14ns'
+system.mem_ctrl.tRCD_RD = '12ns'
+system.mem_ctrl.tRL = '18ns'
 system.mem_ctrl.loc_mem_policy = 'Rambus'
 
 system.loc_mem_ctrl = MemCtrl()

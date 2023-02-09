@@ -1900,6 +1900,8 @@ PolicyManager::checkConflictInDramCache(PacketPtr pkt)
 
             e->second->conflict = true;
 
+            std::cout << "confAdr:" << e->second->owPkt->getAddr() << "\n";
+
             return true;
         }
     }

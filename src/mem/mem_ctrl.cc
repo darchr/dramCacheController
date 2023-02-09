@@ -360,10 +360,7 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
 
             writeQueue[mem_pkt->qosValue()].push_back(mem_pkt);
             isInWriteQueue.insert(burstAlign(addr, mem_intr));
-            if (mem_pkt->addr == 3036713728) {
-                std::cout << "added to WQ\n";
-            }
-
+          
             // log packet
             logRequest(MemCtrl::WRITE, pkt->requestorId(),
                        pkt->qosValue(), mem_pkt->addr, 1);
@@ -395,7 +392,6 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
     // different front end latency
     if (!pkt->isTagCheck) {
         accessAndRespond(pkt, frontendLatency, mem_intr);
-        // std::cout << "here3: " << pkt->getAddr() << " " << pkt->cmdString() << "\n";
     }
 }
 
@@ -666,7 +662,6 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
         pkt->headerDelay = pkt->payloadDelay = 0;
 
         if (pkt->owIsRead && !pkt->isHit && pkt->isDirty) {
-            // std::cout << pkt->getAddr() << "\n";
             assert(pkt->rdMCHasDirtyData);
         }
 
@@ -1127,10 +1122,6 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
                 assert(!resp_event.scheduled());
                 schedule(resp_event, mem_pkt->readyTime);
             } else {
-                if(resp_queue.back()->readyTime > mem_pkt->readyTime) {
-                    std::cout << mem_pkt->addr << ": " << mem_pkt->readyTime << " / " <<
-                    resp_queue.back()->addr << ": " << resp_queue.back()->readyTime << "\n";
-                }
                 assert(resp_queue.back()->readyTime <= mem_pkt->readyTime);
                 assert(resp_event.scheduled());
             }
@@ -1198,10 +1189,6 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
         auto mem_pkt = *to_write;
 
-        if (mem_pkt->addr == 3036713728) {
-            std::cout << "chosen from WQ\n";
-        }
-
         // sanity check
         assert(pktSizeCheck(mem_pkt, mem_intr));
 
@@ -1214,7 +1201,6 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
                 //sendTagCheckRespond(mem_pkt);
                 DPRINTF(MemCtrl, "write times: %d, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
                 accessAndRespond(mem_pkt->pkt, 0, mem_intr);
-                // std::cout << "here0: " << mem_pkt->addr << "\n";
         }
 
         isInWriteQueue.erase(burstAlign(mem_pkt->addr, mem_intr));
@@ -1229,9 +1215,7 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         // remove the request from the queue - the iterator is no longer valid
         writeQueue[mem_pkt->qosValue()].erase(to_write);
 
-        // std::cout << "here1: " << mem_pkt->addr << "\n";
         delete mem_pkt;
-        // std::cout << "here2!\n";
 
         // If we emptied the write queue, or got sufficiently below the
         // threshold (using the minWritesPerSwitch as the hysteresis) and

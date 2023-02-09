@@ -176,6 +176,7 @@ class DRAMInterface(MemInterface):
     tHM2DQ    = Param.Latency("0ns", "tHM2DQ")
     tRFB      = Param.Latency("0ns", "tRDFB")
     tWFB      = Param.Latency("0ns", "tRDFB")
+    tRTW_int      = Param.Latency("0ns", "tRDFB")
 
     # number of data beats per clock. with DDR, default is 2, one per edge
     # used in drampower.cc
@@ -1193,6 +1194,7 @@ class HBM_2000_4H_1x64(DRAMInterface):
     tHM2DQ = "1ns"
     tRFB = "1ns"
     tWFB = "1ns"
+    tRTW_int = "2ns"
 
     tRP = "14ns"
 

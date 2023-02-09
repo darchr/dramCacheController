@@ -102,7 +102,6 @@ DRAMInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
             // check if rank is not doing a refresh and thus is available,
             // if not, jump to the next packet
             if (burstReady(pkt)) {
-
                 DPRINTF(DRAM,
                         "%s bank %d - Rank %d available\n", __func__,
                         pkt->bank, pkt->rank);
@@ -400,8 +399,6 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     // the command; need to ensure minimum bus delay requirement is met
     Tick cmd_at = std::max({col_allowed_at, next_burst_at, curTick()});
 
-    std::cout << col_allowed_at << " / " << next_burst_at << " / " << curTick() << "\n";
-
     // verify that we have command bandwidth to issue the burst
     // if not, shift to next burst window
     Tick max_sync = clkResyncDelay + (mem_pkt->isRead() ? tRL : tWL);
@@ -441,83 +438,42 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         stats.tagBursts++;
 
         // Calculating the data ready time
-        // Rd Hit
-        if (mem_pkt->pkt->owIsRead && mem_pkt->pkt->isHit) {
+        if (mem_pkt->pkt->owIsRead) {
             mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
 
-            // stats
-            // Every respQueue which will generate an event, increment count
-            ++rank_ref.outstandingEvents;
+            // Rd Miss Clean
+            if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && !mem_pkt->pkt->isDirty) {
+                
+                if (!flushBuffer.empty()) {
+                    
+                    assert(!mem_pkt->pkt->rdMCHasDirtyData);
+                    mem_pkt->pkt->rdMCHasDirtyData = true;
 
-            stats.readBursts++;
-            if (row_hit)
-                stats.readRowHits++;
-            stats.bytesRead += burstSize;
-            stats.perBankRdBursts[mem_pkt->bankId]++;
+                    assert(mem_pkt->pkt->dirtyLineAddr == -1);
+                    mem_pkt->pkt->dirtyLineAddr = flushBuffer.front().second;
 
-            // Update latency stats
-            stats.totMemAccLat += mem_pkt->readyTime - mem_pkt->entryTime;
-            stats.totQLat += cmd_at - mem_pkt->entryTime;
-            stats.totBusLat += tBURST;
-        }
+                    flushBuffer.pop_front();
 
-        // Rd Miss Clean
-        if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && !mem_pkt->pkt->isDirty) {
+                    DPRINTF(MemCtrl, "Rd M C !FB.empty: %d\n", mem_pkt->pkt->dirtyLineAddr);
+                }
+            }
 
-            if (flushBuffer.empty()) {
-                DPRINTF(MemCtrl, "Rd M C FB.empt\n");
+            // Rd Miss Dirty
+            if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
+            
+                assert(mem_pkt->pkt->dirtyLineAddr != -1);
+
                 assert(!mem_pkt->pkt->rdMCHasDirtyData);
 
-                mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
-                // update the burst gap
-                burst_gap = tBURST;
-                stats.totBusLat += tBURST;
-            } else {
-                mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
-                assert(!mem_pkt->pkt->rdMCHasDirtyData);
                 mem_pkt->pkt->rdMCHasDirtyData = true;
-                // mem_pkt->readyTime = cmd_at + tHM2DQ + tRFB + tBURST;
 
-                assert(mem_pkt->pkt->dirtyLineAddr == -1);
-                // MUST BE MODIFIED
-                mem_pkt->pkt->dirtyLineAddr = flushBuffer.front().second;
-                DPRINTF(MemCtrl, "Rd M C FB.full: %d\n", mem_pkt->pkt->dirtyLineAddr);
-                flushBuffer.pop_front();
-
-                stats.totBusLat += tBURST;
+                DPRINTF(MemCtrl, "Rd M D: %d\n", mem_pkt->addr);
             }
 
             // stats
             // Every respQueue which will generate an event, increment count
             ++rank_ref.outstandingEvents;
 
-            //stats.readBursts++;
-            if (row_hit)
-                stats.readRowHits++;
-            //stats.bytesRead += burstSize;
-            //stats.perBankRdBursts[mem_pkt->bankId]++;
-
-            // Update latency stats
-            stats.totMemAccLat += mem_pkt->readyTime - mem_pkt->entryTime;
-            stats.totQLat += cmd_at - mem_pkt->entryTime;
-            // stats.totBusLat += tBURST;
-
-        }
-
-        // Rd Miss Dirty
-        if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
-            mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
-
-            assert(!mem_pkt->pkt->rdMCHasDirtyData);
-
-            mem_pkt->pkt->rdMCHasDirtyData = true;
-
-            DPRINTF(MemCtrl, "Rd M D: %d\n", mem_pkt->addr);
-
-            // stats
-            // Every respQueue which will generate an event, increment count
-            ++rank_ref.outstandingEvents;
-
             stats.readBursts++;
             if (row_hit)
                 stats.readRowHits++;
@@ -529,10 +485,11 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             stats.totQLat += cmd_at - mem_pkt->entryTime;
             stats.totBusLat += tBURST;
         }
-
         // Wr
-        if (!mem_pkt->pkt->owIsRead) {
-            mem_pkt->readyTime = cmd_at + tRTW + tBURST;
+        else {
+            assert(!mem_pkt->pkt->owIsRead);
+
+            mem_pkt->readyTime = cmd_at + tRTW_int + tBURST;
 
             if (!mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
                 // THE ARGUMENTS MUST BE MODIFIED
@@ -793,7 +750,7 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
       tRFC(_p.tRFC), tREFI(_p.tREFI), tRRD(_p.tRRD), tRRD_L(_p.tRRD_L),
       tPPD(_p.tPPD), tAAD(_p.tAAD),
       tXAW(_p.tXAW), tXP(_p.tXP), tXS(_p.tXS),
-      tTAGBURST(_p.tTAGBURST), tRLFAST(_p.tRLFAST), tHM2DQ(_p.tHM2DQ), tRFB(_p.tRFB), tWFB(_p.tWFB),
+      tTAGBURST(_p.tTAGBURST), tRLFAST(_p.tRLFAST), tHM2DQ(_p.tHM2DQ), tRFB(_p.tRFB), tWFB(_p.tWFB), tRTW_int(_p.tRTW_int),
       clkResyncDelay(_p.tBURST_MAX),
       dataClockSync(_p.data_clock_sync),
       burstInterleave(tBURST != tBURST_MIN),
