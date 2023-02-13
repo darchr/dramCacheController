@@ -158,7 +158,7 @@ class PolicyManager : public AbstractMemory
       bool validLine = false;
       // constant to indicate that the cache line is dirty
       bool dirtyLine = false;
-      Addr farMemAddr;
+      Addr farMemAddr = -1;
     };
 
     /** A storage to keep the tag and metadata for the

@@ -443,11 +443,11 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
             // Rd Miss Clean
             if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && !mem_pkt->pkt->isDirty) {
-                
+
                 if (!flushBuffer.empty()) {
-                    
-                    assert(!mem_pkt->pkt->rdMCHasDirtyData);
-                    mem_pkt->pkt->rdMCHasDirtyData = true;
+
+                    assert(!mem_pkt->pkt->hasDirtyData);
+                    mem_pkt->pkt->hasDirtyData = true;
 
                     assert(mem_pkt->pkt->dirtyLineAddr == -1);
                     mem_pkt->pkt->dirtyLineAddr = flushBuffer.front().second;
@@ -463,9 +463,9 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             
                 assert(mem_pkt->pkt->dirtyLineAddr != -1);
 
-                assert(!mem_pkt->pkt->rdMCHasDirtyData);
+                assert(!mem_pkt->pkt->hasDirtyData);
 
-                mem_pkt->pkt->rdMCHasDirtyData = true;
+                mem_pkt->pkt->hasDirtyData = true;
 
                 DPRINTF(MemCtrl, "Rd M D: %d\n", mem_pkt->addr);
             }

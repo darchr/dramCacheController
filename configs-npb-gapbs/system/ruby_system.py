@@ -176,7 +176,7 @@ class MyRubySystem(System):
 
         # Rambus HBM2 cache
         self.loc_mem_ctrl = MemCtrl()
-        self.loc_mem_ctrl.dram = HBM_2000_4H_1x64(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
+        self.loc_mem_ctrl.dram = HBM_2000_4H_1x64_Rambus(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
 
         self.loc_mem_ctrl.dram.device_rowbuffer_size = "512B"
         self.loc_mem_ctrl.dram.banks_per_rank = 32
@@ -231,6 +231,12 @@ class MyRubySystem(System):
         # self.mem_ctrl.dram.write_buffer_size = 32
         # self.mem_ctrl.dram_2.read_buffer_size = 32
         # self.mem_ctrl.dram_2.write_buffer_size = 32
+
+        # HBM2 no cache
+        # self.mem_ctrl = MemCtrl()
+        # self.mem_ctrl.dram =  HBM_2000_4H_1x64_Rambus(range=self.mem_ranges[0], kvm_map=False)
+        # self.mem_ctrl.dram.read_buffer_size = 64
+        # self.mem_ctrl.dram.write_buffer_size = 64
 
 
     def initFS(self, cpus):

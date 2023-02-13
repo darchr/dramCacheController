@@ -258,12 +258,6 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
             mem_pkt = mem_intr->decodePacket(pkt, addr, size, true,
                                                     mem_intr->pseudoChannel);
             mem_pkt->isTagCheck = pkt->isTagCheck;
-            // mem_pkt->owIsRead = pkt->owIsRead;
-            // mem_pkt->isHit = pkt->isHit;
-            // mem_pkt->isDirty = pkt->isDirty;
-            // mem_pkt->rdMCHasDirtyData = pkt->rdMCHasDirtyData;
-            // mem_pkt->tagCheckReady = pkt->tagCheckReady;
-            // mem_pkt->dirtyLineAddr = pkt->dirtyLineAddr;
 
             // Increment read entries of the rank (dram)
             // Increment count to trigger issue of non-deterministic read (nvm)
@@ -340,12 +334,6 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
             mem_pkt = mem_intr->decodePacket(pkt, addr, size, false,
                                                     mem_intr->pseudoChannel);
             mem_pkt->isTagCheck = pkt->isTagCheck;
-            // mem_pkt->owIsRead = pkt->owIsRead;
-            // mem_pkt->isHit = pkt->isHit;
-            // mem_pkt->isDirty = pkt->isDirty;
-            // mem_pkt->rdMCHasDirtyData = pkt->rdMCHasDirtyData;
-            // mem_pkt->tagCheckReady = pkt->tagCheckReady;
-            // mem_pkt->dirtyLineAddr = pkt->dirtyLineAddr;
 
             // Default readyTime to Max if nvm interface;
             //will be reset once read is issued
@@ -662,7 +650,7 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
         pkt->headerDelay = pkt->payloadDelay = 0;
 
         if (pkt->owIsRead && !pkt->isHit && pkt->isDirty) {
-            assert(pkt->rdMCHasDirtyData);
+            assert(pkt->hasDirtyData);
         }
 
         if (pkt->isTagCheck) {
@@ -705,7 +693,7 @@ MemCtrl::sendTagCheckRespond(MemPacket* mem_pkt)
     tagCheckResPkt->owIsRead = mem_pkt->pkt->owIsRead;
     tagCheckResPkt->isHit = mem_pkt->pkt->isHit;
     tagCheckResPkt->isDirty = mem_pkt->pkt->isDirty;
-    tagCheckResPkt->rdMCHasDirtyData = mem_pkt->pkt->rdMCHasDirtyData;
+    tagCheckResPkt->hasDirtyData = mem_pkt->pkt->hasDirtyData;
     // tagCheckResPkt->tagCheckReady = mem_pkt->pkt->tagCheckReady;
     tagCheckResPkt->dirtyLineAddr = mem_pkt->pkt->dirtyLineAddr;
 
@@ -1091,11 +1079,6 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             auto mem_pkt = *to_read;
 
             Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
-
-            // if (mem_pkt->owIsRead && !mem_pkt->isHit && !mem_pkt->isDirty) {
-            //     mem_pkt->pkt->rdMCHasDirtyData = mem_pkt->rdMCHasDirtyData;
-            //     mem_pkt->pkt->dirtyLineAddr = mem_pkt->dirtyLineAddr;
-            // }
 
             if (mem_pkt->isTagCheck) {
                 DPRINTF(MemCtrl, "read times: %d, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);

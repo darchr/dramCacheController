@@ -150,5 +150,5 @@ if __name__ == "__m5_main__":
     m5.stats.dump()
     print("End of warm-up ************************************************ \n")
 
-    system.switchCpus(system.timingCpu, system.o3Cpu)
-    m5.checkpoint(m5.options.outdir + '/cpt')
+    # system.switchCpus(system.timingCpu, system.o3Cpu)
+    # m5.checkpoint(m5.options.outdir + '/cpt')

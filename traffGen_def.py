@@ -36,7 +36,7 @@ system.mem_ctrl.tRL = '18ns'
 system.mem_ctrl.loc_mem_policy = 'Rambus'
 
 system.loc_mem_ctrl = MemCtrl()
-system.loc_mem_ctrl.dram = HBM_2000_4H_1x64(range=AddrRange('1GiB'), in_addr_map=False, null=True)
+system.loc_mem_ctrl.dram = HBM_2000_4H_1x64_Rambus(range=AddrRange('1GiB'), in_addr_map=False, null=True)
 
 system.loc_mem_ctrl.dram.device_rowbuffer_size = "512B"
 system.loc_mem_ctrl.dram.banks_per_rank = 32
@@ -60,7 +60,7 @@ system.loc_mem_ctrl.port = system.mem_ctrl.loc_req_port
 system.far_mem_ctrl.port = system.mem_ctrl.far_req_port
 
 def createRandomTraffic(tgen):
-    yield tgen.createRandom(10000000000,            # duration
+    yield tgen.createRandom(100000000000,            # duration
                             0,                      # min_addr
                             AddrRange('1GiB').end,  # max_adr
                             64,                     # block_size
