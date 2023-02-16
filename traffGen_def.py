@@ -50,8 +50,8 @@ system.loc_mem_ctrl.dram.tBURST = "4ns"
 system.far_mem_ctrl = MemCtrl()
 system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=False, null=True)
 
-system.mem_ctrl.always_hit = True
-system.mem_ctrl.always_dirty = False
+system.mem_ctrl.always_hit = False
+system.mem_ctrl.always_dirty = True
 
 system.mem_ctrl.dram_cache_size = "64MiB"
 

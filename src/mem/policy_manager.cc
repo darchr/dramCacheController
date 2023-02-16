@@ -111,6 +111,18 @@ PolicyManager::accessLatency()
     return (tRP + tRCD_RD + tRL);
 }
 
+bool
+PolicyManager::findInORB(Addr addr)
+{
+    for (const auto& e : ORB) {
+        if (e.second->owPkt->getAddr() == addr) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void
 PolicyManager::init()
 {
@@ -132,7 +144,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     // This is where we enter from the outside world
     DPRINTF(PolicyManager, "recvTimingReq: request %s addr 0x%x-> %d size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getAddr(), pkt->getSize());
-
+    
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
              "is responding");
 
@@ -547,12 +559,19 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
     DPRINTF(PolicyManager, "locMemRecvTimingResp : %d: %s\n", pkt->getAddr(), pkt->cmdString());
 
     if (locMemPolicy == enums::Rambus && !pkt->isTagCheck && pkt->hasDirtyData) {
-        DPRINTF(PolicyManager, "locMemRecvTimingResp in init if %d:\n", pkt->getAddr());
+        DPRINTF(PolicyManager, "locMemRecvTimingResp: rd miss data async %d:\n", pkt->getAddr());
         assert(pkt->owIsRead);
         assert(!pkt->isHit);
         handleDirtyCacheLine(pkt->dirtyLineAddr);
+        delete pkt;
         return true;
     }
+
+    if (!findInORB(pkt->getAddr())) {
+        std::cout << "!findInORB: " << pkt->getAddr() << " / " << pkt->cmdString() << "\n";
+        std::cout << "+++++++++++++++++++++\n+++++++++++++++++++++\n+++++++++++++++++++++\n";
+    }
+    
 
     auto orbEntry = ORB.at(pkt->getAddr());
 
@@ -606,18 +625,18 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
             }
 
             if (orbEntry->pol == enums::Rambus) {
-                if (orbEntry->state == waitingLocMemReadResp) {
-                    assert(orbEntry->isHit);
-                    assert(!pkt->hasDirtyData);
-                    assert(orbEntry->dirtyLineAddr == -1);
-                    orbEntry->tagCheckExit = curTick();
-                    orbEntry->state = locRdRespReady;
-                }
-                else {
-                    // just a null data, which resembles the bubble on the data bus for this case in Rambus-baseline
-                    assert(pkt->owIsRead && !pkt->isHit && !pkt->isDirty && !pkt->hasDirtyData);
-                    return true;
-                }
+                assert(orbEntry->state == waitingLocMemReadResp);
+                assert(orbEntry->isHit);
+                assert(!pkt->hasDirtyData);
+                assert(orbEntry->dirtyLineAddr == -1);
+                orbEntry->tagCheckExit = curTick();
+                orbEntry->state = locRdRespReady;
+
+                // else {
+                //     // just a null data, which resembles the bubble on the data bus for this case in Rambus-baseline
+                //     assert(pkt->owIsRead && !pkt->isHit && !pkt->isDirty && !pkt->hasDirtyData);
+                //     return true;
+                // }
             }
 
         }
@@ -1382,7 +1401,6 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
         // orbEntry->owPkt->isRead() &&
         // !orbEntry->isHit &&
         orbEntry->state == waitingLocMemWriteResp) {
-            std::cout << "****************** HERE ****************\n";
             // DONE
             // clear ORB
             resumeConflictingReq(orbEntry);
@@ -1886,9 +1904,9 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
     bool currValid = tagMetadataStore.at(orbEntry->indexDC).validLine;
     bool currDirty = tagMetadataStore.at(orbEntry->indexDC).dirtyLine;
 
-    // orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
+    orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
 
-    orbEntry->isHit = alwaysHit;
+    // orbEntry->isHit = alwaysHit;
 
     if (orbEntry->isHit) {
 
@@ -1942,11 +1960,11 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
 bool
 PolicyManager::checkDirty(Addr addr)
 {
-    // Addr index = returnIndexDC(addr, blockSize);
-    // return (tagMetadataStore.at(index).validLine &&
-    //         tagMetadataStore.at(index).dirtyLine);
+    Addr index = returnIndexDC(addr, blockSize);
+    return (tagMetadataStore.at(index).validLine &&
+            tagMetadataStore.at(index).dirtyLine);
 
-    return alwaysDirty;
+    // return alwaysDirty;
 }
 
 void

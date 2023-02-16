@@ -536,6 +536,8 @@ class MemCtrl : public qos::MemCtrl
     uint32_t writeBufferSize;
     uint32_t writeHighThreshold;
     uint32_t writeLowThreshold;
+    uint32_t oldestWriteAgeThreshold;
+    Tick oldestWriteAge;
     const uint32_t minWritesPerSwitch;
     const uint32_t minReadsPerSwitch;
     uint32_t writesThisTime;
@@ -802,6 +804,8 @@ class MemCtrl : public qos::MemCtrl
     Addr burstAlign(Addr addr) const { return burstAlign(addr, dram); }
 
     void accessAndRespond(PacketPtr pkt, Tick static_latency) { accessAndRespond(pkt, static_latency, dram); }
+
+    void updateOldestWriteAge();
 
     Port &getPort(const std::string &if_name,
                   PortID idx=InvalidPortID) override;

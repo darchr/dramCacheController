@@ -70,6 +70,8 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     writeBufferSize(dram->writeBufferSize),
     writeHighThreshold(writeBufferSize * p.write_high_thresh_perc / 100.0),
     writeLowThreshold(writeBufferSize * p.write_low_thresh_perc / 100.0),
+    oldestWriteAgeThreshold(p.oldest_write_age_threshold),
+    oldestWriteAge(0),
     minWritesPerSwitch(p.min_writes_per_switch),
     minReadsPerSwitch(p.min_reads_per_switch),
     writesThisTime(0), readsThisTime(0),
@@ -649,8 +651,17 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
         // Here we reset the timing of the packet before sending it out.
         pkt->headerDelay = pkt->payloadDelay = 0;
 
-        if (pkt->owIsRead && !pkt->isHit && pkt->isDirty) {
-            assert(pkt->hasDirtyData);
+        if (pkt->isTagCheck && pkt->owIsRead && !pkt->isHit) {
+            if (pkt->isDirty) {
+                assert(pkt->hasDirtyData);
+            }
+            else if (!pkt->isDirty && !pkt->hasDirtyData) {
+                // No response is needed.
+                // It was a just a bubble (null data).
+                DPRINTF(MemCtrl, "Done, Rd Miss Clean No Dirty Data\n");
+                delete pkt;
+                return;
+            }
         }
 
         if (pkt->isTagCheck) {
@@ -669,6 +680,31 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
     DPRINTF(MemCtrl, "Done\n");
 
     return;
+}
+
+void
+MemCtrl::updateOldestWriteAge()
+{
+    // if (writeQueue[0].empty()) {
+    //     oldestWriteAge = 0;
+    // } else {
+    //     for (const auto& vec : writeQueue) {
+    //         for (const auto& p : vec) {
+    //             oldestWriteAge = std::max(oldestWriteAge, curTick() - p->entryTime);
+    //         }
+    //     }
+    // }
+
+    // Assumption: writeQueue has only one priority = has just one vector in it.
+    for (const auto& vec : writeQueue) {
+        if (vec.empty()) {
+            oldestWriteAge = 0;
+        } else {
+            for (const auto& p : vec) {
+                oldestWriteAge = std::max(oldestWriteAge, curTick() - p->entryTime);
+            }
+        }
+    }
 }
 
 void
@@ -965,6 +1001,8 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
                         EventFunctionWrapper& resp_event,
                         EventFunctionWrapper& next_req_event,
                         bool& retry_wr_req) {
+    updateOldestWriteAge();
+
     // transition is handled by QoS algorithm if enabled
     if (turnPolicy) {
         // select bus state - only done if QoS algorithms are in use
@@ -1017,7 +1055,8 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             // if we are draining)
             if (!(mem_intr->writeQueueSize == 0) &&
                 (drainState() == DrainState::Draining ||
-                 mem_intr->writeQueueSize > writeLowThreshold)) {
+                 mem_intr->writeQueueSize > writeLowThreshold ||
+                 oldestWriteAge > oldestWriteAgeThreshold)) {
 
                 DPRINTF(MemCtrl,
                         "Switching to writes due to read queue empty\n");
@@ -1116,9 +1155,9 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             // there are no other writes that can issue
             // Also ensure that we've issued a minimum defined number
             // of reads before switching, or have emptied the readQ
-            if ((mem_intr->writeQueueSize > writeHighThreshold) &&
-               (mem_intr->readsThisTime >= minReadsPerSwitch || mem_intr->readQueueSize == 0)
-               && !(nvmWriteBlock(mem_intr))) {
+            if (((mem_intr->writeQueueSize > writeHighThreshold) &&
+               (mem_intr->readsThisTime >= minReadsPerSwitch || mem_intr->readQueueSize == 0) &&
+               !(nvmWriteBlock(mem_intr))) || (oldestWriteAge > oldestWriteAgeThreshold)) {
                 switch_to_writes = true;
             }
 
@@ -1181,9 +1220,8 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
         if (mem_pkt->isTagCheck) {
-                //sendTagCheckRespond(mem_pkt);
                 DPRINTF(MemCtrl, "write times: %d, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
-                accessAndRespond(mem_pkt->pkt, 0, mem_intr);
+                accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency, mem_intr);
         }
 
         isInWriteQueue.erase(burstAlign(mem_pkt->addr, mem_intr));

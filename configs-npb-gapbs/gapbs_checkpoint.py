@@ -146,9 +146,11 @@ if __name__ == "__m5_main__":
 
     print("Before warm-up ************************************************ \n")
     m5.stats.reset()
+    print("After dump & reset ************************************************ \n")
     exit_event = m5.simulate(100000000000)
+    print("After sim ************************************************ \n")
     m5.stats.dump()
     print("End of warm-up ************************************************ \n")
 
-    # system.switchCpus(system.timingCpu, system.o3Cpu)
-    # m5.checkpoint(m5.options.outdir + '/cpt')
+    system.switchCpus(system.timingCpu, system.o3Cpu)
+    m5.checkpoint(m5.options.outdir + '/cpt')

@@ -209,6 +209,13 @@ class PolicyManager : public AbstractMemory
         Addr dirtyLineAddr;
         bool handleDirtyLine;
         bool prevDirty = false;
+        // rcvdRdResp is only used for read misses,
+        // since the data response from a tag check 
+        // may be received too late 
+        // (after rd from far mem & write to loc).
+        // Note: writes responds are  very quick, 
+        // just an ack with a frontend latency only.
+        bool rcvdRdResp = false;
 
         // bool waitingForDirtyData;
 
@@ -346,6 +353,7 @@ class PolicyManager : public AbstractMemory
     void accessAndRespond(PacketPtr pkt, Tick static_latency);
     PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd, Request::FlagsType flags = 0);
     Tick accessLatency();
+    bool findInORB(Addr addr);
 
     unsigned countLocRdInORB();
     unsigned countFarRdInORB();

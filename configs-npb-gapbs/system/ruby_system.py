@@ -178,6 +178,12 @@ class MyRubySystem(System):
         self.loc_mem_ctrl = MemCtrl()
         self.loc_mem_ctrl.dram = HBM_2000_4H_1x64_Rambus(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
 
+        # self.loc_mem_ctrl.oldest_write_age_threshold = 5000
+        # self.loc_mem_ctrl.min_reads_per_switch = 32
+        # self.loc_mem_ctrl.min_writes_per_switch = 32
+        # self.loc_mem_ctrl.mem_sched_policy = 'fcfs'
+
+
         self.loc_mem_ctrl.dram.device_rowbuffer_size = "512B"
         self.loc_mem_ctrl.dram.banks_per_rank = 32
         self.loc_mem_ctrl.dram.bank_groups_per_rank = 8

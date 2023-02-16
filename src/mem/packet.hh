@@ -299,7 +299,6 @@ class Packet : public Printable
     bool isHit = false;
     bool isDirty = false;
     bool hasDirtyData = false;
-    // Tick tagCheckReady = MaxTick;
     Addr dirtyLineAddr = -1;
 
 

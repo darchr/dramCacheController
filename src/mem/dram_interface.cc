@@ -489,8 +489,10 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         else {
             assert(!mem_pkt->pkt->owIsRead);
 
-            mem_pkt->readyTime = cmd_at + tRTW_int + tBURST;
+            // mem_pkt->readyTime = cmd_at + tRTW_int + tBURST;
 
+            mem_pkt->readyTime = cmd_at + tRTW_int + tWL + tBURST;
+            
             if (!mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
                 // THE ARGUMENTS MUST BE MODIFIED
                 flushBuffer.push_back(std::make_pair(-1,mem_pkt->pkt->dirtyLineAddr));
