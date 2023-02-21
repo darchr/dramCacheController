@@ -572,7 +572,6 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
         std::cout << "+++++++++++++++++++++\n+++++++++++++++++++++\n+++++++++++++++++++++\n";
     }
     
-
     auto orbEntry = ORB.at(pkt->getAddr());
 
     if(pkt->isTagCheck) {
@@ -601,9 +600,10 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
             assert(orbEntry->dirtyLineAddr != -1);
         }
 
-        if (!(orbEntry->owPkt->isRead() && orbEntry->isHit)) {
-            orbEntry->tagCheckExit = curTick();
-        }
+        // if (!(orbEntry->owPkt->isRead() && orbEntry->isHit)) {
+        //     orbEntry->tagCheckExit = curTick();
+        // }
+        orbEntry->tagCheckExit = curTick();
 
         if (orbEntry->owPkt->isRead() && orbEntry->isHit) {
             orbEntry->state = waitingLocMemReadResp;
@@ -629,7 +629,7 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
                 assert(orbEntry->isHit);
                 assert(!pkt->hasDirtyData);
                 assert(orbEntry->dirtyLineAddr == -1);
-                orbEntry->tagCheckExit = curTick();
+                orbEntry->locRdExit = curTick();
                 orbEntry->state = locRdRespReady;
 
                 // else {
@@ -894,7 +894,6 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->conflict,
                                                 orbEntry->dirtyLineAddr,
                                                 orbEntry->handleDirtyLine,
-                                                // orbEntry->waitingForDirtyData,
                                                 orbEntry->tagCheckEntered,
                                                 orbEntry->tagCheckIssued,
                                                 orbEntry->tagCheckExit,
@@ -911,11 +910,13 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
 
-            // if (orbEntry->handleDirtyLine) {
-            //     handleDirtyCacheLine(orbEntry->dirtyLineAddr);
-            // }
+            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
+            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
+            
             orbEntry->state = locMemWrite;
+
             orbEntry->locWrEntered = curTick();
+
             return;
     }
 
@@ -1017,7 +1018,6 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->conflict,
                                                 orbEntry->dirtyLineAddr,
                                                 orbEntry->handleDirtyLine,
-                                                // orbEntry->waitingForDirtyData,
                                                 orbEntry->tagCheckEntered,
                                                 orbEntry->tagCheckIssued,
                                                 orbEntry->tagCheckExit,
@@ -1033,8 +1033,14 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
             delete orbEntry;
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
+
+            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
+            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
+
             orbEntry->state = locMemWrite;
+
             orbEntry->locWrEntered = curTick();
+
             return;
     }
 
@@ -1127,7 +1133,6 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->conflict,
                                                 orbEntry->dirtyLineAddr,
                                                 orbEntry->handleDirtyLine,
-                                                // orbEntry->waitingForDirtyData,
                                                 orbEntry->tagCheckEntered,
                                                 orbEntry->tagCheckIssued,
                                                 orbEntry->tagCheckExit,
@@ -1144,12 +1149,15 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
 
-            // if (orbEntry->handleDirtyLine) {
-            //     handleDirtyCacheLine(orbEntry->dirtyLineAddr);
-            // }
+            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
+            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
+
             orbEntry->state = locMemWrite;
+
             orbEntry->locWrEntered = curTick();
+
             DPRINTF(PolicyManager, "set: waitingFarMemReadResp -> locMemWrite : %d\n", orbEntry->owPkt->getAddr());
+
             return;
     }
 
@@ -1162,6 +1170,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
             
             // done
             // do nothing
+
             return;
     }
 
@@ -1252,7 +1261,6 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->conflict,
                                                 orbEntry->dirtyLineAddr,
                                                 orbEntry->handleDirtyLine,
-                                                // orbEntry->waitingForDirtyData,
                                                 orbEntry->tagCheckEntered,
                                                 orbEntry->tagCheckIssued,
                                                 orbEntry->tagCheckExit,
@@ -1269,11 +1277,13 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
 
-            // if (orbEntry->handleDirtyLine) {
-            //     handleDirtyCacheLine(orbEntry->dirtyLineAddr);
-            // }
+            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
+            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
+
             orbEntry->state = locMemWrite;
+
             orbEntry->locWrEntered = curTick();
+
             return;
     }
 
@@ -1336,7 +1346,6 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->conflict,
                                                 orbEntry->dirtyLineAddr,
                                                 orbEntry->handleDirtyLine,
-                                                // orbEntry->waitingForDirtyData,
                                                 orbEntry->tagCheckEntered,
                                                 orbEntry->tagCheckIssued,
                                                 orbEntry->tagCheckExit,
@@ -1352,6 +1361,9 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             delete orbEntry;
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
+
+            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
+            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
 
             // clear ORB
             resumeConflictingReq(orbEntry);
@@ -1450,7 +1462,6 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->conflict,
                                                 orbEntry->dirtyLineAddr,
                                                 orbEntry->handleDirtyLine,
-                                                // orbEntry->waitingForDirtyData,
                                                 orbEntry->tagCheckEntered,
                                                 orbEntry->tagCheckIssued,
                                                 orbEntry->tagCheckExit,
@@ -1466,6 +1477,9 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             delete orbEntry;
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
+
+            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
+            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
 
             // clear ORB
             resumeConflictingReq(orbEntry);
@@ -1561,7 +1575,6 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->conflict,
                                                 orbEntry->dirtyLineAddr,
                                                 orbEntry->handleDirtyLine,
-                                                // orbEntry->waitingForDirtyData,
                                                 orbEntry->tagCheckEntered,
                                                 orbEntry->tagCheckIssued,
                                                 orbEntry->tagCheckExit,
@@ -1577,6 +1590,9 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             delete orbEntry;
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
+            
+            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
+            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
 
             // clear ORB
             resumeConflictingReq(orbEntry);
@@ -1681,7 +1697,6 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->conflict,
                                                 orbEntry->dirtyLineAddr,
                                                 orbEntry->handleDirtyLine,
-                                                // orbEntry->waitingForDirtyData,
                                                 orbEntry->tagCheckEntered,
                                                 orbEntry->tagCheckIssued,
                                                 orbEntry->tagCheckExit,
@@ -1697,6 +1712,9 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             delete orbEntry;
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
+
+            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
+            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
 
             // clear ORB
             resumeConflictingReq(orbEntry);
@@ -1788,6 +1806,7 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     DPRINTF(PolicyManager, "handleRequestorPkt added to ORB: adr= %d, index= %d, tag= %d\n", orbEntry->owPkt->getAddr(), orbEntry->indexDC, orbEntry->tagDC);
 
     polManStats.avgORBLen = ORB.size();
+    polManStats.avgTagCheckQLenStrt = countTagCheckInORB();
     polManStats.avgLocRdQLenStrt = countLocRdInORB();
     polManStats.avgFarRdQLenStrt = countFarRdInORB();
     polManStats.avgLocWrQLenStrt = countLocWrInORB();
@@ -1830,7 +1849,6 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
                                             orbEntry->conflict,
                                             orbEntry->dirtyLineAddr,
                                             orbEntry->handleDirtyLine,
-                                            // orbEntry->waitingForDirtyData,
                                             orbEntry->tagCheckEntered,
                                             orbEntry->tagCheckIssued,
                                             orbEntry->tagCheckExit,
@@ -1904,9 +1922,9 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
     bool currValid = tagMetadataStore.at(orbEntry->indexDC).validLine;
     bool currDirty = tagMetadataStore.at(orbEntry->indexDC).dirtyLine;
 
-    orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
+    // orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
 
-    // orbEntry->isHit = alwaysHit;
+    orbEntry->isHit = alwaysHit;
 
     if (orbEntry->isHit) {
 
@@ -1960,11 +1978,11 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
 bool
 PolicyManager::checkDirty(Addr addr)
 {
-    Addr index = returnIndexDC(addr, blockSize);
-    return (tagMetadataStore.at(index).validLine &&
-            tagMetadataStore.at(index).dirtyLine);
+    // Addr index = returnIndexDC(addr, blockSize);
+    // return (tagMetadataStore.at(index).validLine &&
+    //         tagMetadataStore.at(index).dirtyLine);
 
-    // return alwaysDirty;
+    return alwaysDirty;
 }
 
 void
@@ -2092,10 +2110,6 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
 
                 checkConflictInCRB(ORB.at(confAddr));
 
-                // pktLocMemRead.push_back(confAddr);
-
-                // polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
-
                 setNextState(ORB.at(confAddr));
 
                 handleNextState(ORB.at(confAddr));
@@ -2143,6 +2157,18 @@ PolicyManager::checkConflictInCRB(reqBufferEntry* orbEntry)
                 break;
         }
     }
+}
+
+unsigned
+PolicyManager::countTagCheckInORB()
+{
+    unsigned count =0;
+    for (auto i : ORB) {
+        if (i.second->state == tagCheck) {
+            count++;
+        }
+    }
+    return count;
 }
 
 unsigned
@@ -2234,14 +2260,44 @@ PolicyManager::handleDirtyCacheLine(Addr dirtyLineAddr)
 void
 PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
 {
-    polManStats.totPktsServiceTime += ((curTick() - orbEntry->arrivalTick)/1000);
-    polManStats.totPktsORBTime += ((curTick() - orbEntry->locRdEntered)/1000);
-    polManStats.totTimeFarRdtoSend += ((orbEntry->farRdIssued - orbEntry->farRdEntered)/1000);
-    polManStats.totTimeFarRdtoRecv += ((orbEntry->farRdExit - orbEntry->farRdIssued)/1000);
-    polManStats.totTimeInLocRead += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
-    polManStats.totTimeInLocWrite += ((orbEntry->locWrExit - orbEntry->locWrEntered)/1000);
-    polManStats.totTimeInFarRead += ((orbEntry->farRdExit - orbEntry->farRdEntered)/1000);
+    if (locMemPolicy == enums::Rambus) {
+        polManStats.avgPktLifeTime = ((curTick() - orbEntry->arrivalTick)/1000);
+        polManStats.avgPktORBTime = ((curTick() - orbEntry->tagCheckEntered)/1000);
+        polManStats.avgTimeTagCheckRes = ((orbEntry->tagCheckEntered - orbEntry->tagCheckExit)/1000);
 
+        if (orbEntry->owPkt->isRead()) {
+            polManStats.avgPktLifeTimeRd = ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.avgPktORBTimeRd = ((curTick() - orbEntry->tagCheckEntered)/1000);
+            polManStats.avgTimeTagCheckResRd = ((orbEntry->tagCheckEntered - orbEntry->tagCheckExit)/1000);
+        } else {
+            polManStats.avgPktRespTime = ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.avgPktRespTimeWr = ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.avgPktLifeTimeWr = ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.avgPktORBTimeWr = ((curTick() - orbEntry->tagCheckEntered)/1000);
+            polManStats.avgTimeTagCheckResWr = ((orbEntry->tagCheckEntered - orbEntry->tagCheckExit)/1000);
+        }
+
+        if (orbEntry->owPkt->isRead() && orbEntry->isHit) {
+            polManStats.avgTimeInLocRead = ((orbEntry->locRdExit - orbEntry->tagCheckEntered)/1000);
+        }
+
+        if (orbEntry->owPkt->isRead() && !orbEntry->isHit) {
+            polManStats.avgTimeInFarRead = ((orbEntry->farRdExit - orbEntry->farRdEntered)/1000);
+            polManStats.avgTimeFarRdtoSend = ((orbEntry->farRdIssued - orbEntry->farRdEntered)/1000);
+            polManStats.avgTimeFarRdtoRecv = ((orbEntry->farRdExit - orbEntry->farRdIssued)/1000);
+            polManStats.avgTimeInLocWrite = ((orbEntry->locWrExit - orbEntry->locWrEntered)/1000);
+        }  
+    }
+    else {
+        // MUST be updated since they are average, they should be per case
+        polManStats.avgPktLifeTime = ((curTick() - orbEntry->arrivalTick)/1000);
+        polManStats.avgPktORBTime = ((curTick() - orbEntry->locRdEntered)/1000);
+        polManStats.avgTimeFarRdtoSend = ((orbEntry->farRdIssued - orbEntry->farRdEntered)/1000);
+        polManStats.avgTimeFarRdtoRecv = ((orbEntry->farRdExit - orbEntry->farRdIssued)/1000);
+        polManStats.avgTimeInLocRead = ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
+        polManStats.avgTimeInLocWrite = ((orbEntry->locWrExit - orbEntry->locWrEntered)/1000);
+        polManStats.avgTimeInFarRead = ((orbEntry->farRdExit - orbEntry->farRdEntered)/1000);
+    }
 }
 
 
@@ -2385,21 +2441,41 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
     ADD_STAT(failedFarWrPort,
              "stat"),
 
-    ADD_STAT(totPktsServiceTime,
+    ADD_STAT(avgPktLifeTime,
             "stat"),
-    ADD_STAT(totPktsORBTime,
+    ADD_STAT(avgPktLifeTimeRd,
             "stat"),
-    ADD_STAT(totTimeFarRdtoSend,
+    ADD_STAT(avgPktLifeTimeWr,
             "stat"),
-    ADD_STAT(totTimeFarRdtoRecv,
+    ADD_STAT(avgPktORBTime,
             "stat"),
-    ADD_STAT(totTimeFarWrtoSend,
+    ADD_STAT(avgPktORBTimeRd,
             "stat"),
-    ADD_STAT(totTimeInLocRead,
+    ADD_STAT(avgPktORBTimeWr,
             "stat"),
-    ADD_STAT(totTimeInLocWrite,
+    ADD_STAT(avgPktRespTime,
             "stat"),
-    ADD_STAT(totTimeInFarRead,
+    ADD_STAT(avgPktRespTimeRd,
+            "stat"),
+    ADD_STAT(avgPktRespTimeWr,
+            "stat"),
+    ADD_STAT(avgTimeTagCheckRes,
+            "stat"),
+    ADD_STAT(avgTimeTagCheckResRd,
+            "stat"),
+    ADD_STAT(avgTimeTagCheckResWr,
+            "stat"),
+    ADD_STAT(avgTimeInLocRead,
+            "stat"),
+    ADD_STAT(avgTimeInLocWrite,
+            "stat"),
+    ADD_STAT(avgTimeInFarRead,
+            "stat"),
+    ADD_STAT(avgTimeFarRdtoSend,
+            "stat"),
+    ADD_STAT(avgTimeFarRdtoRecv,
+            "stat"),
+    ADD_STAT(avgTimeFarWrtoSend,
             "stat"),
 
     ADD_STAT(numTotHits,
@@ -2449,6 +2525,25 @@ PolicyManager::PolicyManagerStats::regStats()
     avgLocWrQLenEnq.precision(2);
     avgFarRdQLenEnq.precision(2);
     avgFarWrQLenEnq.precision(2);
+
+    avgPktLifeTime.precision(2);
+    avgPktLifeTimeRd.precision(2);
+    avgPktLifeTimeWr.precision(2);
+    avgPktORBTime.precision(2);
+    avgPktORBTimeRd.precision(2);
+    avgPktORBTimeWr.precision(2);
+    avgPktRespTime.precision(2);
+    avgPktRespTimeRd.precision(2);
+    avgPktRespTimeWr.precision(2);
+    avgTimeTagCheckRes.precision(2);
+    avgTimeTagCheckResRd.precision(2);
+    avgTimeTagCheckResWr.precision(2);
+    avgTimeInLocRead.precision(2);
+    avgTimeInLocWrite.precision(2);
+    avgTimeInFarRead.precision(2);
+    avgTimeFarRdtoSend.precision(2);
+    avgTimeFarRdtoRecv.precision(2);
+    avgTimeFarWrtoSend.precision(2);
 
     readPktSize.init(ceilLog2(polMan.blockSize) + 1);
     writePktSize.init(ceilLog2(polMan.blockSize) + 1);

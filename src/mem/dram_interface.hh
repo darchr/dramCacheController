@@ -523,6 +523,8 @@ class DRAMInterface : public MemInterface
     const Tick wrToRdDlySameBG;
     const Tick rdToWrDlySameBG;
 
+    unsigned maxFBLen;
+
 
     enums::PageManage pageMgmt;
     /**
@@ -584,9 +586,11 @@ class DRAMInterface : public MemInterface
         /** total number of DRAM bursts serviced */
         statistics::Scalar readBursts;
         statistics::Scalar writeBursts;
+        statistics::Scalar tagResBursts;
         statistics::Scalar tagBursts;
 
         statistics::Average avgFBLenEnq;
+        statistics::Scalar maxFBLenEnq;
 
         /** DRAM per bank stats */
         statistics::Vector perBankRdBursts;
@@ -621,6 +625,7 @@ class DRAMInterface : public MemInterface
         statistics::Formula busUtilRead;
         statistics::Formula busUtilWrite;
         statistics::Formula pageHitRate;
+        statistics::Formula hitMissBusUtil;
     };
 
     DRAMStats stats;

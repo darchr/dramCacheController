@@ -430,12 +430,13 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
         // Calculating the tag check ready time
         mem_pkt->tagCheckReady = cmd_at + tRLFAST + tCK;
+        stats.tagResBursts++;
 
         // tag is sent back only for Rd Miss Cleans, for other cases tag is already known.
         if (!mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
             mem_pkt->tagCheckReady += tTAGBURST;
+            stats.tagBursts++;
         }
-        stats.tagBursts++;
 
         // Calculating the data ready time
         if (mem_pkt->pkt->owIsRead) {
@@ -500,6 +501,11 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
                 DPRINTF(MemCtrl, "Wr M D to FB: %d\n", mem_pkt->addr);
 
                 stats.avgFBLenEnq = flushBuffer.size();
+                
+                if (flushBuffer.size() > maxFBLen) {
+                    maxFBLen = flushBuffer.size();
+                    stats.maxFBLenEnq = flushBuffer.size();
+                }
             }
 
             // stats
@@ -760,6 +766,7 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
       activationLimit(_p.activation_limit),
       wrToRdDlySameBG(tWL + _p.tBURST_MAX + _p.tWTR_L),
       rdToWrDlySameBG(_p.tRTW + _p.tBURST_MAX),
+      maxFBLen(0),
       pageMgmt(_p.page_policy),
       maxAccessesPerRow(_p.max_accesses_per_row),
       timeStampOffset(0), activeRank(0),
@@ -1963,12 +1970,16 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
              "Number of DRAM read bursts"),
     ADD_STAT(writeBursts, statistics::units::Count::get(),
              "Number of DRAM write bursts"),
+    ADD_STAT(tagResBursts, statistics::units::Count::get(),
+             "Number of tag bursts returned by write miss dirties"),
     ADD_STAT(tagBursts, statistics::units::Count::get(),
              "Number of tag check bursts"),
     
     ADD_STAT(avgFBLenEnq, statistics::units::Rate<
                 statistics::units::Count, statistics::units::Tick>::get(),
              "Average flush buffer length when enqueuing"),
+    ADD_STAT(maxFBLenEnq, statistics::units::Count::get(),
+             "Maximum flush buffer length when enqueuing"),
 
     ADD_STAT(perBankRdBursts, statistics::units::Count::get(),
              "Per bank write bursts"),
@@ -2027,8 +2038,10 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
              "Data bus utilization in percentage for writes"),
 
     ADD_STAT(pageHitRate, statistics::units::Ratio::get(),
-             "Row buffer hit rate, read and write combined")
+             "Row buffer hit rate, read and write combined"),
 
+    ADD_STAT(hitMissBusUtil, statistics::units::Ratio::get(),
+             "Hit/Miss bus utilization")
 {
 }
 
@@ -2061,6 +2074,8 @@ DRAMInterface::DRAMStats::regStats()
 
     pageHitRate.precision(2);
 
+    hitMissBusUtil.precision(2);
+
     // Formula stats
     avgQLat = totQLat / readBursts;
     avgBusLat = totBusLat / readBursts;
@@ -2080,6 +2095,8 @@ DRAMInterface::DRAMStats::regStats()
 
     pageHitRate = (writeRowHits + readRowHits) /
         (writeBursts + readBursts) * 100;
+    
+    hitMissBusUtil = 100 * (tagResBursts * dram.tCK + tagBursts * dram.tTAGBURST) / simSeconds;
 }
 
 DRAMInterface::RankStats::RankStats(DRAMInterface &_dram, Rank &_rank)

@@ -646,8 +646,15 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
         // with headerDelay that takes into account the delay provided by
         // the xbar and also the payloadDelay that takes into account the
         // number of data beats.
-        Tick response_time = curTick() + static_latency + pkt->headerDelay +
-                             pkt->payloadDelay;
+        Tick response_time;
+        if (pkt->isTagCheck && pkt->isWrite()) {
+            assert(!pkt->owIsRead);
+            // in this case static latency is TagCheckReady time actually!
+            response_time = static_latency + frontendLatency + backendLatency;
+        } else {
+            response_time = curTick() + static_latency + pkt->headerDelay +
+                                pkt->payloadDelay;
+        }
         // Here we reset the timing of the packet before sending it out.
         pkt->headerDelay = pkt->payloadDelay = 0;
 
@@ -683,47 +690,24 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
 }
 
 void
-MemCtrl::updateOldestWriteAge()
-{
-    // if (writeQueue[0].empty()) {
-    //     oldestWriteAge = 0;
-    // } else {
-    //     for (const auto& vec : writeQueue) {
-    //         for (const auto& p : vec) {
-    //             oldestWriteAge = std::max(oldestWriteAge, curTick() - p->entryTime);
-    //         }
-    //     }
-    // }
-
-    // Assumption: writeQueue has only one priority = has just one vector in it.
-    for (const auto& vec : writeQueue) {
-        if (vec.empty()) {
-            oldestWriteAge = 0;
-        } else {
-            for (const auto& p : vec) {
-                oldestWriteAge = std::max(oldestWriteAge, curTick() - p->entryTime);
-            }
-        }
-    }
-}
-
-void
 MemCtrl::sendTagCheckRespond(MemPacket* mem_pkt)
 {
     DPRINTF(MemCtrl, "sendTagCheckRespond : %d \n", mem_pkt->addr);
+    assert(mem_pkt->isRead());
+    assert(mem_pkt->pkt->isRead());
     assert(mem_pkt->tagCheckReady != MaxTick);
 
-    PacketPtr tagCheckResPkt;
+    PacketPtr tagCheckResPkt = getPacket(mem_pkt->addr, 8, MemCmd::ReadReq);
 
-    if (mem_pkt->isRead()) {
-        tagCheckResPkt = getPacket(mem_pkt->addr,
-                                   8,
-                                   MemCmd::ReadReq);
-    } else {
-        tagCheckResPkt = getPacket(mem_pkt->addr,
-                                   8,
-                                   MemCmd::WriteReq);
-    }
+    // if (mem_pkt->isRead()) {
+    //     tagCheckResPkt = getPacket(mem_pkt->addr,
+    //                                8,
+    //                                MemCmd::ReadReq);
+    // } else {
+    //     tagCheckResPkt = getPacket(mem_pkt->addr,
+    //                                8,
+    //                                MemCmd::WriteReq);
+    // }
 
     tagCheckResPkt->isTagCheck = mem_pkt->pkt->isTagCheck;
     tagCheckResPkt->owIsRead = mem_pkt->pkt->owIsRead;
@@ -742,7 +726,22 @@ MemCtrl::sendTagCheckRespond(MemPacket* mem_pkt)
 
     // queue the packet in the response queue to be sent out after
     // the static latency has passed
-    port.schedTimingResp(tagCheckResPkt, mem_pkt->tagCheckReady);
+    port.schedTimingResp(tagCheckResPkt, mem_pkt->tagCheckReady + frontendLatency + backendLatency);
+}
+
+void
+MemCtrl::updateOldestWriteAge()
+{
+    // Assumption: writeQueue has only one priority = has just one vector in it.
+    for (const auto& vec : writeQueue) {
+        if (vec.empty()) {
+            oldestWriteAge = 0;
+        } else {
+            for (const auto& p : vec) {
+                oldestWriteAge = std::max(oldestWriteAge, curTick() - p->entryTime);
+            }
+        }
+    }
 }
 
 PacketPtr
@@ -1221,7 +1220,7 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
         if (mem_pkt->isTagCheck) {
                 DPRINTF(MemCtrl, "write times: %d, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
-                accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency, mem_intr);
+                accessAndRespond(mem_pkt->pkt, mem_pkt->tagCheckReady, mem_intr);
         }
 
         isInWriteQueue.erase(burstAlign(mem_pkt->addr, mem_intr));

@@ -217,8 +217,6 @@ class PolicyManager : public AbstractMemory
         // just an ack with a frontend latency only.
         bool rcvdRdResp = false;
 
-        // bool waitingForDirtyData;
-
         // recording the tick when the req transitions into a new stats.
         // The subtract between each two consecutive states entrance ticks,
         // is the number of ticks the req spent in the proceeded state.
@@ -244,7 +242,6 @@ class PolicyManager : public AbstractMemory
           enums::Policy _pol, reqState _state,
           bool _issued, bool _isHit, bool _conflict,
           Addr _dirtyLineAddr, bool _handleDirtyLine,
-          // bool _waitingForDirtyData,
           Tick _tagCheckEntered, Tick _tagCheckIssued, Tick _tagCheckExit,
           Tick _locRdEntered, Tick _locRdIssued, Tick _locRdExit,
           Tick _locWrEntered, Tick _locWrIssued, Tick _locWrExit,
@@ -256,7 +253,6 @@ class PolicyManager : public AbstractMemory
         pol(_pol), state(_state),
         issued(_issued), isHit(_isHit), conflict(_conflict),
         dirtyLineAddr(_dirtyLineAddr), handleDirtyLine(_handleDirtyLine),
-        // waitingForDirtyData(_waitingForDirtyData),
         tagCheckEntered(_tagCheckEntered), tagCheckIssued(_tagCheckIssued), tagCheckExit(_tagCheckExit),
         locRdEntered(_locRdEntered), locRdIssued(_locRdIssued), locRdExit(_locRdExit),
         locWrEntered(_locWrEntered), locWrIssued(_locWrIssued), locWrExit(_locWrExit),
@@ -355,6 +351,7 @@ class PolicyManager : public AbstractMemory
     Tick accessLatency();
     bool findInORB(Addr addr);
 
+    unsigned countTagCheckInORB();
     unsigned countLocRdInORB();
     unsigned countFarRdInORB();
     unsigned countLocWrInORB();
@@ -437,14 +434,24 @@ class PolicyManager : public AbstractMemory
       Stats::Scalar failedFarRdPort;
       Stats::Scalar failedFarWrPort;
 
-      Stats::Scalar totPktsServiceTime;
-      Stats::Scalar totPktsORBTime;
-      Stats::Scalar totTimeFarRdtoSend;
-      Stats::Scalar totTimeFarRdtoRecv;
-      Stats::Scalar totTimeFarWrtoSend;
-      Stats::Scalar totTimeInLocRead;
-      Stats::Scalar totTimeInLocWrite;
-      Stats::Scalar totTimeInFarRead;
+      statistics::Average avgPktLifeTime;
+      statistics::Average avgPktLifeTimeRd;
+      statistics::Average avgPktLifeTimeWr;
+      statistics::Average avgPktORBTime;
+      statistics::Average avgPktORBTimeRd;
+      statistics::Average avgPktORBTimeWr;
+      statistics::Average avgPktRespTime;
+      statistics::Average avgPktRespTimeRd;
+      statistics::Average avgPktRespTimeWr;
+      statistics::Average avgTimeTagCheckRes;
+      statistics::Average avgTimeTagCheckResRd;
+      statistics::Average avgTimeTagCheckResWr;
+      statistics::Average avgTimeInLocRead;
+      statistics::Average avgTimeInLocWrite;
+      statistics::Average avgTimeInFarRead;
+      statistics::Average avgTimeFarRdtoSend;
+      statistics::Average avgTimeFarRdtoRecv;
+      statistics::Average avgTimeFarWrtoSend;
 
       Stats::Scalar numTotHits;
       Stats::Scalar numTotMisses;
