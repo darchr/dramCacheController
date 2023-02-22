@@ -372,7 +372,7 @@ PolicyManager::processTagCheckEvent()
     PacketPtr tagCheckPktPtr;
 
     if (orbEntry->owPkt->isRead()) {
-        tagCheckPktPtr = getPacket(pktTagCheck.front(),
+        tagCheckPktPtr = getPacket(returnIndexDC(pktTagCheck.front(), blockSize),
                                 blockSize,
                                 MemCmd::ReadReq);
     } else {
@@ -425,7 +425,7 @@ PolicyManager::processLocMemReadEvent()
     assert(orbEntry->state == locMemRead);
     assert(!orbEntry->issued);
 
-    PacketPtr rdLocMemPkt = getPacket(pktLocMemRead.front(),
+    PacketPtr rdLocMemPkt = getPacket(returnIndexDC(pktLocMemRead.front(), blockSize),
                                    blockSize,
                                    MemCmd::ReadReq);
 
@@ -457,7 +457,7 @@ PolicyManager::processLocMemWriteEvent()
     assert(orbEntry->state == locMemWrite);
     assert(!orbEntry->issued);
 
-    PacketPtr wrLocMemPkt = getPacket(pktLocMemWrite.front(),
+    PacketPtr wrLocMemPkt = getPacket(returnIndexDC(pktLocMemWrite.front(), blockSize),
                                    blockSize,
                                    MemCmd::WriteReq);
     assert(!wrLocMemPkt->isTagCheck);
@@ -567,12 +567,12 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
         return true;
     }
 
-    if (!findInORB(pkt->getAddr())) {
+    if (!findInORB(tagMetadataStore.at(pkt->getAddr()).farMemAddr)) {
         std::cout << "!findInORB: " << pkt->getAddr() << " / " << pkt->cmdString() << "\n";
         std::cout << "+++++++++++++++++++++\n+++++++++++++++++++++\n+++++++++++++++++++++\n";
     }
     
-    auto orbEntry = ORB.at(pkt->getAddr());
+    auto orbEntry = ORB.at(tagMetadataStore.at(pkt->getAddr()).farMemAddr);
 
     if(pkt->isTagCheck) {
 
@@ -672,9 +672,9 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
     // handleNextState functions, reason: it's possible that orbEntry may be
     // deleted and updated, which will not be reflected here in the scope of
     // current lines since it's been read at line #475.
-    setNextState(ORB.at(pkt->getAddr()));
+    setNextState(ORB.at(tagMetadataStore.at(pkt->getAddr()).farMemAddr));
 
-    handleNextState(ORB.at(pkt->getAddr()));
+    handleNextState(ORB.at(tagMetadataStore.at(pkt->getAddr()).farMemAddr));
 
     delete pkt;
 
@@ -1889,12 +1889,12 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
         }
     } else { // write
         tagMetadataStore.at(orbEntry->indexDC).dirtyLine = true;
-        tagMetadataStore.at(orbEntry->indexDC).farMemAddr =
-                        orbEntry->owPkt->getAddr();
+        // tagMetadataStore.at(orbEntry->indexDC).farMemAddr =
+        //                 orbEntry->owPkt->getAddr();
     }
 
-    // tagMetadataStore.at(orbEntry->indexDC).farMemAddr =
-    //                     orbEntry->owPkt->getAddr();
+    tagMetadataStore.at(orbEntry->indexDC).farMemAddr =
+                        orbEntry->owPkt->getAddr();
 }
 
 bool
