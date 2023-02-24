@@ -70,6 +70,8 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     writeBufferSize(dram->writeBufferSize),
     writeHighThreshold(writeBufferSize * p.write_high_thresh_perc / 100.0),
     writeLowThreshold(writeBufferSize * p.write_low_thresh_perc / 100.0),
+    oldestWriteAgeThreshold(p.oldest_write_age_threshold),
+    oldestWriteAge(0),
     minWritesPerSwitch(p.min_writes_per_switch),
     minReadsPerSwitch(p.min_reads_per_switch),
     writesThisTime(0), readsThisTime(0),
@@ -133,7 +135,7 @@ MemCtrl::recvAtomic(PacketPtr pkt)
 Tick
 MemCtrl::recvAtomicLogic(PacketPtr pkt, MemInterface* mem_intr)
 {
-    DPRINTF(MemCtrl, "recvAtomic: %s 0x%x\n",
+    DPRINTF(MemCtrl, "recvAtomic: %s %d\n",
                      pkt->cmdString(), pkt->getAddr());
 
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
@@ -219,23 +221,25 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
         Addr burst_addr = burstAlign(addr, mem_intr);
         // if the burst address is not present then there is no need
         // looking any further
-        if (isInWriteQueue.find(burst_addr) != isInWriteQueue.end()) {
-            for (const auto& vec : writeQueue) {
-                for (const auto& p : vec) {
-                    // check if the read is subsumed in the write queue
-                    // packet we are looking at
-                    if (p->addr <= addr &&
-                       ((addr + size) <= (p->addr + p->size))) {
+        if (!pkt->isTagCheck) {
+            if (isInWriteQueue.find(burst_addr) != isInWriteQueue.end()) {
+                for (const auto& vec : writeQueue) {
+                    for (const auto& p : vec) {
+                        // check if the read is subsumed in the write queue
+                        // packet we are looking at
+                        if (p->addr <= addr &&
+                        ((addr + size) <= (p->addr + p->size))) {
 
-                        foundInWrQ = true;
-                        stats.servicedByWrQ++;
-                        pktsServicedByWrQ++;
-                        DPRINTF(MemCtrl,
-                                "Read to addr %#x with size %d serviced by "
-                                "write queue\n",
-                                addr, size);
-                        stats.bytesReadWrQ += burst_size;
-                        break;
+                            foundInWrQ = true;
+                            stats.servicedByWrQ++;
+                            pktsServicedByWrQ++;
+                            DPRINTF(MemCtrl,
+                                    "Read to addr %d with size %d serviced by "
+                                    "write queue\n",
+                                    addr, size);
+                            stats.bytesReadWrQ += burst_size;
+                            break;
+                        }
                     }
                 }
             }
@@ -247,7 +251,7 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
 
             // Make the burst helper for split packets
             if (pkt_count > 1 && burst_helper == NULL) {
-                DPRINTF(MemCtrl, "Read to addr %#x translates to %d "
+                DPRINTF(MemCtrl, "Read to addr %d translates to %d "
                         "memory requests\n", pkt->getAddr(), pkt_count);
                 burst_helper = new BurstHelper(pkt_count);
             }
@@ -255,6 +259,7 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
             MemPacket* mem_pkt;
             mem_pkt = mem_intr->decodePacket(pkt, addr, size, true,
                                                     mem_intr->pseudoChannel);
+            mem_pkt->isTagCheck = pkt->isTagCheck;
 
             // Increment read entries of the rank (dram)
             // Increment count to trigger issue of non-deterministic read (nvm)
@@ -285,7 +290,7 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
     }
 
     // If all packets are serviced by write queue, we send the repsonse back
-    if (pktsServicedByWrQ == pkt_count) {
+    if (pktsServicedByWrQ == pkt_count && !pkt->isTagCheck) {
         accessAndRespond(pkt, frontendLatency, mem_intr);
         return true;
     }
@@ -321,8 +326,8 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
 
         // see if we can merge with an existing item in the write
         // queue and keep track of whether we have merged or not
-        bool merged = isInWriteQueue.find(burstAlign(addr, mem_intr)) !=
-            isInWriteQueue.end();
+        bool merged = (isInWriteQueue.find(burstAlign(addr, mem_intr)) !=
+            isInWriteQueue.end()) && !pkt->isTagCheck;
 
         // if the item was not merged we need to create a new write
         // and enqueue it
@@ -330,6 +335,8 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
             MemPacket* mem_pkt;
             mem_pkt = mem_intr->decodePacket(pkt, addr, size, false,
                                                     mem_intr->pseudoChannel);
+            mem_pkt->isTagCheck = pkt->isTagCheck;
+
             // Default readyTime to Max if nvm interface;
             //will be reset once read is issued
             mem_pkt->readyTime = MaxTick;
@@ -343,7 +350,7 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
 
             writeQueue[mem_pkt->qosValue()].push_back(mem_pkt);
             isInWriteQueue.insert(burstAlign(addr, mem_intr));
-
+          
             // log packet
             logRequest(MemCtrl::WRITE, pkt->requestorId(),
                        pkt->qosValue(), mem_pkt->addr, 1);
@@ -373,7 +380,9 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
     // snoop the write queue for any upcoming reads
     // @todo, if a pkt size is larger than burst size, we might need a
     // different front end latency
-    accessAndRespond(pkt, frontendLatency, mem_intr);
+    if (!pkt->isTagCheck) {
+        accessAndRespond(pkt, frontendLatency, mem_intr);
+    }
 }
 
 void
@@ -383,19 +392,19 @@ MemCtrl::printQs() const
     DPRINTF(MemCtrl, "===READ QUEUE===\n\n");
     for (const auto& queue : readQueue) {
         for (const auto& packet : queue) {
-            DPRINTF(MemCtrl, "Read %#x\n", packet->addr);
+            DPRINTF(MemCtrl, "Read %d\n", packet->addr);
         }
     }
 
     DPRINTF(MemCtrl, "\n===RESP QUEUE===\n\n");
     for (const auto& packet : respQueue) {
-        DPRINTF(MemCtrl, "Response %#x\n", packet->addr);
+        DPRINTF(MemCtrl, "Response %d\n", packet->addr);
     }
 
     DPRINTF(MemCtrl, "\n===WRITE QUEUE===\n\n");
     for (const auto& queue : writeQueue) {
         for (const auto& packet : queue) {
-            DPRINTF(MemCtrl, "Write %#x\n", packet->addr);
+            DPRINTF(MemCtrl, "Write %d\n", packet->addr);
         }
     }
 #endif // TRACING_ON
@@ -405,7 +414,7 @@ bool
 MemCtrl::recvTimingReq(PacketPtr pkt)
 {
     // This is where we enter from the outside world
-    DPRINTF(MemCtrl, "recvTimingReq: request %s addr %#x size %d\n",
+    DPRINTF(MemCtrl, "recvTimingReq: request %s addr %d size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getSize());
 
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
@@ -620,7 +629,7 @@ void
 MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
                                                 MemInterface* mem_intr)
 {
-    DPRINTF(MemCtrl, "Responding to Address %d.. \n", pkt->getAddr());
+    DPRINTF(MemCtrl, "Responding to Address %d: %s.. \n", pkt->getAddr(), pkt->cmdString());
 
     bool needsResponse = pkt->needsResponse();
     // do the actual memory access which also turns the packet into a
@@ -637,10 +646,34 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
         // with headerDelay that takes into account the delay provided by
         // the xbar and also the payloadDelay that takes into account the
         // number of data beats.
-        Tick response_time = curTick() + static_latency + pkt->headerDelay +
-                             pkt->payloadDelay;
+        Tick response_time;
+        if (pkt->isTagCheck && pkt->isWrite()) {
+            assert(!pkt->owIsRead);
+            // in this case static latency is TagCheckReady time actually!
+            response_time = static_latency + frontendLatency + backendLatency;
+        } else {
+            response_time = curTick() + static_latency + pkt->headerDelay +
+                                pkt->payloadDelay;
+        }
         // Here we reset the timing of the packet before sending it out.
         pkt->headerDelay = pkt->payloadDelay = 0;
+
+        if (pkt->isTagCheck && pkt->owIsRead && !pkt->isHit) {
+            if (pkt->isDirty) {
+                assert(pkt->hasDirtyData);
+            }
+            else if (!pkt->isDirty && !pkt->hasDirtyData) {
+                // No response is needed.
+                // It was a just a bubble (null data).
+                DPRINTF(MemCtrl, "Done, Rd Miss Clean No Dirty Data\n");
+                delete pkt;
+                return;
+            }
+        }
+
+        if (pkt->isTagCheck) {
+            pkt->isTagCheck = false;
+        }
 
         // queue the packet in the response queue to be sent out after
         // the static latency has passed
@@ -654,6 +687,86 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
     DPRINTF(MemCtrl, "Done\n");
 
     return;
+}
+
+void
+MemCtrl::sendTagCheckRespond(MemPacket* mem_pkt)
+{
+    DPRINTF(MemCtrl, "sendTagCheckRespond : %d \n", mem_pkt->addr);
+    assert(mem_pkt->isRead());
+    assert(mem_pkt->pkt->isRead());
+    assert(mem_pkt->tagCheckReady != MaxTick);
+
+    PacketPtr tagCheckResPkt = getPacket(mem_pkt->addr, 8, MemCmd::ReadReq);
+
+    // if (mem_pkt->isRead()) {
+    //     tagCheckResPkt = getPacket(mem_pkt->addr,
+    //                                8,
+    //                                MemCmd::ReadReq);
+    // } else {
+    //     tagCheckResPkt = getPacket(mem_pkt->addr,
+    //                                8,
+    //                                MemCmd::WriteReq);
+    // }
+
+    tagCheckResPkt->isTagCheck = mem_pkt->pkt->isTagCheck;
+    tagCheckResPkt->owIsRead = mem_pkt->pkt->owIsRead;
+    tagCheckResPkt->isHit = mem_pkt->pkt->isHit;
+    tagCheckResPkt->isDirty = mem_pkt->pkt->isDirty;
+    tagCheckResPkt->hasDirtyData = mem_pkt->pkt->hasDirtyData;
+    // tagCheckResPkt->tagCheckReady = mem_pkt->pkt->tagCheckReady;
+    tagCheckResPkt->dirtyLineAddr = mem_pkt->pkt->dirtyLineAddr;
+
+    tagCheckResPkt->makeResponse();
+
+    // Tick response_time = curTick() + tagCheckResPkt->headerDelay;
+    // response_time += tagCheckResPkt->payloadDelay;
+    // Here we reset the timing of the packet before sending it out.
+    tagCheckResPkt->headerDelay = tagCheckResPkt->payloadDelay = 0;
+
+    // queue the packet in the response queue to be sent out after
+    // the static latency has passed
+    port.schedTimingResp(tagCheckResPkt, mem_pkt->tagCheckReady + frontendLatency + backendLatency);
+}
+
+void
+MemCtrl::updateOldestWriteAge()
+{
+    // Assumption: writeQueue has only one priority = has just one vector in it.
+    for (const auto& vec : writeQueue) {
+        if (vec.empty()) {
+            oldestWriteAge = 0;
+        } else {
+            for (const auto& p : vec) {
+                oldestWriteAge = std::max(oldestWriteAge, curTick() - p->entryTime);
+            }
+        }
+    }
+}
+
+PacketPtr
+MemCtrl::getPacket(Addr addr, unsigned size, const MemCmd& cmd,
+                   Request::FlagsType flags)
+{
+    // Create new request
+    RequestPtr req = std::make_shared<Request>(addr, size, flags,
+                                               0);
+    // Dummy PC to have PC-based prefetchers latch on; get entropy into higher
+    // bits
+    req->setPC(((Addr)0) << 2);
+
+    // Embed it in a packet
+    PacketPtr pkt = new Packet(req, cmd);
+
+    uint8_t* pkt_data = new uint8_t[req->getSize()];
+
+    pkt->dataDynamic(pkt_data);
+
+    if (cmd.isWrite()) {
+        std::fill_n(pkt_data, req->getSize(), (uint8_t)0);
+    }
+
+    return pkt;
 }
 
 void
@@ -812,7 +925,7 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
     std::tie(cmd_at, mem_intr->nextBurstAt) =
             mem_intr->doBurstAccess(mem_pkt, mem_intr->nextBurstAt, queue);
 
-    DPRINTF(MemCtrl, "Access to %#x, ready at %lld next burst at %lld.\n",
+    DPRINTF(MemCtrl, "Access to %d, ready at %lld next burst at %lld.\n",
             mem_pkt->addr, mem_pkt->readyTime, mem_intr->nextBurstAt);
 
     // Update the minimum timing between the requests, this is a
@@ -823,13 +936,13 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
 
     // Update the common bus stats
     if (mem_pkt->isRead()) {
-        ++readsThisTime;
+        ++(mem_intr->readsThisTime);
         // Update latency stats
         stats.requestorReadTotalLat[mem_pkt->requestorId()] +=
             mem_pkt->readyTime - mem_pkt->entryTime;
         stats.requestorReadBytes[mem_pkt->requestorId()] += mem_pkt->size;
     } else {
-        ++writesThisTime;
+        ++(mem_intr->writesThisTime);
         stats.requestorWriteBytes[mem_pkt->requestorId()] += mem_pkt->size;
         stats.requestorWriteTotalLat[mem_pkt->requestorId()] +=
             mem_pkt->readyTime - mem_pkt->entryTime;
@@ -887,6 +1000,8 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
                         EventFunctionWrapper& resp_event,
                         EventFunctionWrapper& next_req_event,
                         bool& retry_wr_req) {
+    updateOldestWriteAge();
+
     // transition is handled by QoS algorithm if enabled
     if (turnPolicy) {
         // select bus state - only done if QoS algorithms are in use
@@ -939,7 +1054,8 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             // if we are draining)
             if (!(mem_intr->writeQueueSize == 0) &&
                 (drainState() == DrainState::Draining ||
-                 mem_intr->writeQueueSize > writeLowThreshold)) {
+                 mem_intr->writeQueueSize > writeLowThreshold ||
+                 oldestWriteAge > oldestWriteAgeThreshold)) {
 
                 DPRINTF(MemCtrl,
                         "Switching to writes due to read queue empty\n");
@@ -1002,8 +1118,13 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
             Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
 
+            if (mem_pkt->isTagCheck) {
+                DPRINTF(MemCtrl, "read times: %d, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
+                sendTagCheckRespond(mem_pkt);
+            }
+
             DPRINTF(MemCtrl,
-            "Command for %#x, issued at %lld.\n", mem_pkt->addr, cmd_at);
+            "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
             // sanity check
             assert(pktSizeCheck(mem_pkt, mem_intr));
@@ -1033,9 +1154,9 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             // there are no other writes that can issue
             // Also ensure that we've issued a minimum defined number
             // of reads before switching, or have emptied the readQ
-            if ((mem_intr->writeQueueSize > writeHighThreshold) &&
-               (mem_intr->readsThisTime >= minReadsPerSwitch || mem_intr->readQueueSize == 0)
-               && !(nvmWriteBlock(mem_intr))) {
+            if (((mem_intr->writeQueueSize > writeHighThreshold) &&
+               (mem_intr->readsThisTime >= minReadsPerSwitch || mem_intr->readQueueSize == 0) &&
+               !(nvmWriteBlock(mem_intr))) || (oldestWriteAge > oldestWriteAgeThreshold)) {
                 switch_to_writes = true;
             }
 
@@ -1093,8 +1214,14 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         assert(pktSizeCheck(mem_pkt, mem_intr));
 
         Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
+
         DPRINTF(MemCtrl,
-        "Command for %#x, issued at %lld.\n", mem_pkt->addr, cmd_at);
+        "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
+
+        if (mem_pkt->isTagCheck) {
+                DPRINTF(MemCtrl, "write times: %d, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
+                accessAndRespond(mem_pkt->pkt, mem_pkt->tagCheckReady, mem_intr);
+        }
 
         isInWriteQueue.erase(burstAlign(mem_pkt->addr, mem_intr));
 

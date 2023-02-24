@@ -509,6 +509,12 @@ class DRAMInterface : public MemInterface
     const Tick tXAW;
     const Tick tXP;
     const Tick tXS;
+    const Tick tTAGBURST;
+    const Tick tRLFAST;
+    const Tick tHM2DQ;
+    const Tick tRFB;
+    const Tick tWFB;
+    const Tick tRTW_int;
     const Tick clkResyncDelay;
     const bool dataClockSync;
     const bool burstInterleave;
@@ -516,6 +522,8 @@ class DRAMInterface : public MemInterface
     const uint32_t activationLimit;
     const Tick wrToRdDlySameBG;
     const Tick rdToWrDlySameBG;
+
+    unsigned maxFBLen;
 
 
     enums::PageManage pageMgmt;
@@ -578,6 +586,11 @@ class DRAMInterface : public MemInterface
         /** total number of DRAM bursts serviced */
         statistics::Scalar readBursts;
         statistics::Scalar writeBursts;
+        statistics::Scalar tagResBursts;
+        statistics::Scalar tagBursts;
+
+        statistics::Average avgFBLenEnq;
+        statistics::Scalar maxFBLenEnq;
 
         /** DRAM per bank stats */
         statistics::Vector perBankRdBursts;
@@ -612,6 +625,7 @@ class DRAMInterface : public MemInterface
         statistics::Formula busUtilRead;
         statistics::Formula busUtilWrite;
         statistics::Formula pageHitRate;
+        statistics::Formula hitMissBusUtil;
     };
 
     DRAMStats stats;
@@ -649,6 +663,11 @@ class DRAMInterface : public MemInterface
     }
 
   public:
+
+
+    typedef std::pair<unsigned, Addr> dataTagPair;
+    std::deque<dataTagPair> flushBuffer;
+
     /**
      * Initialize the DRAM interface and verify parameters
      */

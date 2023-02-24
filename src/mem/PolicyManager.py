@@ -3,15 +3,12 @@ from m5.proxy import *
 from m5.SimObject import SimObject
 from m5.objects.AbstractMemory import AbstractMemory
 
-class Policy(Enum): vals = ['CascadeLakeNoPartWrs', 'RambusHypo', 'BearWriteOpt']
+class Policy(Enum): vals = ['CascadeLakeNoPartWrs', 'Oracle', 'BearWriteOpt', 'Rambus']
 
 class PolicyManager(AbstractMemory):
     type = 'PolicyManager'
     cxx_header = "mem/policy_manager.hh"
     cxx_class = 'gem5::memory::PolicyManager'
-
-
-    #system = Param.System(Parent.any, "System that the controller belongs to.")
 
     port = ResponsePort("This port responds to memory requests")
     loc_req_port = RequestPort("This port responds to requests for DRAM cache controller")
@@ -19,9 +16,6 @@ class PolicyManager(AbstractMemory):
 
     loc_burst_size = Param.Unsigned(64, "Local memory burst size")
     far_burst_size = Param.Unsigned(64, "Far memory burst size")
-
-    # loc_mem_ctrl = Param.MemCtrl("Local memory controller")
-    # far_mem_ctrl = Param.MemCtrl("Far memory controller")
 
     loc_mem_policy = Param.Policy('CascadeLakeNoPartWrs', "DRAM Cache Policy")
 

@@ -158,7 +158,7 @@ class PolicyManager : public AbstractMemory
       bool validLine = false;
       // constant to indicate that the cache line is dirty
       bool dirtyLine = false;
-      Addr farMemAddr;
+      Addr farMemAddr = -1;
     };
 
     /** A storage to keep the tag and metadata for the
@@ -172,8 +172,9 @@ class PolicyManager : public AbstractMemory
      */
     enum reqState
     {
-      start,
-      locMemRead,  waitingLocMemReadResp,
+      start, 
+      tagCheck, waitingTCtag, //WaitingTCdata,
+      locMemRead,  waitingLocMemReadResp, locRdRespReady,
       locMemWrite, waitingLocMemWriteResp,
       farMemRead,  waitingFarMemReadResp,
       farMemWrite, waitingFarMemWriteResp
@@ -203,15 +204,27 @@ class PolicyManager : public AbstractMemory
         bool issued;
         bool isHit;
         bool conflict;
+        //bool fbDirtyData = false;
 
         Addr dirtyLineAddr;
         bool handleDirtyLine;
+        bool prevDirty = false;
+        // rcvdRdResp is only used for read misses,
+        // since the data response from a tag check 
+        // may be received too late 
+        // (after rd from far mem & write to loc).
+        // Note: writes responds are  very quick, 
+        // just an ack with a frontend latency only.
+        bool rcvdRdResp = false;
 
         // recording the tick when the req transitions into a new stats.
         // The subtract between each two consecutive states entrance ticks,
         // is the number of ticks the req spent in the proceeded state.
         // The subtract between entrance and issuance ticks for each state,
         // is the number of ticks for waiting time in that state.
+        Tick tagCheckEntered;
+        Tick tagCheckIssued;
+        Tick tagCheckExit;
         Tick locRdEntered;
         Tick locRdIssued;
         Tick locRdExit;
@@ -229,6 +242,7 @@ class PolicyManager : public AbstractMemory
           enums::Policy _pol, reqState _state,
           bool _issued, bool _isHit, bool _conflict,
           Addr _dirtyLineAddr, bool _handleDirtyLine,
+          Tick _tagCheckEntered, Tick _tagCheckIssued, Tick _tagCheckExit,
           Tick _locRdEntered, Tick _locRdIssued, Tick _locRdExit,
           Tick _locWrEntered, Tick _locWrIssued, Tick _locWrExit,
           Tick _farRdEntered, Tick _farRdIssued, Tick _farRdExit)
@@ -239,6 +253,7 @@ class PolicyManager : public AbstractMemory
         pol(_pol), state(_state),
         issued(_issued), isHit(_isHit), conflict(_conflict),
         dirtyLineAddr(_dirtyLineAddr), handleDirtyLine(_handleDirtyLine),
+        tagCheckEntered(_tagCheckEntered), tagCheckIssued(_tagCheckIssued), tagCheckExit(_tagCheckExit),
         locRdEntered(_locRdEntered), locRdIssued(_locRdIssued), locRdExit(_locRdExit),
         locWrEntered(_locWrEntered), locWrIssued(_locWrIssued), locWrExit(_locWrExit),
         farRdEntered(_farRdEntered), farRdIssued(_farRdIssued), farRdExit(_farRdExit)
@@ -276,6 +291,7 @@ class PolicyManager : public AbstractMemory
      */
     bool retryLLC;
     bool retryLLCFarMemWr;
+    bool retryTagCheck;
     bool retryLocMemRead;
     bool retryFarMemRead;
     bool retryLocMemWrite;
@@ -289,6 +305,7 @@ class PolicyManager : public AbstractMemory
     std::deque <timeReqPair> pktFarMemWrite;
 
     // Maintenance Queues
+    std::deque <Addr> pktTagCheck; // Used only for Rambus policy
     std::deque <Addr> pktLocMemRead;
     std::deque <Addr> pktLocMemWrite;
     std::deque <Addr> pktFarMemRead;
@@ -299,6 +316,11 @@ class PolicyManager : public AbstractMemory
     AddrRangeList getAddrRanges();
 
     // events
+
+    // Used only for Rambus policy
+    void processTagCheckEvent();
+    EventFunctionWrapper tagCheckEvent;
+
     void processLocMemReadEvent();
     EventFunctionWrapper locMemReadEvent;
 
@@ -319,7 +341,7 @@ class PolicyManager : public AbstractMemory
     void handleRequestorPkt(PacketPtr pkt);
     void checkHitOrMiss(reqBufferEntry* orbEntry);
     bool checkDirty(Addr addr);
-    void handleDirtyCacheLine(reqBufferEntry* orbEntry);
+    void handleDirtyCacheLine(Addr dirtyLineAddr);
     bool checkConflictInDramCache(PacketPtr pkt);
     void checkConflictInCRB(reqBufferEntry* orbEntry);
     bool resumeConflictingReq(reqBufferEntry* orbEntry);
@@ -327,7 +349,9 @@ class PolicyManager : public AbstractMemory
     void accessAndRespond(PacketPtr pkt, Tick static_latency);
     PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd, Request::FlagsType flags = 0);
     Tick accessLatency();
+    bool findInORB(Addr addr);
 
+    unsigned countTagCheckInORB();
     unsigned countLocRdInORB();
     unsigned countFarRdInORB();
     unsigned countLocWrInORB();
@@ -379,11 +403,13 @@ class PolicyManager : public AbstractMemory
 
       // DRAM Cache Specific Stats
       statistics::Average avgORBLen;
+      statistics::Average avgTagCheckQLenStrt;
       statistics::Average avgLocRdQLenStrt;
       statistics::Average avgLocWrQLenStrt;
       statistics::Average avgFarRdQLenStrt;
       statistics::Average avgFarWrQLenStrt;
 
+      statistics::Average avgTagCheckQLenEnq;
       statistics::Average avgLocRdQLenEnq;
       statistics::Average avgLocWrQLenEnq;
       statistics::Average avgFarRdQLenEnq;
@@ -396,6 +422,8 @@ class PolicyManager : public AbstractMemory
 
       Stats::Scalar maxNumConf;
 
+      Stats::Scalar sentTagCheckPort;
+      Stats::Scalar failedTagCheckPort;
       Stats::Scalar sentLocRdPort;
       Stats::Scalar sentLocWrPort;
       Stats::Scalar failedLocRdPort;
@@ -406,14 +434,24 @@ class PolicyManager : public AbstractMemory
       Stats::Scalar failedFarRdPort;
       Stats::Scalar failedFarWrPort;
 
-      Stats::Scalar totPktsServiceTime;
-      Stats::Scalar totPktsORBTime;
-      Stats::Scalar totTimeFarRdtoSend;
-      Stats::Scalar totTimeFarRdtoRecv;
-      Stats::Scalar totTimeFarWrtoSend;
-      Stats::Scalar totTimeInLocRead;
-      Stats::Scalar totTimeInLocWrite;
-      Stats::Scalar totTimeInFarRead;
+      statistics::Average avgPktLifeTime;
+      statistics::Average avgPktLifeTimeRd;
+      statistics::Average avgPktLifeTimeWr;
+      statistics::Average avgPktORBTime;
+      statistics::Average avgPktORBTimeRd;
+      statistics::Average avgPktORBTimeWr;
+      statistics::Average avgPktRespTime;
+      statistics::Average avgPktRespTimeRd;
+      statistics::Average avgPktRespTimeWr;
+      statistics::Average avgTimeTagCheckRes;
+      statistics::Average avgTimeTagCheckResRd;
+      statistics::Average avgTimeTagCheckResWr;
+      statistics::Average avgTimeInLocRead;
+      statistics::Average avgTimeInLocWrite;
+      statistics::Average avgTimeInFarRead;
+      statistics::Average avgTimeFarRdtoSend;
+      statistics::Average avgTimeFarRdtoRecv;
+      statistics::Average avgTimeFarWrtoSend;
 
       Stats::Scalar numTotHits;
       Stats::Scalar numTotMisses;

@@ -19,6 +19,18 @@ args.add_argument(
     help="Read Percentage",
 )
 
+args.add_argument(
+    "hit_miss",
+    type=int,
+    help="hit_miss",
+)
+
+args.add_argument(
+    "clean_dirty",
+    type=int,
+    help="clean_dirty",
+)
+
 options = args.parse_args()
 
 system = System()
@@ -30,18 +42,35 @@ system.mem_mode = 'timing'
 system.generator = PyTrafficGen()
 
 system.mem_ctrl = PolicyManager(range=AddrRange('1GiB'))
-system.mem_ctrl.tRP = '14.16ns'
-system.mem_ctrl.tRCD_RD = '14.16ns'
-system.mem_ctrl.tRL = '14.16ns'
+system.mem_ctrl.tRP = '14ns'
+system.mem_ctrl.tRCD_RD = '12ns'
+system.mem_ctrl.tRL = '18ns'
+system.mem_ctrl.loc_mem_policy = 'Rambus'
 
 system.loc_mem_ctrl = MemCtrl()
-system.loc_mem_ctrl.dram =  DDR4_2400_16x4_Alloy(range=AddrRange('1GiB'),in_addr_map=False, null=True)
+system.loc_mem_ctrl.dram = HBM_2000_4H_1x64_Rambus(range=AddrRange('1GiB'), in_addr_map=False, null=True)
+
+system.loc_mem_ctrl.dram.device_rowbuffer_size = "512B"
+system.loc_mem_ctrl.dram.banks_per_rank = 32
+system.loc_mem_ctrl.dram.bank_groups_per_rank = 8
+system.loc_mem_ctrl.dram.page_policy = 'close'
+
+system.loc_mem_ctrl.dram.burst_length = 8
+system.loc_mem_ctrl.dram.tCCD_L = "4ns"
+system.loc_mem_ctrl.dram.tBURST = "4ns"
 
 system.far_mem_ctrl = MemCtrl()
 system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=False, null=True)
 
-system.mem_ctrl.always_hit = False
-system.mem_ctrl.always_dirty = True
+if options.hit_miss == 1:
+    system.mem_ctrl.always_hit = True
+else :
+    system.mem_ctrl.always_hit = False
+
+if options.clean_dirty == 1:
+    system.mem_ctrl.always_dirty = True
+else :
+    system.mem_ctrl.always_dirty = False
 
 system.mem_ctrl.dram_cache_size = "64MiB"
 
@@ -50,7 +79,7 @@ system.loc_mem_ctrl.port = system.mem_ctrl.loc_req_port
 system.far_mem_ctrl.port = system.mem_ctrl.far_req_port
 
 def createRandomTraffic(tgen):
-    yield tgen.createRandom(10000000000,            # duration
+    yield tgen.createRandom(100000000000,            # duration
                             0,                      # min_addr
                             AddrRange('1GiB').end,  # max_adr
                             64,                     # block_size
@@ -61,7 +90,7 @@ def createRandomTraffic(tgen):
     yield tgen.createExit(0)
 
 def createLinearTraffic(tgen):
-    yield tgen.createLinear(2000000000,            # duration
+    yield tgen.createLinear(10000000000,            # duration
                             0,                      # min_addr
                             AddrRange('1GiB').end,  # max_adr
                             64,                     # block_size

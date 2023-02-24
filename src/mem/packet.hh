@@ -294,6 +294,14 @@ class Packet : public Printable
     typedef uint32_t FlagsType;
     typedef gem5::Flags<FlagsType> Flags;
 
+    bool isTagCheck = false;
+    bool owIsRead = false;
+    bool isHit = false;
+    bool isDirty = false;
+    bool hasDirtyData = false;
+    Addr dirtyLineAddr = -1;
+
+
   private:
     enum : FlagsType
     {
