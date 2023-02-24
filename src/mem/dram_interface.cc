@@ -772,6 +772,11 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
       timeStampOffset(0), activeRank(0),
       enableDRAMPowerdown(_p.enable_dram_powerdown),
       lastStatsResetTick(0),
+      polMan(_p.pol_man),
+      readFlushBufferEvent([this] {processReadFlushBufferEvent();}, name()),
+      endOfReadFlushBuffPeriod(0),
+      readFlushBufferCount(0),
+      enableReadFlushBuffer(_p.enable_read_flush_buffer),
       stats(*this)
 {
     DPRINTF(DRAM, "Setting up DRAM Interface\n");
@@ -1041,6 +1046,44 @@ void DRAMInterface::setupRank(const uint8_t rank, const bool is_read)
     } else {
         ++ranks[rank]->writeEntries;
     }
+}
+
+void
+DRAMInterface::processReadFlushBufferEvent()
+{
+    assert(endOfReadFlushBuffPeriod >= curTick());
+
+    Tick dataValidOnBus;
+
+    if (readFlushBufferCount==0) {
+        dataValidOnBus = curTick() + tRCD_RD + tRL + tBURST;
+    } else {
+        assert(readFlushBufferCount>0);
+        dataValidOnBus = curTick() + tRL + tBURST;
+    }
+
+    if (dataValidOnBus <= endOfReadFlushBuffPeriod && !flushBuffer.empty()) {
+        if (polMan->recvReadFlushBuffer(flushBuffer.front().second)) {
+            readFlushBufferCount++;
+            flushBuffer.pop_front();
+            if (!flushBuffer.empty()) {
+                schedule(readFlushBufferEvent, dataValidOnBus);
+            }
+            return;
+        } else {
+            // Policy manager has no empty entry available in its write back buffer.
+            // End of readFlushBuffer round.
+            // Reset control params
+            endOfReadFlushBuffPeriod = 0;
+            readFlushBufferCount = 0;
+            return;
+        }
+    }
+    // Either the time is beyond the tRFC or flushBuffer is empty.
+    // Reset control params
+    endOfReadFlushBuffPeriod = 0;
+    readFlushBufferCount = 0;
+
 }
 
 void
@@ -1520,6 +1563,17 @@ DRAMInterface::Rank::processRefreshEvent()
 
     // last but not least we perform the actual refresh
     if (refreshState == REF_START) {
+        if (dram.enableReadFlushBuffer) {
+            // Time to be proactive and send some dirty data from flushBuffer to the controller.
+            assert(dram.endOfReadFlushBuffPeriod == 0);
+            assert(dram.readFlushBufferCount == 0);
+            assert(!dram.readFlushBufferEvent.scheduled());
+            if (!dram.flushBuffer.empty()) {
+                dram.endOfReadFlushBuffPeriod = curTick() + dram.tRFC;
+                schedule(dram.readFlushBufferEvent, curTick());
+            }
+        }
+
         // should never get here with any banks active
         assert(numBanksActive == 0);
         assert(pwrState == PWR_REF);
@@ -2096,7 +2150,7 @@ DRAMInterface::DRAMStats::regStats()
     pageHitRate = (writeRowHits + readRowHits) /
         (writeBursts + readBursts) * 100;
     
-    hitMissBusUtil = 100 * (tagResBursts * dram.tCK + tagBursts * dram.tTAGBURST) / simSeconds;
+    hitMissBusUtil = 100 * (tagResBursts * dram.tCK * 0.000000001 + tagBursts * dram.tTAGBURST * 0.000000001) / simSeconds;
 }
 
 DRAMInterface::RankStats::RankStats(DRAMInterface &_dram, Rank &_rank)

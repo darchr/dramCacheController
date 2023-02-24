@@ -177,7 +177,8 @@ class MyRubySystem(System):
         # Rambus HBM2 cache
         self.loc_mem_ctrl = MemCtrl()
         self.loc_mem_ctrl.dram = HBM_2000_4H_1x64_Rambus(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
-
+        self.loc_mem_ctrl.dram.pol_man = self.mem_ctrl
+        self.loc_mem_ctrl.dram.enable_read_flush_buffer = True
         # self.loc_mem_ctrl.oldest_write_age_threshold = 5000
         # self.loc_mem_ctrl.min_reads_per_switch = 32
         # self.loc_mem_ctrl.min_writes_per_switch = 32

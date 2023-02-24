@@ -1,6 +1,7 @@
 #include "mem/policy_manager.hh"
 
 #include "base/trace.hh"
+#include "debug/FBTrace.hh"
 #include "debug/PolicyManager.hh"
 #include "debug/Drain.hh"
 #include "sim/sim_exit.hh"
@@ -145,6 +146,9 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     DPRINTF(PolicyManager, "recvTimingReq: request %s addr 0x%x-> %d size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getAddr(), pkt->getSize());
     
+    // DPRINTF(FBTrace, "recvTimingReq: %s / 0x%x-> %d / %d\n",
+    //         pkt->cmdString(), pkt->getAddr(), pkt->getAddr(), pkt->getSize());
+    
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
              "is responding");
 
@@ -181,6 +185,8 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
 
             polManStats.mergedWrBursts++;
 
+            DPRINTF(FBTrace, "merged: %lld\n", pkt->getAddr());
+
             // farMemCtrl->accessInterface(pkt);
 
             // sendRespondToRequestor(pkt, frontendLatency);
@@ -192,7 +198,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     // check forwarding for reads
     bool foundInORB = false;
     bool foundInCRB = false;
-    //bool foundInFarMemWrite = false;
+    bool foundInFarMemWrite = false;
 
     if (pkt->isRead()) {
 
@@ -251,7 +257,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
                         (e.second->getAddr() +
                          e.second->getSize()))) {
 
-                        // foundInFarMemWrite = true;
+                        foundInFarMemWrite = true;
 
                         polManStats.servicedByWrQ++;
 
@@ -263,7 +269,9 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
             }
         }
 
-        // if (foundInORB || foundInCRB || foundInFarMemWrite) {
+        if (foundInORB || foundInCRB || foundInFarMemWrite) {
+            DPRINTF(FBTrace, "FW: %lld\n", pkt->getAddr());
+            
         //     polManStats.readPktSize[ceilLog2(size)]++;
 
         //     farMemCtrl->accessInterface(pkt);
@@ -271,7 +279,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         //     sendRespondToRequestor(pkt, frontendLatency);
 
         //     return true;
-        // }
+        }
     }
 
     // process conflicting requests.
@@ -283,6 +291,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         if (CRB.size()>=crbMaxSize) {
 
             DPRINTF(PolicyManager, "CRBfull: %lld\n", pkt->getAddr());
+            DPRINTF(FBTrace, "CRBfull: %lld\n", pkt->getAddr());
 
             polManStats.totNumCRBFull++;
 
@@ -300,6 +309,8 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         CRB.push_back(std::make_pair(curTick(), pkt));
         DPRINTF(PolicyManager, "CRB PB: %d: %s\n", pkt->getAddr(), pkt->cmdString());
 
+        DPRINTF(FBTrace, "CRB PB: %d: %s\n", pkt->getAddr(), pkt->cmdString());
+
         if (pkt->isWrite()) {
             isInWriteQueue.insert(pkt->getAddr());
         }
@@ -314,6 +325,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     if (pktFarMemWrite.size() >= (orbMaxSize / 2)) {
 
         DPRINTF(PolicyManager, "FMWBfull: %lld\n", pkt->getAddr());
+        DPRINTF(FBTrace, "FMWBfull: %lld\n", pkt->getAddr());
 
         retryLLCFarMemWr = true;
 
@@ -329,6 +341,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     if (ORB.size() >= orbMaxSize) {
 
         DPRINTF(PolicyManager, "ORBfull: addr %lld\n", pkt->getAddr());
+        DPRINTF(FBTrace, "ORBfull: %lld\n", pkt->getAddr());
 
         polManStats.totNumORBFull++;
 
@@ -1895,6 +1908,8 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
 
     // tagMetadataStore.at(orbEntry->indexDC).farMemAddr =
     //                     orbEntry->owPkt->getAddr();
+
+    DPRINTF(FBTrace, "ORB+: adr= %d, index= %d, tag= %d, cmd= %s, isHit= %d, wasDirty= %d, \n", orbEntry->owPkt->getAddr(), orbEntry->indexDC, orbEntry->tagDC, orbEntry->owPkt->cmdString(), orbEntry->isHit, orbEntry->prevDirty);
 }
 
 bool
@@ -2648,6 +2663,15 @@ PolicyManager::unserialize(CheckpointIn &cp)
     }
 }
 
+bool
+PolicyManager::recvReadFlushBuffer(Addr addr)
+{
+    if (pktFarMemWrite.size() < (orbMaxSize / 2)) {
+        handleDirtyCacheLine(addr);
+        return true;
+    }
+    return false;
+}
 
 } // namespace memory
 } // namespace gem5

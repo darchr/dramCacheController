@@ -48,6 +48,7 @@
 
 #include "mem/drampower.hh"
 #include "mem/mem_interface.hh"
+#include "mem/policy_manager.hh"
 #include "params/DRAMInterface.hh"
 #include "params/DRAMAlloyInterface.hh"
 
@@ -664,6 +665,14 @@ class DRAMInterface : public MemInterface
 
   public:
 
+    PolicyManager* polMan;
+
+    void processReadFlushBufferEvent();
+    EventFunctionWrapper readFlushBufferEvent;
+
+    Tick endOfReadFlushBuffPeriod;
+    unsigned readFlushBufferCount;
+    bool enableReadFlushBuffer;
 
     typedef std::pair<unsigned, Addr> dataTagPair;
     std::deque<dataTagPair> flushBuffer;

@@ -488,6 +488,8 @@ class PolicyManager : public AbstractMemory
     void serialize(CheckpointOut &cp) const override;
     void unserialize(CheckpointIn &cp) override;
 
+    bool recvReadFlushBuffer(Addr addr);
+
     protected:
 
       Tick recvAtomic(PacketPtr pkt);
