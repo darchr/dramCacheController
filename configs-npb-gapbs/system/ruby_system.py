@@ -209,6 +209,11 @@ class MyRubySystem(System):
         # main memory
         self.far_mem_ctrl = MemCtrl()
         self.far_mem_ctrl.dram = DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
+        self.far_mem_ctrl.dram.pol_man = PolicyManager(in_addr_map=False, kvm_map=False)
+        self.far_mem_ctrl.dram.pol_man.ignore = True
+        self.far_mem_ctrl.dram.pol_man.tRP = '14ns'
+        self.far_mem_ctrl.dram.pol_man.tRCD_RD = '12ns'
+        self.far_mem_ctrl.dram.pol_man.tRL = '18ns'
 
         self.loc_mem_ctrl.port = self.mem_ctrl.loc_req_port
         self.far_mem_ctrl.port = self.mem_ctrl.far_req_port

@@ -34,4 +34,4 @@ class PolicyManager(AbstractMemory):
     tRL = Param.Latency("Read CAS latency")
 
     cache_warmup_ratio = Param.Float(0.7, "DRAM cache warmup ratio, after that it'll reset the stats")
-    
+    ignore = Param.Bool(False, "for far mem pol man should be ignored")

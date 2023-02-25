@@ -35,6 +35,7 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     numColdMisses(0),
     cacheWarmupRatio(p.cache_warmup_ratio),
     resetStatsWarmup(false),
+    ignore(p.ignore),
     retryLLC(false), retryLLCFarMemWr(false),
     retryTagCheck(false), retryLocMemRead(false), retryFarMemRead(false),
     retryLocMemWrite(false), retryFarMemWrite(false),
@@ -127,13 +128,13 @@ PolicyManager::findInORB(Addr addr)
 void
 PolicyManager::init()
 {
-   if (!port.isConnected()) {
+   if (!port.isConnected() && !ignore) {
         fatal("Policy Manager %s is unconnected!\n", name());
-    } else if (!locReqPort.isConnected()) {
+    } else if (!locReqPort.isConnected() && !ignore) {
         fatal("Policy Manager %s is unconnected!\n", name());
-    } else if (!farReqPort.isConnected()) {
+    } else if (!farReqPort.isConnected() && !ignore) {
         fatal("Policy Manager %s is unconnected!\n", name());
-    } else {
+    } else if(!ignore) {
         port.sendRangeChange();
         //reqPort.recvRangeChange();
     }

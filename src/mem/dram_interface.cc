@@ -1068,8 +1068,14 @@ DRAMInterface::processReadFlushBufferEvent()
             flushBuffer.pop_front();
             if (!flushBuffer.empty()) {
                 schedule(readFlushBufferEvent, dataValidOnBus);
+                return;
+            } else {
+                // flushBuffer is empty.
+                // Reset control params
+                endOfReadFlushBuffPeriod = 0;
+                readFlushBufferCount = 0;
             }
-            return;
+            
         } else {
             // Policy manager has no empty entry available in its write back buffer.
             // End of readFlushBuffer round.
@@ -1564,7 +1570,8 @@ DRAMInterface::Rank::processRefreshEvent()
     // last but not least we perform the actual refresh
     if (refreshState == REF_START) {
         if (dram.enableReadFlushBuffer) {
-            // Time to be proactive and send some dirty data from flushBuffer to the controller.
+            // Time to be proactive and send some dirty data
+            // from flushBuffer to the controller.
             assert(dram.endOfReadFlushBuffPeriod == 0);
             assert(dram.readFlushBufferCount == 0);
             assert(!dram.readFlushBufferEvent.scheduled());

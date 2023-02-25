@@ -52,11 +52,11 @@ class DRAMInterface(MemInterface):
     cxx_header = "mem/dram_interface.hh"
     cxx_class = 'gem5::memory::DRAMInterface'
 
-    enable_read_flush_buffer = Param.Bool(False, "Enable reading from flush buffer "
-                                                 "during refresh, only for HBM2_Rambus")
     pol_man = Param.PolicyManager("Policy Manager which is used just in HBM2_Rambus "
                                   "for sending dirty data from flush buffer to the "
                                   "controller during refresh")
+    enable_read_flush_buffer = Param.Bool(False, "Enable reading from flush buffer "
+                                                 "during refresh, only for HBM2_Rambus")
 
     # scheduler page policy
     page_policy = Param.PageManage('open_adaptive', "Page management policy")

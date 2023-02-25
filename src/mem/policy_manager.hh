@@ -144,6 +144,7 @@ class PolicyManager : public AbstractMemory
     unsigned numColdMisses;
     float cacheWarmupRatio;
     bool resetStatsWarmup;
+    bool ignore;
 
     Tick prevArrival;
 
