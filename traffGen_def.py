@@ -50,6 +50,9 @@ system.mem_ctrl.loc_mem_policy = 'Rambus'
 system.loc_mem_ctrl = MemCtrl()
 system.loc_mem_ctrl.dram = HBM_2000_4H_1x64_Rambus(range=AddrRange('1GiB'), in_addr_map=False, null=True)
 
+system.loc_mem_ctrl.dram.pol_man = system.mem_ctrl
+system.loc_mem_ctrl.dram.enable_read_flush_buffer = True
+
 system.loc_mem_ctrl.dram.device_rowbuffer_size = "512B"
 system.loc_mem_ctrl.dram.banks_per_rank = 32
 system.loc_mem_ctrl.dram.bank_groups_per_rank = 8
@@ -61,6 +64,12 @@ system.loc_mem_ctrl.dram.tBURST = "4ns"
 
 system.far_mem_ctrl = MemCtrl()
 system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=False, null=True)
+
+system.far_mem_ctrl.dram.pol_man = PolicyManager(in_addr_map=False, kvm_map=False)
+system.far_mem_ctrl.dram.pol_man.ignore = True
+system.far_mem_ctrl.dram.pol_man.tRP = '14ns'
+system.far_mem_ctrl.dram.pol_man.tRCD_RD = '12ns'
+system.far_mem_ctrl.dram.pol_man.tRL = '18ns'
 
 if options.hit_miss == 1:
     system.mem_ctrl.always_hit = True
@@ -83,8 +92,8 @@ def createRandomTraffic(tgen):
                             0,                      # min_addr
                             AddrRange('1GiB').end,  # max_adr
                             64,                     # block_size
-                            1000,                   # min_period
-                            1000,                   # max_period
+                            18000,                   # min_period
+                            18000,                   # max_period
                             options.rd_prct,        # rd_perc
                             0)                      # data_limit
     yield tgen.createExit(0)
@@ -94,8 +103,8 @@ def createLinearTraffic(tgen):
                             0,                      # min_addr
                             AddrRange('1GiB').end,  # max_adr
                             64,                     # block_size
-                            1000,                   # min_period
-                            1000,                   # max_period
+                            4570,                   # min_period
+                            4570,                   # max_period
                             options.rd_prct,        # rd_perc
                             0)                      # data_limit
     yield tgen.createExit(0)

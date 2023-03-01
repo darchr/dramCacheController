@@ -591,6 +591,11 @@ class DRAMInterface : public MemInterface
         statistics::Scalar tagBursts;
 
         statistics::Average avgFBLenEnq;
+        statistics::Average avgReadFBPerRefresh;
+        statistics::Scalar totNumberRefreshEvent;
+        statistics::Scalar totReadFBDuringRefresh;
+        statistics::Scalar totReadFBByRdMC;
+        statistics::Scalar totPktsPushedFB;
         statistics::Scalar maxFBLenEnq;
 
         /** DRAM per bank stats */

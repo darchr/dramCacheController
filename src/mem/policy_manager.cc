@@ -924,8 +924,8 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
 
-            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
-            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
+            polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totPktRespTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
             
             orbEntry->state = locMemWrite;
 
@@ -1048,8 +1048,8 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
 
-            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
-            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
+            polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totPktRespTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
 
             orbEntry->state = locMemWrite;
 
@@ -1163,8 +1163,8 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
 
-            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
-            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
+            polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totPktRespTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
 
             orbEntry->state = locMemWrite;
 
@@ -1291,8 +1291,8 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
 
-            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
-            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
+            polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totPktRespTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
 
             orbEntry->state = locMemWrite;
 
@@ -1376,8 +1376,8 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
 
-            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
-            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
+            polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totPktRespTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
 
             // clear ORB
             resumeConflictingReq(orbEntry);
@@ -1492,8 +1492,8 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
 
-            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
-            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
+            polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totPktRespTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
 
             // clear ORB
             resumeConflictingReq(orbEntry);
@@ -1605,8 +1605,8 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
             
-            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
-            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
+            polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totPktRespTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
 
             // clear ORB
             resumeConflictingReq(orbEntry);
@@ -1727,8 +1727,8 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
 
-            polManStats.avgPktRespTime = curTick() - orbEntry->arrivalTick;
-            polManStats.avgPktRespTimeRd = curTick() - orbEntry->arrivalTick;
+            polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totPktRespTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
 
             // clear ORB
             resumeConflictingReq(orbEntry);
@@ -2277,42 +2277,54 @@ void
 PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
 {
     if (locMemPolicy == enums::Rambus) {
-        polManStats.avgPktLifeTime = ((curTick() - orbEntry->arrivalTick)/1000);
-        polManStats.avgPktORBTime = ((curTick() - orbEntry->tagCheckEntered)/1000);
-        polManStats.avgTimeTagCheckRes = ((orbEntry->tagCheckEntered - orbEntry->tagCheckExit)/1000);
+        assert(orbEntry->arrivalTick != MaxTick);
+        assert(orbEntry->tagCheckEntered != MaxTick);
+        assert(orbEntry->tagCheckExit != MaxTick);
+
+        polManStats.totPktLifeTime += ((curTick() - orbEntry->arrivalTick)/1000);
+        polManStats.totPktORBTime += ((curTick() - orbEntry->tagCheckEntered)/1000);
+        polManStats.totTimeTagCheckRes += ((orbEntry->tagCheckExit - orbEntry->tagCheckEntered)/1000);
 
         if (orbEntry->owPkt->isRead()) {
-            polManStats.avgPktLifeTimeRd = ((curTick() - orbEntry->arrivalTick)/1000);
-            polManStats.avgPktORBTimeRd = ((curTick() - orbEntry->tagCheckEntered)/1000);
-            polManStats.avgTimeTagCheckResRd = ((orbEntry->tagCheckEntered - orbEntry->tagCheckExit)/1000);
+            polManStats.totPktLifeTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totPktORBTimeRd += ((curTick() - orbEntry->tagCheckEntered)/1000);
+            polManStats.totTimeTagCheckResRd += ((orbEntry->tagCheckExit - orbEntry->tagCheckEntered)/1000);
         } else {
-            polManStats.avgPktRespTime = ((curTick() - orbEntry->arrivalTick)/1000);
-            polManStats.avgPktRespTimeWr = ((curTick() - orbEntry->arrivalTick)/1000);
-            polManStats.avgPktLifeTimeWr = ((curTick() - orbEntry->arrivalTick)/1000);
-            polManStats.avgPktORBTimeWr = ((curTick() - orbEntry->tagCheckEntered)/1000);
-            polManStats.avgTimeTagCheckResWr = ((orbEntry->tagCheckEntered - orbEntry->tagCheckExit)/1000);
+            polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totPktRespTimeWr += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totPktLifeTimeWr += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totPktORBTimeWr += ((curTick() - orbEntry->tagCheckEntered)/1000);
+            polManStats.totTimeTagCheckResWr += ((orbEntry->tagCheckExit - orbEntry->tagCheckEntered)/1000);
         }
 
         if (orbEntry->owPkt->isRead() && orbEntry->isHit) {
-            polManStats.avgTimeInLocRead = ((orbEntry->locRdExit - orbEntry->tagCheckEntered)/1000);
+            assert(orbEntry->locRdExit != MaxTick);
+            polManStats.totTimeInLocRead += ((orbEntry->locRdExit - orbEntry->tagCheckEntered)/1000);
         }
 
         if (orbEntry->owPkt->isRead() && !orbEntry->isHit) {
-            polManStats.avgTimeInFarRead = ((orbEntry->farRdExit - orbEntry->farRdEntered)/1000);
-            polManStats.avgTimeFarRdtoSend = ((orbEntry->farRdIssued - orbEntry->farRdEntered)/1000);
-            polManStats.avgTimeFarRdtoRecv = ((orbEntry->farRdExit - orbEntry->farRdIssued)/1000);
-            polManStats.avgTimeInLocWrite = ((orbEntry->locWrExit - orbEntry->locWrEntered)/1000);
+            assert(orbEntry->farRdExit != MaxTick);
+            assert(orbEntry->farRdEntered != MaxTick);
+            assert(orbEntry->farRdIssued != MaxTick);
+            assert(orbEntry->tagCheckExit != MaxTick);
+            assert(orbEntry->locWrExit != MaxTick);
+            assert(orbEntry->locWrEntered != MaxTick);
+
+            polManStats.totTimeInFarRead += ((orbEntry->farRdExit - orbEntry->farRdEntered)/1000);
+            polManStats.totTimeFarRdtoSend += ((orbEntry->farRdIssued - orbEntry->farRdEntered)/1000);
+            polManStats.totTimeFarRdtoRecv += ((orbEntry->farRdExit - orbEntry->farRdIssued)/1000);
+            polManStats.totTimeInLocWrite += ((orbEntry->locWrExit - orbEntry->locWrEntered)/1000);
         }  
     }
     else {
         // MUST be updated since they are average, they should be per case
-        polManStats.avgPktLifeTime = ((curTick() - orbEntry->arrivalTick)/1000);
-        polManStats.avgPktORBTime = ((curTick() - orbEntry->locRdEntered)/1000);
-        polManStats.avgTimeFarRdtoSend = ((orbEntry->farRdIssued - orbEntry->farRdEntered)/1000);
-        polManStats.avgTimeFarRdtoRecv = ((orbEntry->farRdExit - orbEntry->farRdIssued)/1000);
-        polManStats.avgTimeInLocRead = ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
-        polManStats.avgTimeInLocWrite = ((orbEntry->locWrExit - orbEntry->locWrEntered)/1000);
-        polManStats.avgTimeInFarRead = ((orbEntry->farRdExit - orbEntry->farRdEntered)/1000);
+        polManStats.totPktLifeTime += ((curTick() - orbEntry->arrivalTick)/1000);
+        polManStats.totPktORBTime += ((curTick() - orbEntry->locRdEntered)/1000);
+        polManStats.totTimeFarRdtoSend += ((orbEntry->farRdIssued - orbEntry->farRdEntered)/1000);
+        polManStats.totTimeFarRdtoRecv += ((orbEntry->farRdExit - orbEntry->farRdIssued)/1000);
+        polManStats.totTimeInLocRead += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
+        polManStats.totTimeInLocWrite += ((orbEntry->locWrExit - orbEntry->locWrEntered)/1000);
+        polManStats.totTimeInFarRead += ((orbEntry->farRdExit - orbEntry->farRdEntered)/1000);
     }
 }
 
@@ -2421,107 +2433,112 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
                 statistics::units::Count, statistics::units::Tick>::get(),
              "Average far write queue length when enqueuing"),
 
-    ADD_STAT(numWrBacks,
+    ADD_STAT(numWrBacks, statistics::units::Count::get(),
             "Total number of write backs from DRAM cache to main memory"),
-    ADD_STAT(totNumConf,
+    ADD_STAT(totNumConf, statistics::units::Count::get(),
             "Total number of packets conflicted on DRAM cache"),
-    ADD_STAT(totNumORBFull,
+    ADD_STAT(totNumORBFull, statistics::units::Count::get(),
             "Total number of packets ORB full"),
-    ADD_STAT(totNumCRBFull,
+    ADD_STAT(totNumCRBFull, statistics::units::Count::get(),
             "Total number of packets conflicted yet couldn't "
             "enter confBuffer"),
 
-    ADD_STAT(maxNumConf,
+    ADD_STAT(maxNumConf, statistics::units::Count::get(),
             "Maximum number of packets conflicted on DRAM cache"),
 
-    ADD_STAT(sentTagCheckPort,
+    ADD_STAT(sentTagCheckPort, statistics::units::Count::get(),
              "stat"),
-    ADD_STAT(failedTagCheckPort,
+    ADD_STAT(failedTagCheckPort, statistics::units::Count::get(),
              "stat"),
-    ADD_STAT(sentLocRdPort,
+    ADD_STAT(sentLocRdPort, statistics::units::Count::get(),
              "stat"),
-    ADD_STAT(sentLocWrPort,
+    ADD_STAT(sentLocWrPort, statistics::units::Count::get(),
              "stat"),
-    ADD_STAT(failedLocRdPort,
+    ADD_STAT(failedLocRdPort, statistics::units::Count::get(),
              "stat"),
-    ADD_STAT(failedLocWrPort,
+    ADD_STAT(failedLocWrPort, statistics::units::Count::get(),
              "stat"),
-    ADD_STAT(recvdRdPort,
+    // ADD_STAT(recvdRdPort, statistics::units::Count::get(),
+    //         "stat"),
+    ADD_STAT(sentFarRdPort, statistics::units::Count::get(),
              "stat"),
-    ADD_STAT(sentFarRdPort,
+    ADD_STAT(sentFarWrPort, statistics::units::Count::get(),
              "stat"),
-    ADD_STAT(sentFarWrPort,
+    ADD_STAT(failedFarRdPort, statistics::units::Count::get(),
              "stat"),
-    ADD_STAT(failedFarRdPort,
-             "stat"),
-    ADD_STAT(failedFarWrPort,
+    ADD_STAT(failedFarWrPort, statistics::units::Count::get(),
              "stat"),
 
-    ADD_STAT(avgPktLifeTime,
-            "stat"),
-    ADD_STAT(avgPktLifeTimeRd,
-            "stat"),
-    ADD_STAT(avgPktLifeTimeWr,
-            "stat"),
-    ADD_STAT(avgPktORBTime,
-            "stat"),
-    ADD_STAT(avgPktORBTimeRd,
-            "stat"),
-    ADD_STAT(avgPktORBTimeWr,
-            "stat"),
-    ADD_STAT(avgPktRespTime,
-            "stat"),
-    ADD_STAT(avgPktRespTimeRd,
-            "stat"),
-    ADD_STAT(avgPktRespTimeWr,
-            "stat"),
-    ADD_STAT(avgTimeTagCheckRes,
-            "stat"),
-    ADD_STAT(avgTimeTagCheckResRd,
-            "stat"),
-    ADD_STAT(avgTimeTagCheckResWr,
-            "stat"),
-    ADD_STAT(avgTimeInLocRead,
-            "stat"),
-    ADD_STAT(avgTimeInLocWrite,
-            "stat"),
-    ADD_STAT(avgTimeInFarRead,
-            "stat"),
-    ADD_STAT(avgTimeFarRdtoSend,
-            "stat"),
-    ADD_STAT(avgTimeFarRdtoRecv,
-            "stat"),
-    ADD_STAT(avgTimeFarWrtoSend,
-            "stat"),
+    ADD_STAT(totPktLifeTime, statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totPktLifeTimeRd, statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totPktLifeTimeWr, statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totPktORBTime, statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totPktORBTimeRd, statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totPktORBTimeWr, statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totPktRespTime, statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totPktRespTimeRd, statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totPktRespTimeWr,  statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totTimeTagCheckRes,  statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totTimeTagCheckResRd,  statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totTimeTagCheckResWr,  statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totTimeInLocRead,  statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totTimeInLocWrite,  statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totTimeInFarRead,  statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totTimeFarRdtoSend,  statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totTimeFarRdtoRecv,  statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totTimeFarWrtoSend,  statistics::units::Tick::get(), "stat"),
 
-    ADD_STAT(numTotHits,
-            "stat"),
-    ADD_STAT(numTotMisses,
-            "stat"),
-    ADD_STAT(numColdMisses,
-            "stat"),
-    ADD_STAT(numHotMisses,
-            "stat"),
-    ADD_STAT(numRdMissClean,
-            "stat"),
-    ADD_STAT(numRdMissDirty,
-            "stat"),
-    ADD_STAT(numRdHit,
-            "stat"),
-    ADD_STAT(numWrMissClean,
-            "stat"),
-    ADD_STAT(numWrMissDirty,
-            "stat"),
-    ADD_STAT(numWrHit,
-            "stat"),
-    ADD_STAT(numRdHitDirty,
-            "stat"),
-    ADD_STAT(numRdHitClean,
-            "stat"),
-    ADD_STAT(numWrHitDirty,
-            "stat"),
-    ADD_STAT(numWrHitClean,
-            "stat")
+    ADD_STAT(avgPktLifeTime, statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgPktLifeTimeRd, statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgPktLifeTimeWr, statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgPktORBTime, statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgPktORBTimeRd, statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgPktORBTimeWr, statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgPktRespTime, statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgPktRespTimeRd, statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgPktRespTimeWr,  statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgTimeTagCheckRes,  statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgTimeTagCheckResRd,  statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgTimeTagCheckResWr,  statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgTimeInLocRead,  statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgTimeInLocWrite,  statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgTimeInFarRead,  statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgTimeFarRdtoSend,  statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgTimeFarRdtoRecv,  statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgTimeFarWrtoSend,  statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+
+    ADD_STAT(numTotHits, statistics::units::Count::get(), "stat"),
+    ADD_STAT(numTotMisses, statistics::units::Count::get(), "stat"),
+    ADD_STAT(numColdMisses, statistics::units::Count::get(), "stat"),
+    ADD_STAT(numHotMisses, statistics::units::Count::get(), "stat"),
+    ADD_STAT(numRdMissClean, statistics::units::Count::get(), "stat"),
+    ADD_STAT(numRdMissDirty, statistics::units::Count::get(), "stat"),
+    ADD_STAT(numRdHit, statistics::units::Count::get(), "stat"),
+    ADD_STAT(numWrMissClean, statistics::units::Count::get(), "stat"),
+    ADD_STAT(numWrMissDirty, statistics::units::Count::get(), "stat"),
+    ADD_STAT(numWrHit, statistics::units::Count::get(), "stat"),
+    ADD_STAT(numRdHitDirty, statistics::units::Count::get(), "stat"),
+    ADD_STAT(numRdHitClean, statistics::units::Count::get(), "stat"),
+    ADD_STAT(numWrHitDirty, statistics::units::Count::get(), "stat"),
+    ADD_STAT(numWrHitClean, statistics::units::Count::get(), "stat")
 
 {
 }
@@ -2571,6 +2588,25 @@ PolicyManager::PolicyManagerStats::regStats()
     // Formula stats
     avgRdBWSys = (bytesReadSys) / simSeconds;
     avgWrBWSys = (bytesWrittenSys) / simSeconds;
+
+    avgPktLifeTime = (totPktLifeTime) / (readReqs + writeReqs);
+    avgPktLifeTimeRd = (totPktLifeTimeRd) / (numRdHit + numRdMissClean + numRdMissDirty);
+    avgPktLifeTimeWr = (totPktLifeTimeWr) / (numWrHit + numWrMissClean + numWrMissDirty);
+    avgPktORBTime = (totPktORBTime) / (readReqs + writeReqs);
+    avgPktORBTimeRd = (totPktORBTimeRd) / (numRdHit + numRdMissClean + numRdMissDirty);
+    avgPktORBTimeWr = (totPktORBTimeWr) / (numWrHit + numWrMissClean + numWrMissDirty);
+    avgPktRespTime = (totPktRespTime) / (readReqs + writeReqs);
+    avgPktRespTimeRd = (totPktRespTimeRd) / (numRdHit + numRdMissClean + numRdMissDirty);
+    avgPktRespTimeWr = (totPktRespTimeWr) / (numWrHit + numWrMissClean + numWrMissDirty);
+    avgTimeTagCheckRes = (totTimeTagCheckRes) / (readReqs + writeReqs);
+    avgTimeTagCheckResRd = (totTimeTagCheckResRd) / (numRdHit + numRdMissClean + numRdMissDirty);
+    avgTimeTagCheckResWr = (totTimeTagCheckResWr) / (numWrHit + numWrMissClean + numWrMissDirty);
+    avgTimeInLocRead = (totTimeInLocRead) / (numRdHit);
+    avgTimeInLocWrite = (totTimeInLocWrite) / (numRdMissClean + numRdMissDirty);
+    avgTimeInFarRead = (totTimeInFarRead) / (numRdMissClean + numRdMissDirty);
+    avgTimeFarRdtoSend = (totTimeFarRdtoSend) / (sentFarRdPort);
+    avgTimeFarRdtoRecv = (totTimeFarRdtoRecv) / (sentFarRdPort);
+    avgTimeFarWrtoSend = (totTimeFarWrtoSend) / (sentFarWrPort);
 
     avgGap = totGap / (readReqs + writeReqs);
 
