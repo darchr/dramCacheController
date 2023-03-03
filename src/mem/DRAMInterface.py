@@ -39,7 +39,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from m5.objects.MemCtrl import MemCtrl
-from m5.objects.PolicyManager import PolicyManager
+# from m5.objects.PolicyManager import PolicyManager
 from m5.objects.MemInterface import *
 
 # Enum for the page policy, either open, open_adaptive, close, or
@@ -52,9 +52,9 @@ class DRAMInterface(MemInterface):
     cxx_header = "mem/dram_interface.hh"
     cxx_class = 'gem5::memory::DRAMInterface'
 
-    pol_man = Param.PolicyManager("Policy Manager which is used just in HBM2_Rambus "
-                                  "for sending dirty data from flush buffer to the "
-                                  "controller during refresh")
+    # pol_man = Param.PolicyManager("Policy Manager which is used just in HBM2_Rambus "
+    #                               "for sending dirty data from flush buffer to the "
+    #                               "controller during refresh")
     enable_read_flush_buffer = Param.Bool(False, "Enable reading from flush buffer "
                                                  "during refresh, only for HBM2_Rambus")
 

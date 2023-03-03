@@ -39,6 +39,9 @@ namespace gem5
 
 namespace memory
 {
+
+// class DRAMInterface;
+
 class PolicyManager : public AbstractMemory
 {
   protected:
@@ -112,6 +115,9 @@ class PolicyManager : public AbstractMemory
      * The rowsPerBank is determined based on the capacity, number of
      * ranks and banks, the burst size, and the row buffer size.
      */
+
+    // MemInterface* locMem;
+    AbstractMemory* locMem;
 
     unsigned long long dramCacheSize;
     unsigned blockSize;
@@ -383,7 +389,10 @@ class PolicyManager : public AbstractMemory
       statistics::Scalar writeReqs;
 
       statistics::Scalar servicedByWrQ;
+      statistics::Scalar servicedByFB;
       statistics::Scalar mergedWrBursts;
+      statistics::Scalar mergedWrPolManWB;
+      statistics::Scalar mergedWrLocMemFB;
 
       statistics::Scalar numRdRetry;
       statistics::Scalar numWrRetry;
@@ -508,7 +517,7 @@ class PolicyManager : public AbstractMemory
     void serialize(CheckpointOut &cp) const override;
     void unserialize(CheckpointIn &cp) override;
 
-    bool recvReadFlushBuffer(Addr addr);
+    bool recvReadFlushBuffer(Addr addr) override;
 
     protected:
 

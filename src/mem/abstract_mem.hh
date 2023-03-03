@@ -218,6 +218,23 @@ class AbstractMemory : public ClockedObject
 
     void initState() override;
 
+    virtual bool recvReadFlushBuffer(Addr addr)
+    {
+        panic("AbstractMemory recvReadFlushBuffer should not be executed from here.\n");
+        return false;
+    }
+
+    virtual void setPolicyManager(AbstractMemory* _polMan)
+    {
+        panic("AbstractMemory setPolicyManager should not be executed from here.\n");
+    }
+
+    virtual bool checkFwdMrgeInFB(Addr addr)
+    {
+        panic("AbstractMemory checkFwdMrgeInFB should not be executed from here.\n");
+        return false;
+    }
+
     /**
      * See if this is a null memory that should never store data and
      * always return zero.

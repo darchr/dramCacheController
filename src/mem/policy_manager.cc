@@ -4,6 +4,7 @@
 #include "debug/FBTrace.hh"
 #include "debug/PolicyManager.hh"
 #include "debug/Drain.hh"
+#include "mem/dram_interface.hh"
 #include "sim/sim_exit.hh"
 #include "sim/system.hh"
 
@@ -21,6 +22,7 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     locBurstSize(p.loc_burst_size),
     farBurstSize(p.far_burst_size),
     locMemPolicy(p.loc_mem_policy),
+    locMem(p.loc_mem),
     dramCacheSize(p.dram_cache_size),
     blockSize(p.block_size),
     addrSize(p.addr_size),
@@ -48,6 +50,8 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     polManStats(*this)
 {
     panic_if(orbMaxSize<8, "ORB maximum size must be at least 8.\n");
+
+    locMem->setPolicyManager(this);
 
     tagMetadataStore.resize(dramCacheSize/blockSize);
 
@@ -181,12 +185,29 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
 
         bool merged = isInWriteQueue.find((addr & ~(Addr(locBurstSize - 1)))) !=
             isInWriteQueue.end();
+        
+        bool mergedInLocMemFB = locMem->checkFwdMrgeInFB(pkt->getAddr());
+
+        assert(!(mergedInLocMemFB && merged));
 
         if (merged) {
 
             polManStats.mergedWrBursts++;
+            polManStats.mergedWrPolManWB++;
 
-            DPRINTF(FBTrace, "merged: %lld\n", pkt->getAddr());
+            DPRINTF(FBTrace, "merged in policy manager write back buffer: %lld\n", pkt->getAddr());
+
+            // farMemCtrl->accessInterface(pkt);
+
+            // sendRespondToRequestor(pkt, frontendLatency);
+
+            // return true;
+        } else if (mergedInLocMemFB) {
+
+            polManStats.mergedWrBursts++;
+            polManStats.mergedWrLocMemFB++;
+
+            DPRINTF(FBTrace, "merged in DRAM cache flush buffer: %lld\n", pkt->getAddr());
 
             // farMemCtrl->accessInterface(pkt);
 
@@ -194,12 +215,14 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
 
             // return true;
         }
+
     }
 
     // check forwarding for reads
     bool foundInORB = false;
     bool foundInCRB = false;
     bool foundInFarMemWrite = false;
+    bool foundInLocMemFB = false;
 
     if (pkt->isRead()) {
 
@@ -270,7 +293,15 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
             }
         }
 
-        if (foundInORB || foundInCRB || foundInFarMemWrite) {
+        if (locMem->checkFwdMrgeInFB(pkt->getAddr())) {
+            foundInLocMemFB = true;
+
+            polManStats.servicedByFB++;
+
+            polManStats.bytesReadWrQ += burst_size;
+        }
+
+        if (foundInORB || foundInCRB || foundInFarMemWrite || foundInLocMemFB) {
             DPRINTF(FBTrace, "FW: %lld\n", pkt->getAddr());
             
         //     polManStats.readPktSize[ceilLog2(size)]++;
@@ -2365,8 +2396,14 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
 
     ADD_STAT(servicedByWrQ, statistics::units::Count::get(),
              "Number of controller read bursts serviced by the write queue"),
+    ADD_STAT(servicedByFB, statistics::units::Count::get(),
+             "Number of controller read bursts serviced by the flush buffer"),
     ADD_STAT(mergedWrBursts, statistics::units::Count::get(),
              "Number of controller write bursts merged with an existing one"),
+    ADD_STAT(mergedWrPolManWB, statistics::units::Count::get(),
+                 "Number of controller write bursts merged with an existing one in write back buffer"),
+    ADD_STAT(mergedWrLocMemFB, statistics::units::Count::get(),
+             "Number of controller write bursts merged with an existing one in flush buffer"),
 
     ADD_STAT(numRdRetry, statistics::units::Count::get(),
              "Number of times read queue was full causing retry"),

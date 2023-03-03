@@ -2,6 +2,7 @@ from m5.params import *
 from m5.proxy import *
 from m5.SimObject import SimObject
 from m5.objects.AbstractMemory import AbstractMemory
+from m5.objects.DRAMInterface import *
 
 class Policy(Enum): vals = ['CascadeLakeNoPartWrs', 'Oracle', 'BearWriteOpt', 'Rambus']
 
@@ -19,6 +20,8 @@ class PolicyManager(AbstractMemory):
 
     loc_mem_policy = Param.Policy('CascadeLakeNoPartWrs', "DRAM Cache Policy")
 
+    loc_mem = Param.AbstractMemory("local memory device")
+    
     dram_cache_size = Param.MemorySize('128MiB', "DRAM cache block size in bytes")
     block_size = Param.Unsigned(64, "DRAM cache block size in bytes")
     addr_size = Param.Unsigned(64,"Addr size of the request from outside world")

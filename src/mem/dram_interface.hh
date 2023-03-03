@@ -48,7 +48,7 @@
 
 #include "mem/drampower.hh"
 #include "mem/mem_interface.hh"
-#include "mem/policy_manager.hh"
+// #include "mem/policy_manager.hh"
 #include "params/DRAMInterface.hh"
 #include "params/DRAMAlloyInterface.hh"
 
@@ -595,6 +595,7 @@ class DRAMInterface : public MemInterface
         statistics::Scalar totNumberRefreshEvent;
         statistics::Scalar totReadFBDuringRefresh;
         statistics::Scalar totReadFBByRdMC;
+        statistics::Scalar totStallToFlushFB;
         statistics::Scalar totPktsPushedFB;
         statistics::Scalar maxFBLenEnq;
 
@@ -670,7 +671,12 @@ class DRAMInterface : public MemInterface
 
   public:
 
-    PolicyManager* polMan;
+    // PolicyManager* polMan;
+    AbstractMemory* polMan;
+
+    // void setPolicyManager(PolicyManager* _polMan) override;
+    void setPolicyManager(AbstractMemory* _polMan) override;
+    
 
     void processReadFlushBufferEvent();
     EventFunctionWrapper readFlushBufferEvent;
@@ -679,7 +685,9 @@ class DRAMInterface : public MemInterface
     unsigned readFlushBufferCount;
     bool enableReadFlushBuffer;
 
-    typedef std::pair<unsigned, Addr> dataTagPair;
+    bool checkFwdMrgeInFB(Addr addr) override;
+
+    typedef std::pair<int, Addr> dataTagPair;
     std::deque<dataTagPair> flushBuffer;
 
     /**

@@ -500,6 +500,22 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
                 // THE ARGUMENTS MUST BE MODIFIED
                 flushBuffer.push_back(std::make_pair(-1,mem_pkt->pkt->dirtyLineAddr));
 
+                if (flushBuffer.size() >= (banksPerRank * 0.8) && !readFlushBufferEvent.scheduled()) {
+                    // Flush the flushBuffer and send some dirty data
+                    // to the controller.
+                    
+                    assert(endOfReadFlushBuffPeriod == 0);
+                    assert(readFlushBufferCount == 0);
+
+                    mem_pkt->readyTime += tRCD_RD + tRL + (flushBuffer.size() * tBURST);
+
+                    endOfReadFlushBuffPeriod = cmd_at + tRTW_int + tWL + tRCD_RD + tRL + (flushBuffer.size() * tBURST);
+
+                    schedule(readFlushBufferEvent, cmd_at + tRTW_int + tWL + tRCD_RD + tRL + tBURST);
+
+                    stats.totStallToFlushFB++;
+                }
+
                 stats.totPktsPushedFB++;
 
                 DPRINTF(MemCtrl, "DRAM: Wr M D to FB: %d\n", mem_pkt->addr);
@@ -776,7 +792,7 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
       timeStampOffset(0), activeRank(0),
       enableDRAMPowerdown(_p.enable_dram_powerdown),
       lastStatsResetTick(0),
-      polMan(_p.pol_man),
+      // polMan(_p.pol_man),
       readFlushBufferEvent([this] {processReadFlushBufferEvent();}, name()),
       endOfReadFlushBuffPeriod(0),
       readFlushBufferCount(0),
@@ -1053,6 +1069,12 @@ void DRAMInterface::setupRank(const uint8_t rank, const bool is_read)
 }
 
 void
+DRAMInterface::setPolicyManager(AbstractMemory* _polMan)
+{
+    polMan = _polMan;
+}
+
+void
 DRAMInterface::processReadFlushBufferEvent()
 {
     assert(endOfReadFlushBuffPeriod >= curTick());
@@ -1084,6 +1106,18 @@ DRAMInterface::processReadFlushBufferEvent()
         readFlushBufferCount = 0;
         return;
     }
+}
+
+bool
+DRAMInterface::checkFwdMrgeInFB(Addr addr)
+{
+    for (int i=0; i < flushBuffer.size(); i++) {
+        if (flushBuffer.at(i).second == addr) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void
@@ -1564,7 +1598,7 @@ DRAMInterface::Rank::processRefreshEvent()
     // last but not least we perform the actual refresh
     if (refreshState == REF_START) {
         dram.stats.totNumberRefreshEvent++;
-        if (dram.enableReadFlushBuffer) {
+        if (dram.enableReadFlushBuffer && !dram.readFlushBufferEvent.scheduled()) {
             // Time to be proactive and send some dirty data
             // from flushBuffer to the controller.
             assert(dram.endOfReadFlushBuffPeriod == 0);
@@ -2044,6 +2078,8 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
              "Total number of reads from flush buffer during refresh events"),
     ADD_STAT(totReadFBByRdMC, statistics::units::Count::get(),
              "Total number of reads from flush buffer during Read Miss Clean"),
+    ADD_STAT(totStallToFlushFB, statistics::units::Count::get(),
+             "Total number of reads from flush buffer during Read Miss Clean"),
     ADD_STAT(totPktsPushedFB, statistics::units::Count::get(),
              "Total number of packets pushed into flush buffer"),
     ADD_STAT(maxFBLenEnq, statistics::units::Count::get(),
@@ -2164,7 +2200,7 @@ DRAMInterface::DRAMStats::regStats()
     pageHitRate = (writeRowHits + readRowHits) /
         (writeBursts + readBursts) * 100;
     
-    hitMissBusUtil = (tagResBursts * dram.tCK * 0.000000001 + tagBursts * dram.tTAGBURST * 0.000000001) / simSeconds;
+    hitMissBusUtil = (((tagResBursts * dram.tCK) + (tagBursts * dram.tTAGBURST)) * 0.000000000001) / simSeconds * 100;
 }
 
 DRAMInterface::RankStats::RankStats(DRAMInterface &_dram, Rank &_rank)
