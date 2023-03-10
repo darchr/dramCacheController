@@ -564,6 +564,16 @@ class MemCtrl : public qos::MemCtrl
     const Tick backendLatency;
 
     /**
+     * Pipeline latency of the controller frontend for tag Check (TC).
+     */
+    const Tick frontendLatencyTC;
+
+    /**
+     * Pipeline latency of the backend and PHY for tag Check (TC).
+     */
+    const Tick backendLatencyTC;
+
+    /**
      * Length of a command window, used to check
      * command bandwidth
      */

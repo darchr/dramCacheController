@@ -451,7 +451,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
                     mem_pkt->pkt->hasDirtyData = true;
 
                     assert(mem_pkt->pkt->dirtyLineAddr == -1);
-                    mem_pkt->pkt->dirtyLineAddr = flushBuffer.front().second;
+                    mem_pkt->pkt->dirtyLineAddr = flushBuffer.front();
 
                     flushBuffer.pop_front();
 
@@ -497,35 +497,39 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             mem_pkt->readyTime = cmd_at + tRTW_int + tWL + tBURST;
             
             if (!mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
-                // THE ARGUMENTS MUST BE MODIFIED
-                flushBuffer.push_back(std::make_pair(-1,mem_pkt->pkt->dirtyLineAddr));
 
-                if (flushBuffer.size() >= (banksPerRank * 0.8) && !readFlushBufferEvent.scheduled()) {
+                Tick pushBackFBTick = cmd_at + tCCD_L;
+
+                if (tempFlushBuffer.empty()) {
+                    assert(!addToFlushBufferEvent.scheduled());
+                    schedule(addToFlushBufferEvent, pushBackFBTick);
+                } else {
+                    assert(tempFlushBuffer.back().first <= pushBackFBTick);
+                    assert(addToFlushBufferEvent.scheduled());
+                }
+
+                tempFlushBuffer.push_back(std::make_pair(pushBackFBTick, mem_pkt->pkt->dirtyLineAddr));
+
+                if ((tempFlushBuffer.size() + flushBuffer.size()) >= (banksPerRank * flushBufferHighThreshold) && !readFlushBufferEvent.scheduled()) {
+                    
                     // Flush the flushBuffer and send some dirty data
                     // to the controller.
-                    
+
                     assert(endOfReadFlushBuffPeriod == 0);
+
                     assert(readFlushBufferCount == 0);
 
-                    mem_pkt->readyTime += tRCD_RD + tRL + (flushBuffer.size() * tBURST);
+                    Tick stall_delay = ((tempFlushBuffer.size() + flushBuffer.size()) * tBURST);
 
-                    endOfReadFlushBuffPeriod = cmd_at + tRTW_int + tWL + tRCD_RD + tRL + (flushBuffer.size() * tBURST);
+                    mem_pkt->readyTime += stall_delay;
 
-                    schedule(readFlushBufferEvent, cmd_at + tRTW_int + tWL + tRCD_RD + tRL + tBURST);
+                    endOfReadFlushBuffPeriod = cmd_at + tRTW_int + tWL + stall_delay;
+
+                    schedule(readFlushBufferEvent, cmd_at + tRTW_int + tWL + tBURST);
 
                     stats.totStallToFlushFB++;
                 }
 
-                stats.totPktsPushedFB++;
-
-                DPRINTF(MemCtrl, "DRAM: Wr M D to FB: %d\n", mem_pkt->addr);
-
-                stats.avgFBLenEnq = flushBuffer.size();
-                
-                if (flushBuffer.size() > maxFBLen) {
-                    maxFBLen = flushBuffer.size();
-                    stats.maxFBLenEnq = flushBuffer.size();
-                }
             }
 
             // stats
@@ -779,6 +783,7 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
       tPPD(_p.tPPD), tAAD(_p.tAAD),
       tXAW(_p.tXAW), tXP(_p.tXP), tXS(_p.tXS),
       tTAGBURST(_p.tTAGBURST), tRLFAST(_p.tRLFAST), tHM2DQ(_p.tHM2DQ), tRFB(_p.tRFB), tWFB(_p.tWFB), tRTW_int(_p.tRTW_int),
+      flushBufferHighThreshold(_p.flushBuffer_high_thresh_perc / 100.0),
       clkResyncDelay(_p.tBURST_MAX),
       dataClockSync(_p.data_clock_sync),
       burstInterleave(tBURST != tBURST_MIN),
@@ -794,6 +799,7 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
       lastStatsResetTick(0),
       // polMan(_p.pol_man),
       readFlushBufferEvent([this] {processReadFlushBufferEvent();}, name()),
+      addToFlushBufferEvent([this] {processAddToFlushBufferEvent();}, name()),
       endOfReadFlushBuffPeriod(0),
       readFlushBufferCount(0),
       enableReadFlushBuffer(_p.enable_read_flush_buffer),
@@ -1078,11 +1084,14 @@ void
 DRAMInterface::processReadFlushBufferEvent()
 {
     assert(endOfReadFlushBuffPeriod >= curTick());
+    assert(!flushBuffer.empty());
+    assert(flushBuffer.front() != -1);
 
-    if (polMan->recvReadFlushBuffer(flushBuffer.front().second)) {
+
+    if (polMan->recvReadFlushBuffer(flushBuffer.front())) {
         readFlushBufferCount++;
         flushBuffer.pop_front();
-        stats.totReadFBDuringRefresh++;
+        stats.totReadFBSent++;
 
         Tick nextBurstFB = curTick() + tBURST;
 
@@ -1092,27 +1101,65 @@ DRAMInterface::processReadFlushBufferEvent()
         } else {
             // Either the time is beyond the tRFC or flushBuffer is empty.
             // Reset control params
-            stats.avgReadFBPerRefresh = readFlushBufferCount;
+            stats.avgReadFBPerEvent = readFlushBufferCount;
             endOfReadFlushBuffPeriod = 0;
             readFlushBufferCount = 0;
             return;
         }
     } else {
         // Policy manager has no empty entry available in its write back buffer.
+        stats.totReadFBFailed++;
         // End of readFlushBuffer round.
         // Reset control params
-        stats.avgReadFBPerRefresh = readFlushBufferCount;
+        stats.avgReadFBPerEvent = readFlushBufferCount;
         endOfReadFlushBuffPeriod = 0;
         readFlushBufferCount = 0;
         return;
     }
 }
 
+void
+DRAMInterface::processAddToFlushBufferEvent()
+{
+    assert(!tempFlushBuffer.empty());
+    assert(tempFlushBuffer.front().first == curTick());
+
+    flushBuffer.push_back(tempFlushBuffer.front().second);
+
+    DPRINTF(MemCtrl, "DRAM: Wr M D to FB: %d\n", tempFlushBuffer.front().second);
+
+    tempFlushBuffer.pop_front();
+
+    stats.totPktsPushedFB++;
+
+    stats.avgFBLenEnq = flushBuffer.size();
+
+    // std::cout << curTick() << ": b: " << flushBuffer.size() << "\n";
+
+    if (flushBuffer.size() > maxFBLen) {
+        maxFBLen = flushBuffer.size();
+        stats.maxFBLenEnq = flushBuffer.size();
+    }
+
+    if (!tempFlushBuffer.empty()) {
+        assert(tempFlushBuffer.front().first >= curTick());
+        assert(!addToFlushBufferEvent.scheduled());
+        schedule(addToFlushBufferEvent, tempFlushBuffer.front().first);
+    }
+
+}
+
 bool
 DRAMInterface::checkFwdMrgeInFB(Addr addr)
 {
     for (int i=0; i < flushBuffer.size(); i++) {
-        if (flushBuffer.at(i).second == addr) {
+        if (flushBuffer.at(i) == addr) {
+            return true;
+        }
+    }
+
+    for (int i=0; i < tempFlushBuffer.size(); i++) {
+        if (tempFlushBuffer.at(i).second == addr) {
             return true;
         }
     }
@@ -1603,11 +1650,11 @@ DRAMInterface::Rank::processRefreshEvent()
             // from flushBuffer to the controller.
             assert(dram.endOfReadFlushBuffPeriod == 0);
             assert(dram.readFlushBufferCount == 0);
-            assert(!dram.readFlushBufferEvent.scheduled());
 
             if (!dram.flushBuffer.empty()) {
                 dram.endOfReadFlushBuffPeriod = curTick() + dram.tRFC;
-                schedule(dram.readFlushBufferEvent, curTick() + dram.tRCD_RD + dram.tRL + dram.tBURST);
+                schedule(dram.readFlushBufferEvent, curTick() + dram.tBURST);
+                // std::cout <<  curTick() << ": SchedRef: " << dram.readFlushBufferEvent.when() << "\n";
             }
         }
 
@@ -2069,13 +2116,15 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
     ADD_STAT(avgFBLenEnq, statistics::units::Rate<
                 statistics::units::Count, statistics::units::Tick>::get(),
              "Average flush buffer length when enqueuing"),
-    ADD_STAT(avgReadFBPerRefresh, statistics::units::Rate<
+    ADD_STAT(avgReadFBPerEvent, statistics::units::Rate<
                 statistics::units::Count, statistics::units::Tick>::get(),
-             "Average number of reads from flush buffer per refresh events"),
+             "Average number of reads from flush buffer per event"),
     ADD_STAT(totNumberRefreshEvent, statistics::units::Count::get(),
              "Total number of refresh events"),
-    ADD_STAT(totReadFBDuringRefresh, statistics::units::Count::get(),
-             "Total number of reads from flush buffer during refresh events"),
+    ADD_STAT(totReadFBSent, statistics::units::Count::get(),
+             "Total number of reads from flush buffer per event"),
+    ADD_STAT(totReadFBFailed, statistics::units::Count::get(),
+             "Total number of reads from flush buffer failed to be received by policy manager (write back buffer full)"),
     ADD_STAT(totReadFBByRdMC, statistics::units::Count::get(),
              "Total number of reads from flush buffer during Read Miss Clean"),
     ADD_STAT(totStallToFlushFB, statistics::units::Count::get(),

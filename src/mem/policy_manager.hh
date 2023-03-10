@@ -126,6 +126,7 @@ class PolicyManager : public AbstractMemory
     unsigned orbSize;
     unsigned crbMaxSize;
     unsigned crbSize;
+    bool extreme;
     bool alwaysHit;
     bool alwaysDirty;
 
@@ -150,7 +151,6 @@ class PolicyManager : public AbstractMemory
     unsigned numColdMisses;
     float cacheWarmupRatio;
     bool resetStatsWarmup;
-    bool ignore;
 
     Tick prevArrival;
 

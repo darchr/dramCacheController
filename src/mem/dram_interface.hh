@@ -516,6 +516,7 @@ class DRAMInterface : public MemInterface
     const Tick tRFB;
     const Tick tWFB;
     const Tick tRTW_int;
+    float flushBufferHighThreshold;
     const Tick clkResyncDelay;
     const bool dataClockSync;
     const bool burstInterleave;
@@ -591,9 +592,10 @@ class DRAMInterface : public MemInterface
         statistics::Scalar tagBursts;
 
         statistics::Average avgFBLenEnq;
-        statistics::Average avgReadFBPerRefresh;
+        statistics::Average avgReadFBPerEvent;
         statistics::Scalar totNumberRefreshEvent;
-        statistics::Scalar totReadFBDuringRefresh;
+        statistics::Scalar totReadFBSent;
+        statistics::Scalar totReadFBFailed;
         statistics::Scalar totReadFBByRdMC;
         statistics::Scalar totStallToFlushFB;
         statistics::Scalar totPktsPushedFB;
@@ -671,7 +673,6 @@ class DRAMInterface : public MemInterface
 
   public:
 
-    // PolicyManager* polMan;
     AbstractMemory* polMan;
 
     // void setPolicyManager(PolicyManager* _polMan) override;
@@ -681,14 +682,20 @@ class DRAMInterface : public MemInterface
     void processReadFlushBufferEvent();
     EventFunctionWrapper readFlushBufferEvent;
 
+    void processAddToFlushBufferEvent();
+    EventFunctionWrapper addToFlushBufferEvent;
+
     Tick endOfReadFlushBuffPeriod;
     unsigned readFlushBufferCount;
     bool enableReadFlushBuffer;
 
     bool checkFwdMrgeInFB(Addr addr) override;
 
-    typedef std::pair<int, Addr> dataTagPair;
-    std::deque<dataTagPair> flushBuffer;
+    std::deque<Addr> flushBuffer;
+
+    typedef std::pair<Tick, Addr> tempFBEntry;
+
+    std::deque<tempFBEntry> tempFlushBuffer;
 
     /**
      * Initialize the DRAM interface and verify parameters

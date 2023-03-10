@@ -20,6 +20,12 @@ args.add_argument(
 )
 
 args.add_argument(
+    "extreme",
+    type=int,
+    help="extreme",
+)
+
+args.add_argument(
     "hit_miss",
     type=int,
     help="hit_miss",
@@ -46,31 +52,38 @@ system.mem_ctrl.tRP = '14ns'
 system.mem_ctrl.tRCD_RD = '12ns'
 system.mem_ctrl.tRL = '18ns'
 system.mem_ctrl.loc_mem_policy = 'Rambus'
+system.mem_ctrl.static_frontend_latency = "10ns"
+system.mem_ctrl.static_backend_latency = "10ns"
 
 system.loc_mem_ctrl = MemCtrl()
 system.loc_mem_ctrl.dram = HBM_2000_4H_1x64_Rambus(range=AddrRange('1GiB'), in_addr_map=False, null=True)
 
 system.mem_ctrl.loc_mem = system.loc_mem_ctrl.dram
-system.loc_mem_ctrl.dram.enable_read_flush_buffer = True
 
+system.loc_mem_ctrl.dram.enable_read_flush_buffer = True
 system.loc_mem_ctrl.dram.device_rowbuffer_size = "512B"
 system.loc_mem_ctrl.dram.banks_per_rank = 32
 system.loc_mem_ctrl.dram.bank_groups_per_rank = 8
 system.loc_mem_ctrl.dram.page_policy = 'close'
-
 system.loc_mem_ctrl.dram.burst_length = 8
 system.loc_mem_ctrl.dram.tCCD_L = "4ns"
 system.loc_mem_ctrl.dram.tBURST = "4ns"
+system.loc_mem_ctrl.dram.flushBuffer_high_thresh_perc = '70'
+
+system.loc_mem_ctrl.static_frontend_latency = "2ns"
+system.loc_mem_ctrl.static_backend_latency = "2ns"
+system.loc_mem_ctrl.static_frontend_latency_tc = "1ns"
+system.loc_mem_ctrl.static_backend_latency_tc = "1ns"
 
 system.far_mem_ctrl = MemCtrl()
 system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=False, null=True)
+system.far_mem_ctrl.static_frontend_latency = "2ns"
+system.far_mem_ctrl.static_backend_latency = "2ns"
 
-# system.far_mem_ctrl.dram.pol_man = PolicyManager(in_addr_map=False, kvm_map=False)
-# system.far_mem_ctrl.dram.pol_man.loc_mem = system.far_mem_ctrl.dram
-# system.far_mem_ctrl.dram.pol_man.ignore = True
-# system.far_mem_ctrl.dram.pol_man.tRP = '14ns'
-# system.far_mem_ctrl.dram.pol_man.tRCD_RD = '12ns'
-# system.far_mem_ctrl.dram.pol_man.tRL = '18ns'
+if options.extreme == 1:
+    system.mem_ctrl.extreme = True
+else :
+    system.mem_ctrl.extreme = False
 
 if options.hit_miss == 1:
     system.mem_ctrl.always_hit = True

@@ -28,6 +28,7 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     addrSize(p.addr_size),
     orbMaxSize(p.orb_max_size), orbSize(0),
     crbMaxSize(p.crb_max_size), crbSize(0),
+    extreme(p.extreme),
     alwaysHit(p.always_hit), alwaysDirty(p.always_dirty),
     frontendLatency(p.static_frontend_latency),
     backendLatency(p.static_backend_latency),
@@ -37,7 +38,6 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     numColdMisses(0),
     cacheWarmupRatio(p.cache_warmup_ratio),
     resetStatsWarmup(false),
-    ignore(p.ignore),
     retryLLC(false), retryLLCFarMemWr(false),
     retryTagCheck(false), retryLocMemRead(false), retryFarMemRead(false),
     retryLocMemWrite(false), retryFarMemWrite(false),
@@ -132,13 +132,13 @@ PolicyManager::findInORB(Addr addr)
 void
 PolicyManager::init()
 {
-   if (!port.isConnected() && !ignore) {
+   if (!port.isConnected()) {
         fatal("Policy Manager %s is unconnected!\n", name());
-    } else if (!locReqPort.isConnected() && !ignore) {
+    } else if (!locReqPort.isConnected()) {
         fatal("Policy Manager %s is unconnected!\n", name());
-    } else if (!farReqPort.isConnected() && !ignore) {
+    } else if (!farReqPort.isConnected()) {
         fatal("Policy Manager %s is unconnected!\n", name());
-    } else if(!ignore) {
+    } else {
         port.sendRangeChange();
         //reqPort.recvRangeChange();
     }
@@ -1969,9 +1969,11 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
     bool currValid = tagMetadataStore.at(orbEntry->indexDC).validLine;
     bool currDirty = tagMetadataStore.at(orbEntry->indexDC).dirtyLine;
 
-    orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
-
-    // orbEntry->isHit = alwaysHit;
+    if (extreme) {
+        orbEntry->isHit = alwaysHit;
+    } else {
+        orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
+    }
 
     if (orbEntry->isHit) {
 
@@ -2026,10 +2028,11 @@ bool
 PolicyManager::checkDirty(Addr addr)
 {
     Addr index = returnIndexDC(addr, blockSize);
-    return (tagMetadataStore.at(index).validLine &&
-            tagMetadataStore.at(index).dirtyLine);
-
-    // return alwaysDirty;
+    if (extreme) {
+        return alwaysDirty;
+    } else {
+        return (tagMetadataStore.at(index).validLine && tagMetadataStore.at(index).dirtyLine);
+    }
 }
 
 void

@@ -163,6 +163,8 @@ class MyRubySystem(System):
 
         self.mem_ctrl = PolicyManager(range=self.mem_ranges[0], kvm_map=False)
         self.mem_ctrl.loc_mem_policy = 'Rambus'
+        self.mem_ctrl.static_frontend_latency = "10ns"
+        self.mem_ctrl.static_backend_latency = "10ns"
 
         # FOR DDR4
         # self.mem_ctrl.tRP = '14.16ns'
@@ -177,14 +179,9 @@ class MyRubySystem(System):
         # Rambus HBM2 cache
         self.loc_mem_ctrl = MemCtrl()
         self.loc_mem_ctrl.dram = HBM_2000_4H_1x64_Rambus(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
-        self.loc_mem_ctrl.dram.pol_man = self.mem_ctrl
+        self.mem_ctrl.loc_mem = self.loc_mem_ctrl.dram
+
         self.loc_mem_ctrl.dram.enable_read_flush_buffer = True
-        # self.loc_mem_ctrl.oldest_write_age_threshold = 5000
-        # self.loc_mem_ctrl.min_reads_per_switch = 32
-        # self.loc_mem_ctrl.min_writes_per_switch = 32
-        # self.loc_mem_ctrl.mem_sched_policy = 'fcfs'
-
-
         self.loc_mem_ctrl.dram.device_rowbuffer_size = "512B"
         self.loc_mem_ctrl.dram.banks_per_rank = 32
         self.loc_mem_ctrl.dram.bank_groups_per_rank = 8
@@ -192,6 +189,11 @@ class MyRubySystem(System):
         self.loc_mem_ctrl.dram.burst_length = 8
         self.loc_mem_ctrl.dram.tCCD_L = "4ns"
         self.loc_mem_ctrl.dram.tBURST = "4ns"
+        self.loc_mem_ctrl.dram.flushBuffer_high_thresh_perc = '70'
+        self.loc_mem_ctrl.static_frontend_latency = "2ns"
+        self.loc_mem_ctrl.static_backend_latency = "2ns"
+        self.loc_mem_ctrl.static_frontend_latency_tc = "1ns"
+        self.loc_mem_ctrl.static_backend_latency_tc = "1ns"
 
         # HBM2 cache
         # self.loc_mem_ctrl = HBMCtrl()
@@ -209,11 +211,8 @@ class MyRubySystem(System):
         # main memory
         self.far_mem_ctrl = MemCtrl()
         self.far_mem_ctrl.dram = DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
-        self.far_mem_ctrl.dram.pol_man = PolicyManager(in_addr_map=False, kvm_map=False)
-        self.far_mem_ctrl.dram.pol_man.ignore = True
-        self.far_mem_ctrl.dram.pol_man.tRP = '14ns'
-        self.far_mem_ctrl.dram.pol_man.tRCD_RD = '12ns'
-        self.far_mem_ctrl.dram.pol_man.tRL = '18ns'
+        self.far_mem_ctrl.static_frontend_latency = "2ns"
+        self.far_mem_ctrl.static_backend_latency = "2ns"
 
         self.loc_mem_ctrl.port = self.mem_ctrl.loc_req_port
         self.far_mem_ctrl.port = self.mem_ctrl.far_req_port

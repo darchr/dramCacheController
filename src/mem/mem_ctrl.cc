@@ -78,6 +78,8 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     memSchedPolicy(p.mem_sched_policy),
     frontendLatency(p.static_frontend_latency),
     backendLatency(p.static_backend_latency),
+    frontendLatencyTC(p.static_frontend_latency_tc),
+    backendLatencyTC(p.static_backend_latency_tc),
     commandWindow(p.command_window),
     prevArrival(0),
     stats(*this)
@@ -649,8 +651,8 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
         Tick response_time;
         if (pkt->isTagCheck && pkt->isWrite()) {
             assert(!pkt->owIsRead);
-            // in this case static latency is TagCheckReady time actually!
-            response_time = static_latency + frontendLatency + backendLatency;
+            // Note: in this case static latency is TagCheckReady time actually!
+            response_time = static_latency + frontendLatencyTC + backendLatencyTC;
         } else {
             response_time = curTick() + static_latency + pkt->headerDelay +
                                 pkt->payloadDelay;
@@ -699,22 +701,11 @@ MemCtrl::sendTagCheckRespond(MemPacket* mem_pkt)
 
     PacketPtr tagCheckResPkt = getPacket(mem_pkt->addr, 8, MemCmd::ReadReq);
 
-    // if (mem_pkt->isRead()) {
-    //     tagCheckResPkt = getPacket(mem_pkt->addr,
-    //                                8,
-    //                                MemCmd::ReadReq);
-    // } else {
-    //     tagCheckResPkt = getPacket(mem_pkt->addr,
-    //                                8,
-    //                                MemCmd::WriteReq);
-    // }
-
     tagCheckResPkt->isTagCheck = mem_pkt->pkt->isTagCheck;
     tagCheckResPkt->owIsRead = mem_pkt->pkt->owIsRead;
     tagCheckResPkt->isHit = mem_pkt->pkt->isHit;
     tagCheckResPkt->isDirty = mem_pkt->pkt->isDirty;
     tagCheckResPkt->hasDirtyData = mem_pkt->pkt->hasDirtyData;
-    // tagCheckResPkt->tagCheckReady = mem_pkt->pkt->tagCheckReady;
     tagCheckResPkt->dirtyLineAddr = mem_pkt->pkt->dirtyLineAddr;
 
     tagCheckResPkt->makeResponse();
@@ -726,7 +717,7 @@ MemCtrl::sendTagCheckRespond(MemPacket* mem_pkt)
 
     // queue the packet in the response queue to be sent out after
     // the static latency has passed
-    port.schedTimingResp(tagCheckResPkt, mem_pkt->tagCheckReady + frontendLatency + backendLatency);
+    port.schedTimingResp(tagCheckResPkt, mem_pkt->tagCheckReady + frontendLatencyTC + backendLatencyTC);
 }
 
 void
@@ -1220,6 +1211,7 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
         if (mem_pkt->isTagCheck) {
                 DPRINTF(MemCtrl, "write times: %d, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
+                // Note: the second argument in this function call is NOT delay!
                 accessAndRespond(mem_pkt->pkt, mem_pkt->tagCheckReady, mem_intr);
         }
 

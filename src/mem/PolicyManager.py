@@ -27,6 +27,7 @@ class PolicyManager(AbstractMemory):
     addr_size = Param.Unsigned(64,"Addr size of the request from outside world")
     orb_max_size = Param.Unsigned(256, "Outstanding Requests Buffer size")
     crb_max_size = Param.Unsigned(32, "Conflicting Requests Buffer size")
+    extreme = Param.Bool(False, "Control flag for enforcing hit/miss & dirty/clean")
     always_hit = Param.Bool(True, "Control flag for enforcing hit/miss")
     always_dirty = Param.Bool(False, "Control flag for enforcing clean/dirty")
     static_frontend_latency = Param.Latency("10ns", "Static frontend latency")
@@ -37,4 +38,3 @@ class PolicyManager(AbstractMemory):
     tRL = Param.Latency("Read CAS latency")
 
     cache_warmup_ratio = Param.Float(0.7, "DRAM cache warmup ratio, after that it'll reset the stats")
-    ignore = Param.Bool(False, "for far mem pol man should be ignored")

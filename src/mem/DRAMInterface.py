@@ -184,6 +184,7 @@ class DRAMInterface(MemInterface):
     tRFB      = Param.Latency("0ns", "tRDFB")
     tWFB      = Param.Latency("0ns", "tRDFB")
     tRTW_int      = Param.Latency("0ns", "tRDFB")
+    flushBuffer_high_thresh_perc = Param.Percent(70, "Threshold to force writes")
 
     # number of data beats per clock. with DDR, default is 2, one per edge
     # used in drampower.cc
