@@ -38,3 +38,5 @@ class PolicyManager(AbstractMemory):
     tRL = Param.Latency("Read CAS latency")
 
     cache_warmup_ratio = Param.Float(0.7, "DRAM cache warmup ratio, after that it'll reset the stats")
+
+    bypass_dcache = Param.Bool(False, "if the DRAM cache needs to be bypassed")

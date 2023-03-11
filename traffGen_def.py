@@ -102,12 +102,12 @@ system.loc_mem_ctrl.port = system.mem_ctrl.loc_req_port
 system.far_mem_ctrl.port = system.mem_ctrl.far_req_port
 
 def createRandomTraffic(tgen):
-    yield tgen.createRandom(10000000000,            # duration
+    yield tgen.createRandom(20000000000,            # duration
                             0,                      # min_addr
                             AddrRange('1GiB').end,  # max_adr
                             64,                     # block_size
-                            1000,                   # min_period
-                            1000,                   # max_period
+                            4000,                   # min_period
+                            4000,                   # max_period
                             options.rd_prct,        # rd_perc
                             0)                      # data_limit
     yield tgen.createExit(0)

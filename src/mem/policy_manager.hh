@@ -129,6 +129,7 @@ class PolicyManager : public AbstractMemory
     bool extreme;
     bool alwaysHit;
     bool alwaysDirty;
+    bool bypassDcache;
 
     /**
      * Pipeline latency of the controller frontend. The frontend
