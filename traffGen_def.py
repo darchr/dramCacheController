@@ -54,6 +54,7 @@ system.mem_ctrl.tRL = '18ns'
 system.mem_ctrl.loc_mem_policy = 'Rambus'
 system.mem_ctrl.static_frontend_latency = "10ns"
 system.mem_ctrl.static_backend_latency = "10ns"
+#system.mem_ctrl.bypass_dcache = True
 
 system.loc_mem_ctrl = MemCtrl()
 system.loc_mem_ctrl.dram = HBM_2000_4H_1x64_Rambus(range=AddrRange('1GiB'), in_addr_map=False, null=True)
@@ -68,6 +69,7 @@ system.loc_mem_ctrl.dram.page_policy = 'close'
 system.loc_mem_ctrl.dram.burst_length = 8
 system.loc_mem_ctrl.dram.tCCD_L = "4ns"
 system.loc_mem_ctrl.dram.tBURST = "4ns"
+# system.loc_mem_ctrl.dram.tRCD = "6ns"
 system.loc_mem_ctrl.dram.flushBuffer_high_thresh_perc = '70'
 
 system.loc_mem_ctrl.static_frontend_latency = "2ns"
@@ -102,12 +104,12 @@ system.loc_mem_ctrl.port = system.mem_ctrl.loc_req_port
 system.far_mem_ctrl.port = system.mem_ctrl.far_req_port
 
 def createRandomTraffic(tgen):
-    yield tgen.createRandom(20000000000,            # duration
+    yield tgen.createRandom(10000000000,            # duration
                             0,                      # min_addr
                             AddrRange('1GiB').end,  # max_adr
                             64,                     # block_size
-                            4000,                   # min_period
-                            4000,                   # max_period
+                            1000,                   # min_period
+                            1000,                   # max_period
                             options.rd_prct,        # rd_perc
                             0)                      # data_limit
     yield tgen.createExit(0)

@@ -392,7 +392,8 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     }
 
     // respect any constraints on the command (e.g. tRCD or tCCD)
-    const Tick col_allowed_at = mem_pkt->isTagCheck ? bank_ref.rdAllowedAt : (mem_pkt->isRead() ? bank_ref.rdAllowedAt : bank_ref.wrAllowedAt);
+    const Tick col_allowed_at = mem_pkt->isRead() ?
+                                bank_ref.rdAllowedAt : bank_ref.wrAllowedAt;
 
     // we need to wait until the bus is available before we can issue
     // the command; need to ensure minimum bus delay requirement is met
@@ -1091,6 +1092,7 @@ DRAMInterface::processReadFlushBufferEvent()
         readFlushBufferCount++;
         flushBuffer.pop_front();
         stats.totReadFBSent++;
+        stats.readBursts++;
 
         Tick nextBurstFB = curTick() + tBURST;
 
