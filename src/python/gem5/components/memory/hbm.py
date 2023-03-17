@@ -34,7 +34,7 @@ from ...utils.override import overrides
 from m5.objects import AddrRange, DRAMInterface, HBMCtrl, Port
 from typing import Type, Optional, Union, Sequence, Tuple
 from .memory import _try_convert
-from .dram_interfaces.hbm import HBM_2000_4H_1x64
+from .dram_interfaces.hbm import HBM_1000_4H_1x64
 
 
 class HighBandwidthMemory(ChanneledMemory):

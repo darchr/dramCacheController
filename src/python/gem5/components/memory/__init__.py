@@ -34,3 +34,4 @@ from .multi_channel import DualChannelDDR3_2133
 from .multi_channel import DualChannelDDR4_2400
 from .multi_channel import HBM2Stack
 from .multi_channel import DualChannelLPDDR3_1600
+from .dcache import BaseDCache
