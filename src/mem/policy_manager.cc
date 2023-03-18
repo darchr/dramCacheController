@@ -499,8 +499,8 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
     if (pkt->isRead()) {
         assert(orbEntry->state == waitingLocMemReadResp);
 
-        if (orbEntry->handleDirtyLine && 
-            (orbEntry->pol == enums::CascadeLakeNoPartWrs || 
+        if (orbEntry->handleDirtyLine &&
+            (orbEntry->pol == enums::CascadeLakeNoPartWrs ||
             orbEntry->pol == enums::RambusHypo ||
             orbEntry->pol ==  enums::BearWriteOpt)
         ) {
@@ -536,7 +536,7 @@ PolicyManager::farMemRecvTimingResp(PacketPtr pkt)
         port.schedTimingResp(pkt, curTick());
         return true;
     }
-    
+
     DPRINTF(PolicyManager, "farMemRecvTimingResp : %lld , %s \n", pkt->getAddr(), pkt->cmdString());
 
     if (pkt->isRead()) {
@@ -617,7 +617,7 @@ PolicyManager::farMemRecvReqRetry()
         port.sendRetryReq();
         return;
     }
-    
+
     assert(retryFarMemRead || retryFarMemWrite);
 
     bool schedRd = false;
@@ -756,7 +756,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     // RD Hit Dirty & Clean, RD Miss Dirty, WR Miss Dirty
     // start --> read loc
     if (pol == enums::RambusHypo && state == start &&
-        ((isRead && isHit) || (isRead && !isHit && isDirty) || (!isRead && !isHit && isDirty)) 
+        ((isRead && isHit) || (isRead && !isHit && isDirty) || (!isRead && !isHit && isDirty))
        ) {
             orbEntry->state = locMemRead;
             orbEntry->locRdEntered = curTick();
@@ -774,7 +774,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     // WR Hit Dirty & Clean, WR Miss Clean
     // start --> write loc
     if (pol == enums::RambusHypo && state == start &&
-        ((!isRead && isHit)|| (!isRead && !isHit && !isDirty)) 
+        ((!isRead && isHit)|| (!isRead && !isHit && !isDirty))
        ) {
             orbEntry->state = locMemWrite;
             orbEntry->locWrEntered = curTick();
@@ -814,7 +814,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 
     // RD Miss Clean & Dirty
     // start --> ... --> far read -> loc write
-    if (pol == enums::RambusHypo && 
+    if (pol == enums::RambusHypo &&
         (isRead && !isHit) &&
         state == waitingFarMemReadResp
        ) {
@@ -888,7 +888,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
         orbEntry->state == waitingLocMemReadResp &&
         orbEntry->isHit) {
             DPRINTF(PolicyManager, "set: waitingLocMemReadResp -> NONE : %d\n", orbEntry->owPkt->getAddr());
-            
+
             // done
             // do nothing
             return;
@@ -911,7 +911,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
         orbEntry->owPkt->isRead() &&
         orbEntry->state == waitingLocMemReadResp &&
         !orbEntry->isHit) {
-            
+
             orbEntry->state = farMemRead;
             orbEntry->farRdEntered = curTick();
             DPRINTF(PolicyManager, "set: waitingLocMemReadResp -> farMemRead : %d\n", orbEntry->owPkt->getAddr());
@@ -923,7 +923,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
         orbEntry->owPkt->isRead() &&
         orbEntry->state == waitingFarMemReadResp &&
         !orbEntry->isHit) {
-            
+
             PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
                                              false,
                                              orbEntry->owPkt->isRead());
@@ -972,7 +972,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
         // !orbEntry->isHit &&
         orbEntry->state == waitingLocMemWriteResp) {
             DPRINTF(PolicyManager, "set: waitingLocMemWriteResp -> NONE : %d\n", orbEntry->owPkt->getAddr());
-            
+
             // done
             // do nothing
             return;
@@ -1103,7 +1103,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
         pktLocMemRead.push_back(orbEntry->owPkt->getAddr());
 
         polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
-            
+
         if (!locMemReadEvent.scheduled()) {
             schedule(locMemReadEvent, curTick());
         }
@@ -1153,7 +1153,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             // clear ORB
             resumeConflictingReq(orbEntry);
 
-            return;            
+            return;
     }
 
     if (orbEntry->pol == enums::RambusHypo &&
@@ -1184,7 +1184,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             pktLocMemWrite.push_back(orbEntry->owPkt->getAddr());
 
             polManStats.avgLocWrQLenEnq = pktLocMemWrite.size();
-            
+
 
             if (!locMemWriteEvent.scheduled()) {
                 schedule(locMemWriteEvent, curTick());
@@ -1260,7 +1260,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             // clear ORB
             resumeConflictingReq(orbEntry);
 
-            return;            
+            return;
     }
 
     if (orbEntry->pol == enums::BearWriteOpt &&
@@ -1292,7 +1292,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             pktLocMemWrite.push_back(orbEntry->owPkt->getAddr());
 
             polManStats.avgLocWrQLenEnq = pktLocMemWrite.size();
-            
+
 
             if (!locMemWriteEvent.scheduled()) {
                 schedule(locMemWriteEvent, curTick());
@@ -1783,10 +1783,10 @@ PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
 void
 PolicyManager::ReqPortPolManager::recvReqRetry()
 {
-    if (this->name() == "system.mem_ctrl.loc_req_port") {
+    if (this->name().find("loc_req_port") != std::string::npos) {
         polMan.locMemRecvReqRetry();
     }
-    if (this->name() == "system.mem_ctrl.far_req_port") {
+    if (this->name().find("far_req_port") != std::string::npos) {
         polMan.farMemRecvReqRetry();
     }
 }
@@ -1794,9 +1794,13 @@ PolicyManager::ReqPortPolManager::recvReqRetry()
 bool
 PolicyManager::ReqPortPolManager::recvTimingResp(PacketPtr pkt)
 {
-    if (this->name() == "system.mem_ctrl.loc_req_port") {
+    // since in the constructor we are appending loc_req_port
+    // to the loc mem port, the name should always have the substring
+    // irrespective of the configuration names
+
+    if (this->name().find("loc_req_port") != std::string::npos) {
         return polMan.locMemRecvTimingResp(pkt);
-    } else if (this->name() == "system.mem_ctrl.far_req_port") {
+    } else if (this->name().find("far_req_port") != std::string::npos) {
         return polMan.farMemRecvTimingResp(pkt);
     } else {
         std::cout << "Port name error, fix it!\n";
