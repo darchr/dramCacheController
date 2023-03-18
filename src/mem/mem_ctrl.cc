@@ -896,7 +896,7 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
     // detect bus state change
     bool switched_cmd_type = (mem_intr->busState != mem_intr->busStateNext);
     // record stats
-    recordTurnaroundStats();
+    recordTurnaroundStats(mem_intr->busState, mem_intr->busStateNext);
 
     DPRINTF(MemCtrl, "QoS Turnarounds selected state %s %s\n",
             (mem_intr->busState==MemCtrl::READ)?"READ":"WRITE",
