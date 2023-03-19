@@ -137,7 +137,7 @@ MemCtrl::recvAtomic(PacketPtr pkt)
 Tick
 MemCtrl::recvAtomicLogic(PacketPtr pkt, MemInterface* mem_intr)
 {
-    DPRINTF(MemCtrl, "recvAtomic: %s %d\n",
+    DPRINTF(MemCtrl, "recvAtomic: %s %x\n",
                      pkt->cmdString(), pkt->getAddr());
 
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
@@ -236,7 +236,7 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
                             stats.servicedByWrQ++;
                             pktsServicedByWrQ++;
                             DPRINTF(MemCtrl,
-                                    "Read to addr %d with size %d serviced by "
+                                    "Read to addr %x with size %d serviced by "
                                     "write queue\n",
                                     addr, size);
                             stats.bytesReadWrQ += burst_size;
@@ -253,7 +253,7 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
 
             // Make the burst helper for split packets
             if (pkt_count > 1 && burst_helper == NULL) {
-                DPRINTF(MemCtrl, "Read to addr %d translates to %d "
+                DPRINTF(MemCtrl, "Read to addr %x translates to %d "
                         "memory requests\n", pkt->getAddr(), pkt_count);
                 burst_helper = new BurstHelper(pkt_count);
             }
@@ -359,7 +359,6 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
 
             mem_intr->writeQueueSize++;
 
-            std::cout << totalWriteQueueSize << ", " <<  isInWriteQueue.size() << "\n";
             assert(totalWriteQueueSize == isInWriteQueue.size());
 
             // Update stats
@@ -417,7 +416,7 @@ bool
 MemCtrl::recvTimingReq(PacketPtr pkt)
 {
     // This is where we enter from the outside world
-    DPRINTF(MemCtrl, "recvTimingReq: request %s addr %d size %d\n",
+    DPRINTF(MemCtrl, "recvTimingReq: request %s addr %x size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getSize());
 
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
@@ -632,7 +631,7 @@ void
 MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
                                                 MemInterface* mem_intr)
 {
-    DPRINTF(MemCtrl, "Responding to Address %d: %s.. \n", pkt->getAddr(), pkt->cmdString());
+    DPRINTF(MemCtrl, "Responding to Address %x: %s.. \n", pkt->getAddr(), pkt->cmdString());
 
     bool needsResponse = pkt->needsResponse();
     // do the actual memory access which also turns the packet into a
@@ -695,7 +694,7 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
 void
 MemCtrl::sendTagCheckRespond(MemPacket* mem_pkt)
 {
-    DPRINTF(MemCtrl, "sendTagCheckRespond : %d \n", mem_pkt->addr);
+    DPRINTF(MemCtrl, "sendTagCheckRespond : %x \n", mem_pkt->addr);
     assert(mem_pkt->isRead());
     assert(mem_pkt->pkt->isRead());
     assert(mem_pkt->tagCheckReady != MaxTick);
@@ -917,7 +916,7 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
     std::tie(cmd_at, mem_intr->nextBurstAt) =
             mem_intr->doBurstAccess(mem_pkt, mem_intr->nextBurstAt, queue);
 
-    DPRINTF(MemCtrl, "Access to %d, ready at %lld next burst at %lld.\n",
+    DPRINTF(MemCtrl, "Access to %x, ready at %lld next burst at %lld.\n",
             mem_pkt->addr, mem_pkt->readyTime, mem_intr->nextBurstAt);
 
     // Update the minimum timing between the requests, this is a
@@ -1111,7 +1110,7 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
 
             if (mem_pkt->isTagCheck) {
-                DPRINTF(MemCtrl, "read times: %d, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
+                DPRINTF(MemCtrl, "read times: %x, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
                 sendTagCheckRespond(mem_pkt);
             }
 
@@ -1211,7 +1210,7 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
         if (mem_pkt->isTagCheck) {
-                DPRINTF(MemCtrl, "write times: %d, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
+                DPRINTF(MemCtrl, "write times: %x, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
                 // Note: the second argument in this function call is NOT delay!
                 accessAndRespond(mem_pkt->pkt, mem_pkt->tagCheckReady, mem_intr);
         }
