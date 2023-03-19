@@ -1,7 +1,6 @@
 #include "mem/policy_manager.hh"
 
 #include "base/trace.hh"
-#include "debug/FBTrace.hh"
 #include "debug/PolicyManager.hh"
 #include "debug/Drain.hh"
 #include "mem/dram_interface.hh"
@@ -39,6 +38,7 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     numColdMisses(0),
     cacheWarmupRatio(p.cache_warmup_ratio),
     resetStatsWarmup(false),
+    prevArrival(0),
     retryLLC(false), retryLLCFarMemWr(false),
     retryTagCheck(false), retryLocMemRead(false), retryFarMemRead(false),
     retryLocMemWrite(false), retryFarMemWrite(false),
@@ -156,9 +156,6 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     DPRINTF(PolicyManager, "recvTimingReq: request %s addr 0x%x-> %d size %d\n",
             pkt->cmdString(), pkt->getAddr(), pkt->getAddr(), pkt->getSize());
     
-    // DPRINTF(FBTrace, "recvTimingReq: %s / 0x%x-> %d / %d\n",
-    //         pkt->cmdString(), pkt->getAddr(), pkt->getAddr(), pkt->getSize());
-    
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
              "is responding");
 
@@ -200,7 +197,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
             polManStats.mergedWrBursts++;
             polManStats.mergedWrPolManWB++;
 
-            DPRINTF(FBTrace, "merged in policy manager write back buffer: %lld\n", pkt->getAddr());
+            DPRINTF(PolicyManager, "merged in policy manager write back buffer: %lld\n", pkt->getAddr());
 
             // farMemCtrl->accessInterface(pkt);
 
@@ -212,7 +209,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
             polManStats.mergedWrBursts++;
             polManStats.mergedWrLocMemFB++;
 
-            DPRINTF(FBTrace, "merged in DRAM cache flush buffer: %lld\n", pkt->getAddr());
+            DPRINTF(PolicyManager, "merged in DRAM cache flush buffer: %lld\n", pkt->getAddr());
 
             // farMemCtrl->accessInterface(pkt);
 
@@ -307,7 +304,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         }
 
         if (foundInORB || foundInCRB || foundInFarMemWrite || foundInLocMemFB) {
-            DPRINTF(FBTrace, "FW: %lld\n", pkt->getAddr());
+            DPRINTF(PolicyManager, "FW: %lld\n", pkt->getAddr());
             
         //     polManStats.readPktSize[ceilLog2(size)]++;
 
@@ -328,7 +325,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         if (CRB.size()>=crbMaxSize) {
 
             DPRINTF(PolicyManager, "CRBfull: %lld\n", pkt->getAddr());
-            DPRINTF(FBTrace, "CRBfull: %lld\n", pkt->getAddr());
+            DPRINTF(PolicyManager, "CRBfull: %lld\n", pkt->getAddr());
 
             polManStats.totNumCRBFull++;
 
@@ -346,7 +343,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         CRB.push_back(std::make_pair(curTick(), pkt));
         DPRINTF(PolicyManager, "CRB PB: %d: %s\n", pkt->getAddr(), pkt->cmdString());
 
-        DPRINTF(FBTrace, "CRB PB: %d: %s\n", pkt->getAddr(), pkt->cmdString());
+        DPRINTF(PolicyManager, "CRB PB: %d: %s\n", pkt->getAddr(), pkt->cmdString());
 
         if (pkt->isWrite()) {
             isInWriteQueue.insert(pkt->getAddr());
@@ -362,7 +359,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     if (pktFarMemWrite.size() >= (orbMaxSize / 2)) {
 
         DPRINTF(PolicyManager, "FMWBfull: %lld\n", pkt->getAddr());
-        DPRINTF(FBTrace, "FMWBfull: %lld\n", pkt->getAddr());
+        DPRINTF(PolicyManager, "FMWBfull: %lld\n", pkt->getAddr());
 
         retryLLCFarMemWr = true;
 
@@ -378,7 +375,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     if (ORB.size() >= orbMaxSize) {
 
         DPRINTF(PolicyManager, "ORBfull: addr %lld\n", pkt->getAddr());
-        DPRINTF(FBTrace, "ORBfull: %lld\n", pkt->getAddr());
+        DPRINTF(PolicyManager, "ORBfull: %lld\n", pkt->getAddr());
 
         polManStats.totNumORBFull++;
 
@@ -438,6 +435,11 @@ PolicyManager::processTagCheckEvent()
     tagCheckPktPtr->isDirty = orbEntry->prevDirty;
     assert(!tagCheckPktPtr->hasDirtyData);
     tagCheckPktPtr->dirtyLineAddr = orbEntry->dirtyLineAddr;
+
+    if (extreme) {
+        tagCheckPktPtr->isDirty = alwaysDirty;
+        tagCheckPktPtr->isHit = alwaysHit;
+    }
 
     if (tagCheckPktPtr->owIsRead && !tagCheckPktPtr->isHit && !tagCheckPktPtr->isDirty) {
         assert(tagCheckPktPtr->dirtyLineAddr == -1);
@@ -633,6 +635,7 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
             assert(orbEntry->owPkt->isRead());
             assert(!orbEntry->isHit);
             if (!orbEntry->prevDirty) { // clean
+            std::cout << "adr: " << orbEntry->dirtyLineAddr << "\n";
                 assert(orbEntry->dirtyLineAddr == -1);
                 assert(!orbEntry->handleDirtyLine);
                 orbEntry->handleDirtyLine = true;
@@ -1929,11 +1932,20 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     checkHitOrMiss(orbEntry);
 
     if (checkDirty(orbEntry->owPkt->getAddr()) && !orbEntry->isHit) {
-        orbEntry->dirtyLineAddr = tagMetadataStore.at(orbEntry->indexDC).farMemAddr;
+        if (extreme && tagMetadataStore.at(orbEntry->indexDC).farMemAddr == -1) {
+            // extreme cases are faked. So, this address for cold misses are -1, so we fake it to a random address like 1024.
+            orbEntry->dirtyLineAddr = orbEntry->owPkt->getAddr() == 0 ? 64 : (orbEntry->owPkt->getAddr()-64);
+        } else {
+            orbEntry->dirtyLineAddr = tagMetadataStore.at(orbEntry->indexDC).farMemAddr;
+        }
         orbEntry->handleDirtyLine = true;
     }
 
-    orbEntry->prevDirty = tagMetadataStore.at(orbEntry->indexDC).dirtyLine;
+    if (extreme) {
+        orbEntry->prevDirty = alwaysDirty;
+    } else {
+        orbEntry->prevDirty = tagMetadataStore.at(orbEntry->indexDC).dirtyLine;
+    }
 
     // Updating Tag & Metadata
     tagMetadataStore.at(orbEntry->indexDC).tagDC = orbEntry->tagDC;
@@ -1956,7 +1968,7 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     // tagMetadataStore.at(orbEntry->indexDC).farMemAddr =
     //                     orbEntry->owPkt->getAddr();
 
-    DPRINTF(FBTrace, "ORB+: adr= %d, index= %d, tag= %d, cmd= %s, isHit= %d, wasDirty= %d, \n", orbEntry->owPkt->getAddr(), orbEntry->indexDC, orbEntry->tagDC, orbEntry->owPkt->cmdString(), orbEntry->isHit, orbEntry->prevDirty);
+    DPRINTF(PolicyManager, "ORB+: adr= %d, index= %d, tag= %d, cmd= %s, isHit= %d, wasDirty= %d, \n", orbEntry->owPkt->getAddr(), orbEntry->indexDC, orbEntry->tagDC, orbEntry->owPkt->cmdString(), orbEntry->isHit, orbEntry->prevDirty);
 }
 
 bool
@@ -1986,6 +1998,8 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
 
     if (extreme) {
         orbEntry->isHit = alwaysHit;
+        currValid = true;
+        currDirty = alwaysDirty;
     } else {
         orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
     }

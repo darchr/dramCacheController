@@ -181,10 +181,9 @@ class DRAMInterface(MemInterface):
     tTAGBURST = Param.Latency("0ns", "tRL_FAST")
     tRLFAST   = Param.Latency("0ns", "tRL_FAST")
     tHM2DQ    = Param.Latency("0ns", "tHM2DQ")
-    tRFB      = Param.Latency("0ns", "tRDFB")
-    tWFB      = Param.Latency("0ns", "tRDFB")
-    tRTW_int      = Param.Latency("0ns", "tRDFB")
-    flushBuffer_high_thresh_perc = Param.Percent(70, "Threshold to force writes")
+    tRTW_int  = Param.Latency("0ns", "tRTW_int")
+    tRFBD     = Param.Latency("0ns", "tRFBD")
+    flushBuffer_high_thresh_perc = Param.Percent(0, "Threshold to force writes")
 
     # number of data beats per clock. with DDR, default is 2, one per edge
     # used in drampower.cc
@@ -1281,9 +1280,9 @@ class HBM_2000_4H_1x64_Rambus(DRAMInterface):
     tTAGBURST = "1ns"
     tRLFAST = "1ns"
     tHM2DQ = "1ns"
-    tRFB = "1ns"
-    tWFB = "1ns"
     tRTW_int = "2ns"
+    tRFBD = "2ns"
+    flushBuffer_high_thresh_perc = 70
 
     tRP = "14ns"
 

@@ -52,12 +52,21 @@ system.mem_ctrl.tRP = '14ns'
 system.mem_ctrl.tRCD_RD = '12ns'
 system.mem_ctrl.tRL = '18ns'
 system.mem_ctrl.loc_mem_policy = 'Rambus'
+# system.mem_ctrl.loc_mem_policy = 'CascadeLakeNoPartWrs'
+system.mem_ctrl.orb_max_size = 128
 system.mem_ctrl.static_frontend_latency = "10ns"
 system.mem_ctrl.static_backend_latency = "10ns"
 #system.mem_ctrl.bypass_dcache = True
 
 system.loc_mem_ctrl = MemCtrl()
 system.loc_mem_ctrl.dram = HBM_2000_4H_1x64_Rambus(range=AddrRange('1GiB'), in_addr_map=False, null=True)
+# system.loc_mem_ctrl.dram = HBM_2000_4H_1x64(range=AddrRange('1GiB'), in_addr_map=False, null=True)
+system.loc_mem_ctrl.dram.read_buffer_size = 64
+system.loc_mem_ctrl.dram.write_buffer_size = 64
+
+# system.loc_mem_ctrl = HBMCtrl()
+# system.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '1GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
+# system.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '1GiB', masks = [1 << 6], intlvMatch = 1), in_addr_map=False, kvm_map=False, null=True)
 
 system.mem_ctrl.loc_mem = system.loc_mem_ctrl.dram
 
@@ -69,8 +78,13 @@ system.loc_mem_ctrl.dram.page_policy = 'close'
 system.loc_mem_ctrl.dram.burst_length = 8
 system.loc_mem_ctrl.dram.tCCD_L = "4ns"
 system.loc_mem_ctrl.dram.tBURST = "4ns"
-# system.loc_mem_ctrl.dram.tRCD = "6ns"
+system.loc_mem_ctrl.dram.tRRD_L = "4ns"
+system.loc_mem_ctrl.dram.tRRD = "3ns"
 system.loc_mem_ctrl.dram.flushBuffer_high_thresh_perc = '70'
+
+system.loc_mem_ctrl.dram.tRTW = "4ns"
+system.loc_mem_ctrl.dram.tWTR = "4ns"
+system.loc_mem_ctrl.dram.tWTR_L = "4ns"
 
 system.loc_mem_ctrl.static_frontend_latency = "2ns"
 system.loc_mem_ctrl.static_backend_latency = "2ns"
@@ -79,6 +93,8 @@ system.loc_mem_ctrl.static_backend_latency_tc = "1ns"
 
 system.far_mem_ctrl = MemCtrl()
 system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('1GiB'),in_addr_map=False, null=True)
+system.far_mem_ctrl.dram.read_buffer_size = 64
+system.far_mem_ctrl.dram.write_buffer_size = 64
 system.far_mem_ctrl.static_frontend_latency = "2ns"
 system.far_mem_ctrl.static_backend_latency = "2ns"
 

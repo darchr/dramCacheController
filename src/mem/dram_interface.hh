@@ -513,9 +513,8 @@ class DRAMInterface : public MemInterface
     const Tick tTAGBURST;
     const Tick tRLFAST;
     const Tick tHM2DQ;
-    const Tick tRFB;
-    const Tick tWFB;
     const Tick tRTW_int;
+    const Tick tRFBD;
     float flushBufferHighThreshold;
     const Tick clkResyncDelay;
     const bool dataClockSync;
@@ -559,7 +558,7 @@ class DRAMInterface : public MemInterface
      * @param row Index of the row
      */
     void activateBank(Rank& rank_ref, Bank& bank_ref, Tick act_tick,
-                      uint32_t row);
+                      uint32_t row, bool isTagCheck);
 
     /**
      * Precharge a given bank and also update when the precharge is
@@ -600,6 +599,7 @@ class DRAMInterface : public MemInterface
         statistics::Scalar totStallToFlushFB;
         statistics::Scalar totPktsPushedFB;
         statistics::Scalar maxFBLenEnq;
+        statistics::Scalar refSchdRFB;
 
         /** DRAM per bank stats */
         statistics::Vector perBankRdBursts;
