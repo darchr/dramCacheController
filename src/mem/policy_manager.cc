@@ -635,7 +635,6 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
             assert(orbEntry->owPkt->isRead());
             assert(!orbEntry->isHit);
             if (!orbEntry->prevDirty) { // clean
-            std::cout << "adr: " << orbEntry->dirtyLineAddr << "\n";
                 assert(orbEntry->dirtyLineAddr == -1);
                 assert(!orbEntry->handleDirtyLine);
                 orbEntry->handleDirtyLine = true;

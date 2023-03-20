@@ -126,7 +126,18 @@ if __name__ == "__m5_main__":
     print("Running the simulation ************************************** \n")
     print("Simulating 10 intervals of 100ms each! \n")
 
-    for interval_number in range(10):
+    numIteration = 0
+
+    if args.benchmark=="bfs":
+        numIteration = 40
+    elif args.benchmark=="cc":
+        numIteration = 40
+    elif args.benchmark=="sssp":
+        numIteration = 20
+    else:
+        numIteration = 10
+
+    for interval_number in range(numIteration):
         print("Interval number: {} \n".format(interval_number))
         exit_event = m5.simulate(100000000000)
         m5.stats.dump()

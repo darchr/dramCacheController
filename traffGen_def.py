@@ -82,9 +82,9 @@ system.loc_mem_ctrl.dram.tRRD_L = "4ns"
 system.loc_mem_ctrl.dram.tRRD = "3ns"
 system.loc_mem_ctrl.dram.flushBuffer_high_thresh_perc = '70'
 
-system.loc_mem_ctrl.dram.tRTW = "4ns"
-system.loc_mem_ctrl.dram.tWTR = "4ns"
-system.loc_mem_ctrl.dram.tWTR_L = "4ns"
+# system.loc_mem_ctrl.dram.tRTW = "4ns"
+# system.loc_mem_ctrl.dram.tWTR = "4ns"
+# system.loc_mem_ctrl.dram.tWTR_L = "4ns"
 
 system.loc_mem_ctrl.static_frontend_latency = "2ns"
 system.loc_mem_ctrl.static_backend_latency = "2ns"

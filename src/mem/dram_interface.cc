@@ -523,7 +523,9 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
                 tempFlushBuffer.push_back(std::make_pair(pushBackFBTick, mem_pkt->pkt->dirtyLineAddr));
 
-                if ((tempFlushBuffer.size() + flushBuffer.size()) >= (banksPerRank * flushBufferHighThreshold) && !readFlushBufferEvent.scheduled()) {
+                if ((tempFlushBuffer.size() + flushBuffer.size()) >= (banksPerRank * flushBufferHighThreshold) &&
+                     !readFlushBufferEvent.scheduled() &&
+                     !flushBuffer.empty()) {
                     
                     // Flush the flushBuffer and send some dirty data
                     // to the controller.
@@ -1100,8 +1102,20 @@ DRAMInterface::setPolicyManager(AbstractMemory* _polMan)
 void
 DRAMInterface::processReadFlushBufferEvent()
 {
+    // It is possible that a ReadFlushBufferEvent is scheduled and
+    // before reaching to the scheduled time or concurrent with that,
+    // Read Miss Cleans also pop packet from flushBuffer.
+    // So, it should return for the scheduled event.
+    if (flushBuffer.empty()) {
+        if (readFlushBufferCount > 0) {
+            stats.avgReadFBPerEvent = readFlushBufferCount;
+        }
+        endOfReadFlushBuffPeriod = 0;
+        readFlushBufferCount = 0;
+        return;
+    }
+
     assert(endOfReadFlushBuffPeriod >= curTick());
-    assert(!flushBuffer.empty());
     assert(flushBuffer.front() != -1);
 
 

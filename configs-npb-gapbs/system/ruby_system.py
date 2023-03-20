@@ -189,6 +189,8 @@ class MyRubySystem(System):
         self.loc_mem_ctrl.dram.burst_length = 8
         self.loc_mem_ctrl.dram.tCCD_L = "4ns"
         self.loc_mem_ctrl.dram.tBURST = "4ns"
+        self.loc_mem_ctrl.dram.tRRD_L = "4ns"
+        self.loc_mem_ctrl.dram.tRRD = "3ns"
         self.loc_mem_ctrl.dram.flushBuffer_high_thresh_perc = '70'
         self.loc_mem_ctrl.static_frontend_latency = "2ns"
         self.loc_mem_ctrl.static_backend_latency = "2ns"
