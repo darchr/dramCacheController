@@ -43,10 +43,9 @@ from .single_channel import SingleChannelDDR4_2400
 
 class DCacheSystem(AbstractMemorySystem):
     """
-    This class extends ChanneledMemory and can be used to create HBM based
-    memory system where a single physical channel contains two pseudo channels.
-    This is supposed to be used with the HBMCtrl and two dram (HBM2) interfaces
-    per channel.
+    This class creates a DRAM cache based memory system.
+    It can connect two memory systems with a DRAM cache
+    policy manager.
     """
 
     def __init__(
@@ -64,57 +63,43 @@ class DCacheSystem(AbstractMemorySystem):
         """
         super().__init__()
 
-        #self.loc_mem = _try_convert(loc_mem, ChanneledMemory)
-        self.loc_mem = loc_mem()
-        self.far_mem = far_mem()
-        print(type(self.loc_mem))
         self._size = size
-
-        self.loc_mem._dram[0].in_addr_map = False
-        self.far_mem._dram[0].in_addr_map = False
-
-        self.loc_mem._dram[0].range = AddrRange('1GiB')
-        self.far_mem._dram[0].range = AddrRange('1GiB')
-
-        self.loc_mem._dram[0].null = True
-        self.far_mem._dram[0].null = True
-
-       #_num_channels = _try_convert(num_channels, int)
-
-        print("whatever")
 
         self.policy_manager = PolicyManager(range=AddrRange('1GiB'))
         self.policy_manager.loc_mem_policy = loc_mem_policy
-        self.policy_manager.bypass_dcache = False
+        self.policy_manager.bypass_dcache = True
         self.policy_manager.tRP = '14.16ns'
         self.policy_manager.tRCD_RD = '14.16ns'
-
         self.policy_manager.tRL = '14.16ns'
 
         self.policy_manager.always_hit = False
         self.policy_manager.always_dirty = True
+        self.policy_manager.dram_cache_size = self._size
 
-        self.policy_manager.dram_cache_size = "64MiB"
+        self.loc_mem = loc_mem()
+        self.far_mem = far_mem()
 
+        for dram in self.loc_mem._dram:
+            dram.in_addr_map = False
+            dram.null = True
+            dram.range = AddrRange('1GiB')
 
-        #self._farMemXBar = L2XBar(width=64)
+        for dram in self.far_mem._dram:
+            dram.in_addr_map = False
+            dram.null = True
+            dram.range = AddrRange('1GiB')
 
-        #self._nearMemXBar = L2XBar(width=64)
+        self.farMemXBar = L2XBar(width=64)
+        self.nearMemXBar = L2XBar(width=64)
 
-        #self.policy_manager.far_req_port = self._farMemXBar.cpu_side_ports
+        self.policy_manager.far_req_port = self.farMemXBar.cpu_side_ports
+        self.policy_manager.loc_req_port = self.nearMemXBar.cpu_side_ports
 
-        #self.policy_manager.loc_req_port = self._nearMemXBar.cpu_side_ports
+        for ctrl in self.loc_mem.get_memory_controllers():
+            self.nearMemXBar.mem_side_ports = ctrl.port
 
-        self.policy_manager.loc_req_port = self.loc_mem.get_memory_controllers()[0].port
-
-        self.policy_manager.far_req_port = self.far_mem.get_memory_controllers()[0].port
-
-        #print(self.loc_mem.get_size())
-        print(self.loc_mem.get_memory_controllers())
-
-        #self._nearMemXBar.mem_side_ports = self.loc_mem.get_memory_controllers()[0].port
-
-        #self._farMemXBar.mem_side_ports = self.far_mem.get_memory_controllers()[0].port
+        for ctrl in self.far_mem.get_memory_controllers():
+            self.farMemXBar.mem_side_ports = ctrl.port
 
     @overrides(AbstractMemorySystem)
     def get_size(self) -> int:
@@ -122,17 +107,6 @@ class DCacheSystem(AbstractMemorySystem):
 
     @overrides(AbstractMemorySystem)
     def set_memory_range(self, ranges: List[AddrRange]) -> None:
-        """Need to add support for non-contiguous non overlapping ranges in
-        the future.
-
-        if len(ranges) != 1 or ranges[0].size() != self._size:
-            raise Exception(
-                "Multi channel memory controller requires a single range "
-                "which matches the memory's size.\n"
-                f"The range size: {range[0].size()}\n"
-                f"This memory's size: {self._size}"
-            )
-        """
         self._mem_range = ranges[0]
         #self._interleave_addresses()
 
@@ -142,23 +116,13 @@ class DCacheSystem(AbstractMemorySystem):
 
     @overrides(AbstractMemorySystem)
     def get_memory_controllers(self):
-        return [self.policy_manager,]
-        #return [self.loc_mem.get_memory_controllers()[0], self.far_mem.get_memory_controllers()[0]]
-
-def DualChannelDDR4_2400(
-    size: Optional[str] = None,
-) -> AbstractMemorySystem:
-    """
-    A dual channel memory system using DDR4_2400_8x8 based DIMM
-    """
-    return ChanneledMemory(
-        DDR4_2400_8x8,
-        2,
-        64,
-        size=size,
-    )
+        return [self.policy_manager]
 
 def BaseDCache(
     size: Optional[str] = "4GiB",
 ) -> AbstractMemorySystem:
-    return DCacheSystem(SingleChannelDDR4_2400, SingleChannelDDR4_2400, 'CascadeLakeNoPartWrs', size='128MiB')
+    return DCacheSystem(
+        SingleChannelDDR4_2400,
+        SingleChannelDDR4_2400,
+        'CascadeLakeNoPartWrs',
+        size='128MiB')
