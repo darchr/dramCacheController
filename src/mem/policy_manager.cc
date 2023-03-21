@@ -2394,10 +2394,10 @@ PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
 void
 PolicyManager::ReqPortPolManager::recvReqRetry()
 {
-    if (this->name() == "system.mem_ctrl.loc_req_port") {
+    if (this->name().find("loc_req_port") != std::string::npos) {
         polMan.locMemRecvReqRetry();
     }
-    if (this->name() == "system.mem_ctrl.far_req_port") {
+    if (this->name().find("far_req_port") != std::string::npos) {
         polMan.farMemRecvReqRetry();
     }
 }
@@ -2405,9 +2405,12 @@ PolicyManager::ReqPortPolManager::recvReqRetry()
 bool
 PolicyManager::ReqPortPolManager::recvTimingResp(PacketPtr pkt)
 {
-    if (this->name() == "system.mem_ctrl.loc_req_port") {
+    // since in the constructor we are appending loc_req_port
+    // to the loc mem port, the name should always have the substring
+    // irrespective of the configuration names
+    if (this->name().find("loc_req_port") != std::string::npos) {
         return polMan.locMemRecvTimingResp(pkt);
-    } else if (this->name() == "system.mem_ctrl.far_req_port") {
+    } else if (this->name().find("far_req_port") != std::string::npos) {
         return polMan.farMemRecvTimingResp(pkt);
     } else {
         std::cout << "Port name error, fix it!\n";
