@@ -36,7 +36,7 @@ from ...utils.override import overrides
 from m5.objects import AddrRange, DRAMInterface, Port, PolicyManager, L2XBar
 from typing import Type, Optional, Union, Sequence, Tuple, List
 from .memory import _try_convert
-#from .dram_interfaces.hbm import HBM_2000_4H_1x64
+from .dram_interfaces.hbm import HBM_2000_4H_1x64_Rambus
 from .dram_interfaces.ddr4 import DDR4_2400_8x8
 from .multi_channel import DualChannelDDR4_2400
 from .single_channel import SingleChannelDDR4_2400
@@ -84,6 +84,12 @@ class DCacheSystem(AbstractMemorySystem):
             dram.null = True
             dram.range = AddrRange('1GiB')
 
+        # TODO: this loc_mem in policy manager
+        # is a single DRAM interface, which probably
+        # needs to be updated for a multi-channel local
+        # memory, the stdlib component can then be updated.
+        self.policy_manager.loc_mem = self.loc_mem._dram[0]
+
         for dram in self.far_mem._dram:
             dram.in_addr_map = False
             dram.null = True
@@ -118,11 +124,43 @@ class DCacheSystem(AbstractMemorySystem):
     def get_memory_controllers(self):
         return [self.policy_manager]
 
-def BaseDCache(
+
+def SingleChannelHBMRambus(
+    size: Optional[str] = None,
+) -> AbstractMemorySystem:
+    if not size:
+        size = "256MiB"
+    return ChanneledMemory(
+        HBM_2000_4H_1x64_Rambus,
+        1,
+        64,
+        size=size
+    )
+
+
+def CascadeLakeCache(
     size: Optional[str] = "4GiB",
 ) -> AbstractMemorySystem:
     return DCacheSystem(
         SingleChannelDDR4_2400,
         SingleChannelDDR4_2400,
         'CascadeLakeNoPartWrs',
-        size='128MiB')
+        size='512MiB')
+
+def OracleCache(
+    size: Optional[str] = "4GiB",
+) -> AbstractMemorySystem:
+    return DCacheSystem(
+        SingleChannelDDR4_2400,
+        SingleChannelDDR4_2400,
+        'Oracle',
+        size='512MiB')
+
+def RamCache(
+    size: Optional[str] = "4GiB",
+) -> AbstractMemorySystem:
+    return DCacheSystem(
+        SingleChannelHBMRambus,
+        SingleChannelDDR4_2400,
+        'Rambus',
+        size='512MiB')
