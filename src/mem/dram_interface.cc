@@ -437,7 +437,11 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     if(mem_pkt->isTagCheck) {
 
         // Calculating the tag check ready time
-        mem_pkt->tagCheckReady = cmd_at + tRLFAST + tCK;
+        if (mem_pkt->pkt->owIsRead) {
+            mem_pkt->tagCheckReady = cmd_at + tRLFAST + tCK;
+        } else {
+            mem_pkt->tagCheckReady = cmd_at - (tRTW_int) + tRLFAST + tCK;
+        }
         stats.tagResBursts++;
 
         // tag is sent back only for Rd Miss Cleans, for other cases tag is already known.

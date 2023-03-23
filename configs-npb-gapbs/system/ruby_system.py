@@ -182,7 +182,7 @@ class MyRubySystem(System):
         self.mem_ctrl.loc_mem = self.loc_mem_ctrl.dram
 
         self.loc_mem_ctrl.dram.enable_read_flush_buffer = True
-        self.loc_mem_ctrl.dram.device_rowbuffer_size = "512B"
+        #self.loc_mem_ctrl.dram.device_rowbuffer_size = "512B"
         self.loc_mem_ctrl.dram.banks_per_rank = 32
         self.loc_mem_ctrl.dram.bank_groups_per_rank = 8
         self.loc_mem_ctrl.dram.page_policy = 'close'
