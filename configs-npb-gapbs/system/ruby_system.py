@@ -162,9 +162,11 @@ class MyRubySystem(System):
     def _createMemoryControllers(self, num, cls):
 
         self.mem_ctrl = PolicyManager(range=self.mem_ranges[0], kvm_map=False)
-        self.mem_ctrl.loc_mem_policy = 'Rambus'
         self.mem_ctrl.static_frontend_latency = "10ns"
         self.mem_ctrl.static_backend_latency = "10ns"
+
+        # self.mem_ctrl.loc_mem_policy = 'Rambus'
+        self.mem_ctrl.loc_mem_policy = 'CascadeLakeNoPartWrs'
 
         # FOR DDR4
         # self.mem_ctrl.tRP = '14.16ns'
@@ -176,31 +178,27 @@ class MyRubySystem(System):
         self.mem_ctrl.tRCD_RD = '12ns'
         self.mem_ctrl.tRL = '18ns'
 
-        # Rambus HBM2 cache
-        self.loc_mem_ctrl = MemCtrl()
-        self.loc_mem_ctrl.dram = HBM_2000_4H_1x64_Rambus(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
-        self.mem_ctrl.loc_mem = self.loc_mem_ctrl.dram
+        # TDRAM cache
+        # self.loc_mem_ctrl = MemCtrl()
+        # self.loc_mem_ctrl.dram = HBM_2000_4H_1x64_Rambus(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
+        # self.mem_ctrl.loc_mem = self.loc_mem_ctrl.dram
+        # self.loc_mem_ctrl.dram.enable_read_flush_buffer = True
+        # self.loc_mem_ctrl.dram.banks_per_rank = 32
+        # self.loc_mem_ctrl.dram.bank_groups_per_rank = 8
+        # self.loc_mem_ctrl.dram.page_policy = 'close'
+        # self.loc_mem_ctrl.dram.burst_length = 8
+        # self.loc_mem_ctrl.dram.tCCD_L = "4ns"
+        # self.loc_mem_ctrl.dram.tBURST = "4ns"
+        # self.loc_mem_ctrl.dram.tRRD_L = "4ns"
+        # self.loc_mem_ctrl.dram.tRRD = "3ns"
+        # self.loc_mem_ctrl.dram.flushBuffer_high_thresh_perc = '70'
+        # self.loc_mem_ctrl.static_frontend_latency_tc = "1ns"
+        # self.loc_mem_ctrl.static_backend_latency_tc = "1ns"
 
-        self.loc_mem_ctrl.dram.enable_read_flush_buffer = True
-        #self.loc_mem_ctrl.dram.device_rowbuffer_size = "512B"
-        self.loc_mem_ctrl.dram.banks_per_rank = 32
-        self.loc_mem_ctrl.dram.bank_groups_per_rank = 8
-        self.loc_mem_ctrl.dram.page_policy = 'close'
-        self.loc_mem_ctrl.dram.burst_length = 8
-        self.loc_mem_ctrl.dram.tCCD_L = "4ns"
-        self.loc_mem_ctrl.dram.tBURST = "4ns"
-        self.loc_mem_ctrl.dram.tRRD_L = "4ns"
-        self.loc_mem_ctrl.dram.tRRD = "3ns"
-        self.loc_mem_ctrl.dram.flushBuffer_high_thresh_perc = '70'
-        self.loc_mem_ctrl.static_frontend_latency = "2ns"
-        self.loc_mem_ctrl.static_backend_latency = "2ns"
-        self.loc_mem_ctrl.static_frontend_latency_tc = "1ns"
-        self.loc_mem_ctrl.static_backend_latency_tc = "1ns"
-
-        # HBM2 cache
-        # self.loc_mem_ctrl = HBMCtrl()
-        # self.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
-        # self.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 1), in_addr_map=False, kvm_map=False, null=True)
+        # HBM2 cache 2 PC
+        self.loc_mem_ctrl = HBMCtrl()
+        self.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
+        self.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 1), in_addr_map=False, kvm_map=False, null=True)
 
         # DDR4 cache
         # self.loc_mem_ctrl = MemCtrl()
@@ -209,6 +207,10 @@ class MyRubySystem(System):
         # Alloy cache
         # self.loc_mem_ctrl = MemCtrl()
         # self.loc_mem_ctrl.dram =  DDR4_2400_16x4_Alloy(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
+
+        self.mem_ctrl.loc_mem = self.loc_mem_ctrl.dram
+        self.loc_mem_ctrl.static_frontend_latency = "2ns"
+        self.loc_mem_ctrl.static_backend_latency = "2ns"
 
         # main memory
         self.far_mem_ctrl = MemCtrl()
@@ -222,10 +224,10 @@ class MyRubySystem(System):
         self.mem_ctrl.orb_max_size = 128
         self.mem_ctrl.dram_cache_size = "128MiB"
 
-        self.loc_mem_ctrl.dram.read_buffer_size = 64
-        self.loc_mem_ctrl.dram.write_buffer_size = 64
-        # self.loc_mem_ctrl.dram_2.read_buffer_size = 32
-        # self.loc_mem_ctrl.dram_2.write_buffer_size = 32
+        self.loc_mem_ctrl.dram.read_buffer_size = 32
+        self.loc_mem_ctrl.dram.write_buffer_size = 32
+        self.loc_mem_ctrl.dram_2.read_buffer_size = 32
+        self.loc_mem_ctrl.dram_2.write_buffer_size = 32
 
         self.far_mem_ctrl.dram.read_buffer_size = 64
         self.far_mem_ctrl.dram.write_buffer_size = 64
