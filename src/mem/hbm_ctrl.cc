@@ -192,8 +192,8 @@ bool
 HBMCtrl::recvTimingReq(PacketPtr pkt)
 {
     // This is where we enter from the outside world
-    DPRINTF(MemCtrl, "recvTimingReq: request %s addr %#x size %d\n",
-            pkt->cmdString(), pkt->getAddr(), pkt->getSize());
+    DPRINTF(MemCtrl, "recvTimingReq: request %s addr %#x size %d isTagCheck: %d\n",
+            pkt->cmdString(), pkt->getAddr(), pkt->getSize(), pkt->isTagCheck);
 
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
                                         "is responding");

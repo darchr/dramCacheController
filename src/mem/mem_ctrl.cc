@@ -81,6 +81,7 @@ MemCtrl::MemCtrl(const MemCtrlParams &p) :
     frontendLatencyTC(p.static_frontend_latency_tc),
     backendLatencyTC(p.static_backend_latency_tc),
     commandWindow(p.command_window),
+    considerOldestWrite(p.consider_oldest_write),
     prevArrival(0),
     stats(*this)
 {
@@ -991,7 +992,9 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
                         EventFunctionWrapper& resp_event,
                         EventFunctionWrapper& next_req_event,
                         bool& retry_wr_req) {
-    updateOldestWriteAge();
+    if (considerOldestWrite) {
+        updateOldestWriteAge();
+    }
 
     // transition is handled by QoS algorithm if enabled
     if (turnPolicy) {
@@ -1046,7 +1049,7 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             if (!(mem_intr->writeQueueSize == 0) &&
                 (drainState() == DrainState::Draining ||
                  mem_intr->writeQueueSize > writeLowThreshold ||
-                 oldestWriteAge > oldestWriteAgeThreshold)) {
+                 (considerOldestWrite && oldestWriteAge > oldestWriteAgeThreshold))) {
 
                 DPRINTF(MemCtrl,
                         "Switching to writes due to read queue empty\n");
@@ -1147,7 +1150,7 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             // of reads before switching, or have emptied the readQ
             if (((mem_intr->writeQueueSize > writeHighThreshold) &&
                (mem_intr->readsThisTime >= minReadsPerSwitch || mem_intr->readQueueSize == 0) &&
-               !(nvmWriteBlock(mem_intr))) || (oldestWriteAge > oldestWriteAgeThreshold)) {
+               !(nvmWriteBlock(mem_intr))) || (considerOldestWrite && oldestWriteAge > oldestWriteAgeThreshold)) {
                 switch_to_writes = true;
             }
 

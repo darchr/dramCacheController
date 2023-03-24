@@ -96,3 +96,6 @@ class MemCtrl(QoSMemCtrl):
     static_backend_latency_tc = Param.Latency("1ns", "Static backend latency")
 
     command_window = Param.Latency("10ns", "Static backend latency")
+
+    consider_oldest_write = Param.Bool(False, "a flag to consider age of write "
+                                                "reqs for bus switching")
