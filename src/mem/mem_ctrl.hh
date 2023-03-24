@@ -582,6 +582,8 @@ class MemCtrl : public qos::MemCtrl
      */
     const Tick commandWindow;
 
+    bool considerOldestWrite;
+
     /**
      * Till when must we wait before issuing next RD/WR burst?
      */

@@ -483,7 +483,8 @@ PolicyManager::processLocMemReadEvent()
                                    MemCmd::ReadReq);
 
     if (locReqPort.sendTimingReq(rdLocMemPkt)) {
-        DPRINTF(PolicyManager, "loc mem read is sent : %lld\n", rdLocMemPkt->getAddr());
+        DPRINTF(PolicyManager, "loc mem read is sent : %lld--> %d, %d, %d, %d, %d, %d\n", rdLocMemPkt->getAddr(), ORB.size(), pktLocMemRead.size(),
+        pktLocMemWrite.size(), pktFarMemRead.size(), pktFarMemWrite.size(), CRB.size());
         orbEntry->state = waitingLocMemReadResp;
         orbEntry->issued = true;
         orbEntry->locRdIssued = curTick();
