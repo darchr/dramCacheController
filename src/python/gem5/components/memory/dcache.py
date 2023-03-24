@@ -33,7 +33,7 @@ from .abstract_memory_system import AbstractMemorySystem
 from ..boards.abstract_board import AbstractBoard
 from math import log
 from ...utils.override import overrides
-from m5.objects import AddrRange, DRAMInterface, Port, PolicyManager, L2XBar
+from m5.objects import AddrRange, DRAMInterface, Port, PolicyManager, L2XBar, IOXBar
 from typing import Type, Optional, Union, Sequence, Tuple, List
 from .memory import _try_convert
 from .dram_interfaces.hbm import HBM_2000_4H_1x64_Rambus
@@ -65,15 +65,15 @@ class DCacheSystem(AbstractMemorySystem):
 
         self._size = size
 
-        self.policy_manager = PolicyManager(range=AddrRange('1GiB'))
+        self.policy_manager = PolicyManager()
         self.policy_manager.loc_mem_policy = loc_mem_policy
-        self.policy_manager.bypass_dcache = True
+        self.policy_manager.bypass_dcache = False
         self.policy_manager.tRP = '14.16ns'
         self.policy_manager.tRCD_RD = '14.16ns'
         self.policy_manager.tRL = '14.16ns'
 
-        self.policy_manager.always_hit = False
-        self.policy_manager.always_dirty = True
+        #self.policy_manager.always_hit = False
+        #self.policy_manager.always_dirty = True
         self.policy_manager.dram_cache_size = self._size
 
         self.loc_mem = loc_mem()
@@ -82,7 +82,7 @@ class DCacheSystem(AbstractMemorySystem):
         for dram in self.loc_mem._dram:
             dram.in_addr_map = False
             dram.null = True
-            dram.range = AddrRange('1GiB')
+            #dram.range = AddrRange('1GiB')
 
         # TODO: this loc_mem in policy manager
         # is a single DRAM interface, which probably
@@ -93,7 +93,7 @@ class DCacheSystem(AbstractMemorySystem):
         for dram in self.far_mem._dram:
             dram.in_addr_map = False
             dram.null = True
-            dram.range = AddrRange('1GiB')
+            #dram.range = AddrRange('1GiB')
 
         self.farMemXBar = L2XBar(width=64)
         self.nearMemXBar = L2XBar(width=64)
@@ -113,8 +113,11 @@ class DCacheSystem(AbstractMemorySystem):
 
     @overrides(AbstractMemorySystem)
     def set_memory_range(self, ranges: List[AddrRange]) -> None:
-        self._mem_range = ranges[0]
-        #self._interleave_addresses()
+        self.policy_manager.range = ranges[0]
+        for dram in self.far_mem._dram:
+            dram.range = ranges[0]
+        for dram in self.loc_mem._dram:
+            dram.range = ranges[0]
 
     @overrides(AbstractMemorySystem)
     def incorporate_memory(self, board: AbstractBoard) -> None:
@@ -124,6 +127,9 @@ class DCacheSystem(AbstractMemorySystem):
     def get_memory_controllers(self):
         return [self.policy_manager]
 
+    @overrides(AbstractMemorySystem)
+    def get_mem_ports(self) -> Sequence[Tuple[AddrRange, Port]]:
+        return [(self.policy_manager.range, self.policy_manager.port)]
 
 def SingleChannelHBMRambus(
     size: Optional[str] = None,
