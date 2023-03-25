@@ -95,17 +95,20 @@ class DCacheSystem(AbstractMemorySystem):
             dram.null = True
             #dram.range = AddrRange('1GiB')
 
-        self.farMemXBar = L2XBar(width=64)
-        self.nearMemXBar = L2XBar(width=64)
+        self.loc_mem.get_memory_controllers()[0].port = self.policy_manager.loc_req_port
+        self.far_mem.get_memory_controllers()[0].port = self.policy_manager.far_req_port
 
-        self.policy_manager.far_req_port = self.farMemXBar.cpu_side_ports
-        self.policy_manager.loc_req_port = self.nearMemXBar.cpu_side_ports
+        #self.farMemXBar = L2XBar(width=64)
+        #self.nearMemXBar = L2XBar(width=64)
 
-        for ctrl in self.loc_mem.get_memory_controllers():
-            self.nearMemXBar.mem_side_ports = ctrl.port
+        #self.policy_manager.far_req_port = self.farMemXBar.cpu_side_ports
+        #self.policy_manager.loc_req_port = self.nearMemXBar.cpu_side_ports
 
-        for ctrl in self.far_mem.get_memory_controllers():
-            self.farMemXBar.mem_side_ports = ctrl.port
+        #for ctrl in self.loc_mem.get_memory_controllers():
+        #    self.nearMemXBar.mem_side_ports = ctrl.port
+
+        #for ctrl in self.far_mem.get_memory_controllers():
+        #    self.farMemXBar.mem_side_ports = ctrl.port
 
     @overrides(AbstractMemorySystem)
     def get_size(self) -> int:

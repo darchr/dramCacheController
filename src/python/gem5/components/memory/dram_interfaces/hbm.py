@@ -283,7 +283,7 @@ class HBM_2000_4H_1x64_Rambus(DRAMInterface):
     device_bus_width = 64
 
     # HBM2 supports BL4
-    burst_length = 4
+    burst_length = 8
 
     # size of channel in bytes, 4H stack of 8Gb dies is 4GiB per stack;
     # with 16 pseudo channels, 256MiB per pseudo channel
