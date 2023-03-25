@@ -2051,6 +2051,11 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
         }
     }
 
+    // if ( numColdMisses >= (unsigned)(cacheWarmupRatio * dramCacheSize/blockSize) && !resetStatsWarmup ) {
+    //    exitSimLoopNow("cacheIsWarmedup");
+    //    resetStatsWarmup = true;
+    // }
+
 }
 
 bool
