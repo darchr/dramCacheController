@@ -5,7 +5,7 @@ from gem5.components.processors.cpu_types import CPUTypes
 from gem5.isas import ISA
 from gem5.utils.requires import requires
 from gem5.utils.override import overrides
-from gem5.resources.resource import Resource, CustomResource
+from gem5.resources.resource import Resource, DiskImageResource
 from gem5.simulate.simulator import Simulator
 from gem5.components.memory import CascadeLakeCache, OracleCache, RamCache
 
@@ -78,7 +78,7 @@ board = HighPerformanceRiscvBoard(
 # Set the Full System workload.
 board.set_kernel_disk_workload(
     kernel=Resource("riscv-bootloader-vmlinux-5.10"),
-    disk_image=CustomResource("/scr/hn/DISK_IMAGES/ubuntu-2204-riscv.img"),
+    disk_image=DiskImageResource("/scr/hn/DISK_IMAGES/ubuntu-2204-riscv.img"),
     readfile_contents=f"{command}"
 )
 
