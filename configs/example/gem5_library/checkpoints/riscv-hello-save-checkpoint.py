@@ -46,6 +46,7 @@ scons build/RISCV/gem5.opt
 import argparse
 from gem5.isas import ISA
 from gem5.utils.requires import requires
+from gem5.resources.resource import CustomResource
 from gem5.resources.resource import Resource
 from gem5.components.memory import SingleChannelDDR3_1600
 from gem5.components.processors.cpu_types import CPUTypes
@@ -53,6 +54,36 @@ from gem5.components.boards.simple_board import SimpleBoard
 from gem5.components.cachehierarchies.classic.no_cache import NoCache
 from gem5.components.processors.simple_processor import SimpleProcessor
 from gem5.simulate.simulator import Simulator
+from gem5.components.cachehierarchies.ruby.mesi_two_level_cache_hierarchy import (
+    MESITwoLevelCacheHierarchy,
+)
+#from gem5.components.cachehierarchies.ruby.mesi_three_level_cache_hierarchy import (
+#    MESIThreeLevelCacheHierarchy,
+#)
+
+"""
+cache_hierarchy = MESIThreeLevelCacheHierarchy(
+    l1i_size  = "32KiB",
+    l1i_assoc = 8,
+    l1d_size  = "32KiB",
+    l1d_assoc = 8,
+    l2_size  = "512KiB",
+    l2_assoc = 8,
+    l3_size = "32MiB",
+    l3_assoc = 32,
+    num_l3_banks=1,
+    )
+"""
+
+cache_hierarchy = MESITwoLevelCacheHierarchy(
+    l1d_size="32kB",
+    l1d_assoc=8,
+    l1i_size="32kB",
+    l1i_assoc=8,
+    l2_size="256kB",
+    l2_assoc=16,
+    num_l2_banks=2,
+)
 
 parser = argparse.ArgumentParser()
 
@@ -68,17 +99,17 @@ args = parser.parse_args()
 
 # This check ensures the gem5 binary is compiled to the RISCV ISA target.
 # If not, an exception will be thrown.
-requires(isa_required=ISA.RISCV)
+#requires(isa_required=ISA.RISCV)
 
 # In this setup we don't have a cache. `NoCache` can be used for such setups.
-cache_hierarchy = NoCache()
+#cache_hierarchy = NoCache()
 
 # We use a single channel DDR3_1600 memory system
 memory = SingleChannelDDR3_1600(size="32MB")
 
 # We use a simple Timing processor with one core.
 processor = SimpleProcessor(
-    cpu_type=CPUTypes.TIMING, isa=ISA.RISCV, num_cores=1
+    cpu_type=CPUTypes.O3, isa=ISA.RISCV, num_cores=1
 )
 
 # The gem5 library simble board which can be used to run simple SE-mode
@@ -101,6 +132,7 @@ board.set_se_binary_workload(
     # Any resource specified in this file will be automatically retrieved.
     # At the time of writing, this file is a WIP and does not contain all
     # resources. Jira ticket: https://gem5.atlassian.net/browse/GEM5-1096
+    #CustomResource("tests/test-progs/hello/bin/x86/linux/hello")
     Resource("riscv-hello")
 )
 
