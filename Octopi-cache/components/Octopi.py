@@ -10,7 +10,7 @@ from gem5.utils.requires import requires
 from gem5.components.cachehierarchies.ruby.caches.mesi_three_level.directory import Directory
 from gem5.components.cachehierarchies.ruby.caches.mesi_three_level.dma_controller import DMAController
 
-from m5.objects import RubySystem, DMASequencer, RubyPortProxy
+from m5.objects import RubySystem, DMASequencer, RubyPortProxy, SimpleMemory, AddrRange
 
 from .core_complex import CoreComplex
 from .octopi_network import OctopiNetwork
@@ -65,6 +65,14 @@ class OctopiCache(AbstractRubyCacheHierarchy, AbstractThreeLevelCacheHierarchy):
         # MESI_Three_Level needs 3 virtual networks
         self.ruby_system.number_of_virtual_networks = 3
         self.ruby_system.network = OctopiNetwork(self.ruby_system)
+        self.ruby_system.access_backing_store = True
+
+        # Get the first range and the range part.
+        addr_range_0 = board.get_mem_ports()[0][0]
+        self.ruby_system.phys_mem = SimpleMemory(
+            range=AddrRange(start=addr_range_0.start,
+                            end=addr_range_0.end),
+            in_addr_map=False)
 
         # Setting up the core complex
         all_cores = board.get_processor().get_cores()
