@@ -507,8 +507,6 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         else {
             assert(!mem_pkt->pkt->owIsRead);
 
-            // mem_pkt->readyTime = cmd_at + tRTW_int + tBURST;
-
             mem_pkt->readyTime = cmd_at + tRTW_int + tWL + tBURST;
             
             if (!mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
@@ -572,6 +570,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
                 stats.writeRowHits++;
             stats.bytesWritten += burstSize;
             stats.perBankWrBursts[mem_pkt->bankId]++;
+            stats.totQLatWr += cmd_at - tRTW_int - mem_pkt->entryTime;
         }
 
     } else {
@@ -2178,6 +2177,8 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
 
     ADD_STAT(totQLat, statistics::units::Tick::get(),
              "Total ticks spent queuing"),
+    ADD_STAT(totQLatWr, statistics::units::Tick::get(),
+             "Total ticks spent queuing for write requests"),
     ADD_STAT(totBusLat, statistics::units::Tick::get(),
              "Total ticks spent in databus transfers"),
     ADD_STAT(totMemAccLat, statistics::units::Tick::get(),

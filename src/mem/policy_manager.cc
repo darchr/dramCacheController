@@ -412,6 +412,7 @@ PolicyManager::processTagCheckEvent()
 {
     // sanity check for the chosen packet
     auto orbEntry = ORB.at(pktTagCheck.front());
+    assert(orbEntry->pol == enums::Rambus);
     assert(orbEntry->validEntry);
     assert(orbEntry->state == tagCheck);
     assert(!orbEntry->issued);
@@ -2393,6 +2394,18 @@ PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
         polManStats.totTimeInLocRead += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
         polManStats.totTimeInLocWrite += ((orbEntry->locWrExit - orbEntry->locWrEntered)/1000);
         polManStats.totTimeInFarRead += ((orbEntry->farRdExit - orbEntry->farRdEntered)/1000);
+
+        if (orbEntry->owPkt->isRead()) {
+            polManStats.totPktLifeTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totPktORBTimeRd += ((curTick() - orbEntry->locRdEntered)/1000);
+            polManStats.totTimeTagCheckResRd += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
+        } else {
+            polManStats.totPktLifeTimeWr += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totPktORBTimeWr += ((curTick() - orbEntry->locRdEntered)/1000);
+            polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totPktRespTimeWr += ((curTick() - orbEntry->arrivalTick)/1000);
+            polManStats.totTimeTagCheckResWr += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
+        }
     }
 }
 
@@ -2664,20 +2677,32 @@ PolicyManager::PolicyManagerStats::regStats()
     avgWrBWSys = (bytesWrittenSys) / simSeconds;
 
     avgPktLifeTime = (totPktLifeTime) / (readReqs + writeReqs);
-    avgPktLifeTimeRd = (totPktLifeTimeRd) / (numRdHit + numRdMissClean + numRdMissDirty);
-    avgPktLifeTimeWr = (totPktLifeTimeWr) / (numWrHit + numWrMissClean + numWrMissDirty);
+    avgPktLifeTimeRd = (totPktLifeTimeRd) / (readReqs);
+    avgPktLifeTimeWr = (totPktLifeTimeWr) / (writeReqs);
+
     avgPktORBTime = (totPktORBTime) / (readReqs + writeReqs);
-    avgPktORBTimeRd = (totPktORBTimeRd) / (numRdHit + numRdMissClean + numRdMissDirty);
-    avgPktORBTimeWr = (totPktORBTimeWr) / (numWrHit + numWrMissClean + numWrMissDirty);
+    avgPktORBTimeRd = (totPktORBTimeRd) / (readReqs);
+    avgPktORBTimeWr = (totPktORBTimeWr) / (writeReqs);
+
     avgPktRespTime = (totPktRespTime) / (readReqs + writeReqs);
-    avgPktRespTimeRd = (totPktRespTimeRd) / (numRdHit + numRdMissClean + numRdMissDirty);
-    avgPktRespTimeWr = (totPktRespTimeWr) / (numWrHit + numWrMissClean + numWrMissDirty);
-    avgTimeTagCheckRes = (totTimeTagCheckRes) / (readReqs + writeReqs);
-    avgTimeTagCheckResRd = (totTimeTagCheckResRd) / (numRdHit + numRdMissClean + numRdMissDirty);
-    avgTimeTagCheckResWr = (totTimeTagCheckResWr) / (numWrHit + numWrMissClean + numWrMissDirty);
-    avgTimeInLocRead = (totTimeInLocRead) / (numRdHit);
-    avgTimeInLocWrite = (totTimeInLocWrite) / (numRdMissClean + numRdMissDirty);
+    avgPktRespTimeRd = (totPktRespTimeRd) / (readReqs);
+    avgPktRespTimeWr = (totPktRespTimeWr) / (writeReqs);
+
+    if (polMan.locMemPolicy == enums::Rambus) {
+        avgTimeTagCheckRes = (totTimeTagCheckRes) / (readReqs + writeReqs);
+        avgTimeInLocRead = (totTimeInLocRead) / (numRdHit);
+    } else {
+        avgTimeTagCheckRes = (totTimeInLocRead) / (readReqs + writeReqs);
+        avgTimeInLocRead = (totTimeInLocRead) / (readReqs + writeReqs);
+    }
+
+    avgTimeTagCheckResRd = (totTimeTagCheckResRd) / (readReqs);
+    avgTimeTagCheckResWr = (totTimeTagCheckResWr) / (writeReqs);
+
+
+    avgTimeInLocWrite = (totTimeInLocWrite) / (numRdMissClean + numRdMissDirty + writeReqs);
     avgTimeInFarRead = (totTimeInFarRead) / (numRdMissClean + numRdMissDirty);
+
     avgTimeFarRdtoSend = (totTimeFarRdtoSend) / (sentFarRdPort);
     avgTimeFarRdtoRecv = (totTimeFarRdtoRecv) / (sentFarRdPort);
     avgTimeFarWrtoSend = (totTimeFarWrtoSend) / (sentFarWrPort);

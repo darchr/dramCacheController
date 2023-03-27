@@ -607,6 +607,7 @@ class DRAMInterface : public MemInterface
 
         // Latencies summed over all requests
         statistics::Scalar totQLat;
+        statistics::Scalar totQLatWr;
         statistics::Scalar totBusLat;
         statistics::Scalar totMemAccLat;
 
