@@ -151,6 +151,10 @@ class PolicyManager : public AbstractMemory
 
     unsigned numColdMisses;
     float cacheWarmupRatio;
+    // used to print an update
+    // whenever cache is warmed up
+    // by an additional 5% (hard-coded value)
+    float infoCacheWarmupRatio;
     bool resetStatsWarmup;
 
     Tick prevArrival;

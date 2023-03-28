@@ -75,6 +75,7 @@ class DCacheSystem(AbstractMemorySystem):
         #self.policy_manager.always_hit = False
         #self.policy_manager.always_dirty = True
         self.policy_manager.dram_cache_size = self._size
+        self.policy_manager.cache_warmup_ratio = 0.95
 
         self.loc_mem = loc_mem()
         self.far_mem = far_mem()

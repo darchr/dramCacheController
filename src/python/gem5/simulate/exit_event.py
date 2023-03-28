@@ -49,6 +49,7 @@ class ExitEvent(Enum):
     )
     SIMPOINT_BEGIN = "simpoint begins"
     MAX_INSTS = "number of instructions reached"
+    CACHE_WARMUP = "dram cache is warmed up"
 
     @classmethod
     def translate_exit_status(cls, exit_string: str) -> "ExitEvent":
@@ -90,6 +91,9 @@ class ExitEvent(Enum):
             return ExitEvent.SIMPOINT_BEGIN
         elif exit_string == "a thread reached the max instruction count":
             return ExitEvent.MAX_INSTS
+        elif exit_string == "cacheIsWarmedup":
+            # This is for the DRAM cache warmup
+            return ExitEvent.CACHE_WARMUP
         elif exit_string.endswith("will terminate the simulation.\n"):
             # This is for the traffic generator exit event
             return ExitEvent.EXIT
