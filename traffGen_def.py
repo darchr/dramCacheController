@@ -48,40 +48,27 @@ system.mem_mode = 'timing'
 system.generator = PyTrafficGen()
 
 system.mem_ctrl = PolicyManager(range=AddrRange('3GiB'))
-system.mem_ctrl.tRP = '14ns'
-system.mem_ctrl.tRCD_RD = '12ns'
-system.mem_ctrl.tRL = '18ns'
-# system.mem_ctrl.loc_mem_policy = 'Rambus'
-system.mem_ctrl.loc_mem_policy = 'CascadeLakeNoPartWrs'
+
+system.mem_ctrl.loc_mem_policy = 'Rambus' # 'CascadeLakeNoPartWrs'
 system.mem_ctrl.orb_max_size = 128
 system.mem_ctrl.static_frontend_latency = "10ns"
 system.mem_ctrl.static_backend_latency = "10ns"
 #system.mem_ctrl.bypass_dcache = True
 
-# system.loc_mem_ctrl = MemCtrl()
-# system.loc_mem_ctrl.consider_oldest_write= True
-# system.loc_mem_ctrl.dram = HBM_2000_4H_1x64_Rambus(range=AddrRange('3GiB'), in_addr_map=False, null=True)
-# system.loc_mem_ctrl.dram.enable_read_flush_buffer = True
-# system.loc_mem_ctrl.dram.banks_per_rank = 32
-# system.loc_mem_ctrl.dram.bank_groups_per_rank = 8
-# system.loc_mem_ctrl.dram.page_policy = 'close'
-# system.loc_mem_ctrl.dram.burst_length = 8
-# system.loc_mem_ctrl.dram.tCCD_L = "4ns"
-# system.loc_mem_ctrl.dram.tBURST = "4ns"
-# system.loc_mem_ctrl.dram.tRRD_L = "4ns"
-# system.loc_mem_ctrl.dram.tRRD = "3ns"
-# system.loc_mem_ctrl.dram.flushBuffer_high_thresh_perc = '70'
+system.loc_mem_ctrl = MemCtrl()
+#system.loc_mem_ctrl.consider_oldest_write= True
+system.loc_mem_ctrl.dram = TDRAM(range=AddrRange('3GiB'), in_addr_map=False, null=True)
 
 # system.loc_mem_ctrl = HBMCtrl()
 # system.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
 # system.loc_mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 1), in_addr_map=False, kvm_map=False, null=True)
 
 # HBM2 cache 1 PC
-system.loc_mem_ctrl = MemCtrl()
-system.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange('3GiB'), in_addr_map=False, null=True)
-system.loc_mem_ctrl.consider_oldest_write= True
-system.loc_mem_ctrl.dram.burst_length = 8
-system.loc_mem_ctrl.dram.tBURST = "4ns"
+# system.loc_mem_ctrl = MemCtrl()
+# system.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange('3GiB'), in_addr_map=False, null=True)
+# system.loc_mem_ctrl.consider_oldest_write= True
+# system.loc_mem_ctrl.dram.burst_length = 8
+# system.loc_mem_ctrl.dram.tBURST = "4ns"
 
 system.mem_ctrl.loc_mem = system.loc_mem_ctrl.dram
 system.loc_mem_ctrl.static_frontend_latency = "2ns"
@@ -91,8 +78,8 @@ system.loc_mem_ctrl.static_backend_latency_tc = "1ns"
 
 # system.loc_mem_ctrl.write_low_thresh_perc = 15
 # system.loc_mem_ctrl.write_high_thresh_perc = 30
-system.loc_mem_ctrl.oldest_write_age_threshold = 900000
-system.loc_mem_ctrl.min_writes_per_switch = 32
+# system.loc_mem_ctrl.oldest_write_age_threshold = 900000
+# system.loc_mem_ctrl.min_writes_per_switch = 32
 
 system.loc_mem_ctrl.dram.read_buffer_size = 64
 system.loc_mem_ctrl.dram.write_buffer_size = 64

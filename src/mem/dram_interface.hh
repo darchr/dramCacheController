@@ -607,14 +607,25 @@ class DRAMInterface : public MemInterface
 
         // Latencies summed over all requests
         statistics::Scalar totQLat;
-        statistics::Scalar totQLatWr;
         statistics::Scalar totBusLat;
         statistics::Scalar totMemAccLat;
+
+        statistics::Scalar totQLatWr;
+        statistics::Scalar totBusLatWr;
+        statistics::Scalar totMemAccLatWr;
+
+        statistics::Scalar totQLatWrTC;
+        statistics::Scalar totBusLatWrTC;
+        statistics::Scalar totMemAccLatWrTC;
 
         // Average latencies per request
         statistics::Formula avgQLat;
         statistics::Formula avgBusLat;
         statistics::Formula avgMemAccLat;
+
+        statistics::Formula avgQLatWr;
+        statistics::Formula avgBusLatWr;
+        statistics::Formula avgMemAccLatWr;
 
         // Row hit count and rate
         statistics::Scalar readRowHits;
@@ -675,6 +686,10 @@ class DRAMInterface : public MemInterface
   public:
 
     AbstractMemory* polMan;
+
+    Tick get_tRP() override { return tRP;}
+    Tick get_tRCD_RD() override { return tRCD_RD;}
+    Tick get_tRL() override { return tRL;}
 
     // void setPolicyManager(PolicyManager* _polMan) override;
     void setPolicyManager(AbstractMemory* _polMan) override;

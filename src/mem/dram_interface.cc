@@ -570,7 +570,11 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
                 stats.writeRowHits++;
             stats.bytesWritten += burstSize;
             stats.perBankWrBursts[mem_pkt->bankId]++;
-            stats.totQLatWr += cmd_at - tRTW_int - mem_pkt->entryTime;
+
+            // Update latency stats
+            stats.totMemAccLatWrTC += mem_pkt->readyTime - tRTW_int- mem_pkt->entryTime;
+            stats.totQLatWrTC += cmd_at - mem_pkt->entryTime;
+            stats.totBusLatWrTC += tBURST;
         }
 
     } else {
@@ -766,6 +770,11 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
                 stats.writeRowHits++;
             stats.bytesWritten += burstSize;
             stats.perBankWrBursts[mem_pkt->bankId]++;
+
+            // Update latency stats
+            stats.totMemAccLatWr += mem_pkt->readyTime - mem_pkt->entryTime;
+            stats.totQLatWr += cmd_at - mem_pkt->entryTime;
+            stats.totBusLatWr += tBURST;
 
         }
     }
@@ -2176,24 +2185,48 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
              "Per bank write bursts"),
 
     ADD_STAT(totQLat, statistics::units::Tick::get(),
-             "Total ticks spent queuing"),
-    ADD_STAT(totQLatWr, statistics::units::Tick::get(),
-             "Total ticks spent queuing for write requests"),
+             "Total ticks spent queuing for reads"),
     ADD_STAT(totBusLat, statistics::units::Tick::get(),
-             "Total ticks spent in databus transfers"),
+             "Total ticks spent in databus transfers for reads"),
     ADD_STAT(totMemAccLat, statistics::units::Tick::get(),
              "Total ticks spent from burst creation until serviced "
-             "by the DRAM"),
+             "by the DRAM for reads"),
+    
+    ADD_STAT(totQLatWr, statistics::units::Tick::get(),
+             "Total ticks spent queuing for writes"),
+    ADD_STAT(totBusLatWr, statistics::units::Tick::get(),
+             "Total ticks spent in databus transfers for writes"),
+    ADD_STAT(totMemAccLatWr, statistics::units::Tick::get(),
+             "Total ticks spent from burst creation until serviced "
+             "by the DRAM for writes"),
+
+    ADD_STAT(totQLatWrTC, statistics::units::Tick::get(),
+             "Total ticks spent queuing for writes tag check"),
+    ADD_STAT(totBusLatWrTC, statistics::units::Tick::get(),
+             "Total ticks spent in databus transfers for writes tag check"),
+    ADD_STAT(totMemAccLatWrTC, statistics::units::Tick::get(),
+             "Total ticks spent from burst creation until serviced "
+             "by the DRAM for writes tag check"),
 
     ADD_STAT(avgQLat, statistics::units::Rate<
                 statistics::units::Tick, statistics::units::Count>::get(),
-             "Average queueing delay per DRAM burst"),
+             "Average queueing delay per DRAM burst for reads"),
     ADD_STAT(avgBusLat, statistics::units::Rate<
                 statistics::units::Tick, statistics::units::Count>::get(),
-             "Average bus latency per DRAM burst"),
+             "Average bus latency per DRAM burst for reads"),
     ADD_STAT(avgMemAccLat, statistics::units::Rate<
                 statistics::units::Tick, statistics::units::Count>::get(),
-             "Average memory access latency per DRAM burst"),
+             "Average memory access latency per DRAM burst for reads"),
+    
+    ADD_STAT(avgQLatWr, statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(),
+             "Average queueing delay per DRAM burst for writes"),
+    ADD_STAT(avgBusLatWr, statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(),
+             "Average bus latency per DRAM burst for writes"),
+    ADD_STAT(avgMemAccLatWr, statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(),
+             "Average memory access latency per DRAM burst for writes"),
 
     ADD_STAT(readRowHits, statistics::units::Count::get(),
              "Number of row buffer hits during reads"),
@@ -2245,6 +2278,10 @@ DRAMInterface::DRAMStats::regStats()
     avgBusLat.precision(2);
     avgMemAccLat.precision(2);
 
+    avgQLatWr.precision(2);
+    avgBusLatWr.precision(2);
+    avgMemAccLatWr.precision(2);
+
     avgFBLenEnq.precision(2);
 
     readRowHitRate.precision(2);
@@ -2271,6 +2308,10 @@ DRAMInterface::DRAMStats::regStats()
     avgQLat = totQLat / readBursts;
     avgBusLat = totBusLat / readBursts;
     avgMemAccLat = totMemAccLat / readBursts;
+
+    avgQLatWr = totQLatWr / writeBursts;
+    avgBusLatWr = totBusLatWr / writeBursts;
+    avgMemAccLatWr = totMemAccLatWr / writeBursts;
 
     readRowHitRate = (readRowHits / readBursts) * 100;
     writeRowHitRate = (writeRowHits / writeBursts) * 100;

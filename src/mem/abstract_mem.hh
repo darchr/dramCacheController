@@ -218,6 +218,13 @@ class AbstractMemory : public ClockedObject
 
     void initState() override;
 
+    virtual Tick get_tRP() { panic("AbstractMemory get_tRP should not be executed from here.\n");
+                             return false;}
+    virtual Tick get_tRCD_RD() { panic("AbstractMemory get_tRCD_RD should not be executed from here.\n");
+                                 return false;}
+    virtual Tick get_tRL() { panic("AbstractMemory get_tRL should not be executed from here.\n");
+                             return false;}
+
     virtual bool recvReadFlushBuffer(Addr addr)
     {
         panic("AbstractMemory recvReadFlushBuffer should not be executed from here.\n");

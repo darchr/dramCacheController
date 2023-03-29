@@ -33,10 +33,6 @@ class PolicyManager(AbstractMemory):
     static_frontend_latency = Param.Latency("10ns", "Static frontend latency")
     static_backend_latency = Param.Latency("10ns", "Static backend latency")
 
-    tRP = Param.Latency("Row precharge time")
-    tRCD_RD = Param.Latency("RAS to Read CAS delay")
-    tRL = Param.Latency("Read CAS latency")
-
     cache_warmup_ratio = Param.Float(0.7, "DRAM cache warmup ratio, after that it'll reset the stats")
 
     bypass_dcache = Param.Bool(False, "if the DRAM cache needs to be bypassed")

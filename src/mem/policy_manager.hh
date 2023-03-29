@@ -145,10 +145,6 @@ class PolicyManager : public AbstractMemory
      */
     const Tick backendLatency;
 
-    Tick tRP;
-    Tick tRCD_RD;
-    Tick tRL;
-
     unsigned numColdMisses;
     float cacheWarmupRatio;
     bool resetStatsWarmup;
