@@ -49,15 +49,15 @@ system.generator = PyTrafficGen()
 
 system.mem_ctrl = PolicyManager(range=AddrRange('3GiB'))
 
-system.mem_ctrl.loc_mem_policy = 'Rambus' # 'CascadeLakeNoPartWrs'
+system.mem_ctrl.loc_mem_policy = 'CascadeLakeNoPartWrs' # 'Rambus' # 
 system.mem_ctrl.orb_max_size = 128
 system.mem_ctrl.static_frontend_latency = "10ns"
 system.mem_ctrl.static_backend_latency = "10ns"
 #system.mem_ctrl.bypass_dcache = True
 
-system.loc_mem_ctrl = MemCtrl()
-system.loc_mem_ctrl.consider_oldest_write= True
-system.loc_mem_ctrl.dram = TDRAM(range=AddrRange('3GiB'), in_addr_map=False, null=True)
+# system.loc_mem_ctrl = MemCtrl()
+# system.loc_mem_ctrl.consider_oldest_write= True
+# system.loc_mem_ctrl.dram = TDRAM(range=AddrRange('3GiB'), in_addr_map=False, null=True)
 # system.loc_mem_ctrl.oldest_write_age_threshold = 1000000
 # system.loc_mem_ctrl.dram.page_policy = 'close_adaptive'
 # system.loc_mem_ctrl.min_writes_per_switch = 32
@@ -72,6 +72,17 @@ system.loc_mem_ctrl.dram = TDRAM(range=AddrRange('3GiB'), in_addr_map=False, nul
 # system.loc_mem_ctrl.consider_oldest_write= True
 # system.loc_mem_ctrl.dram.burst_length = 8
 # system.loc_mem_ctrl.dram.tBURST = "4ns"
+
+# Alloy cache
+system.loc_mem_ctrl = MemCtrl()
+# DDR4
+# system.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=AddrRange('3GiB'), in_addr_map=False, null=True)
+# system.loc_mem_ctrl.dram.burst_length = 10
+# system.loc_mem_ctrl.dram.tBURST = "4.165ns"
+# HBM2 1 PC
+system.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange('3GiB'), in_addr_map=False, null=True)
+system.loc_mem_ctrl.dram.burst_length = 10
+system.loc_mem_ctrl.dram.tBURST = "5ns"
 
 system.mem_ctrl.loc_mem = system.loc_mem_ctrl.dram
 system.loc_mem_ctrl.static_frontend_latency = "2ns"
