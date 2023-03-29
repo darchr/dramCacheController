@@ -32,9 +32,6 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     bypassDcache(p.bypass_dcache),
     frontendLatency(p.static_frontend_latency),
     backendLatency(p.static_backend_latency),
-    tRP(p.tRP),
-    tRCD_RD(p.tRCD_RD),
-    tRL(p.tRL),
     numColdMisses(0),
     cacheWarmupRatio(p.cache_warmup_ratio),
     infoCacheWarmupRatio(0.05),
@@ -116,7 +113,8 @@ Tick
 PolicyManager::accessLatency()
 {
     // THIS IS FOR DRAM ONLY!
-    return (tRP + tRCD_RD + tRL);
+    // return (tRP + tRCD_RD + tRL);
+    return (locMem->get_tRP() + locMem->get_tRCD_RD() + locMem->get_tRL());
 }
 
 bool

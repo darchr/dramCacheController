@@ -1273,13 +1273,13 @@ class HBM_2000_4H_1x64(DRAMInterface):
 # to be used as a single pseudo channel. The timings are based
 # on HBM gen2 specifications. 4H stack, 8Gb per die and total capacity
 # of 4GiB.
-class HBM_2000_4H_1x64_Rambus(DRAMInterface):
+class TDRAM(DRAMInterface):
 
     # 64-bit interface for a single pseudo channel
     device_bus_width = 64
 
     # HBM2 supports BL4
-    burst_length = 4
+    burst_length = 8
 
     # size of channel in bytes, 4H stack of 8Gb dies is 4GiB per stack;
     # with 16 pseudo channels, 256MiB per pseudo channel
@@ -1292,8 +1292,9 @@ class HBM_2000_4H_1x64_Rambus(DRAMInterface):
 
     ranks_per_channel = 1
 
-    banks_per_rank = 16
-    bank_groups_per_rank = 4
+    banks_per_rank = 32
+
+    bank_groups_per_rank = 8
 
     # 1000 MHz for 2Gbps DDR data rate
     tCK = "1ns"
@@ -1304,11 +1305,12 @@ class HBM_2000_4H_1x64_Rambus(DRAMInterface):
     tHM2DQ = "1ns"
     tRTW_int = "2ns"
     tRFBD = "2ns"
+    enable_read_flush_buffer = True
     flushBuffer_high_thresh_perc = 70
 
     tRP = "14ns"
 
-    tCCD_L = "3ns"
+    tCCD_L = "4ns"
 
     tRCD = "12ns"
     tRCD_WR = "6ns"
@@ -1316,9 +1318,7 @@ class HBM_2000_4H_1x64_Rambus(DRAMInterface):
     tCWL = "7ns"
     tRAS = "28ns"
 
-    # BL4 in pseudo channel mode
-    # DDR @ 1000 MHz means 4 * 1ns / 2 = 2ns
-    tBURST = "2ns"
+    tBURST = "4ns"
 
     # value for 2Gb device from JEDEC spec
     tRFC = "220ns"
@@ -1338,8 +1338,8 @@ class HBM_2000_4H_1x64_Rambus(DRAMInterface):
     # single rank device, set to 0
     tCS = "0ns"
 
-    tRRD = "4ns"
-    tRRD_L = "6ns"
+    tRRD = "3ns"
+    tRRD_L = "4ns"
 
     # for a single pseudo channel
     tXAW = "16ns"
@@ -1351,7 +1351,7 @@ class HBM_2000_4H_1x64_Rambus(DRAMInterface):
     # start with tRFC + tXP -> 160ns + 8ns = 168ns
     tXS = "216ns"
 
-    page_policy = 'close_adaptive'
+    page_policy = 'close'
 
     read_buffer_size = 64
     write_buffer_size = 64

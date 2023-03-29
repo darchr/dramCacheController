@@ -165,38 +165,14 @@ class MyRubySystem(System):
         self.mem_ctrl.static_frontend_latency = "10ns"
         self.mem_ctrl.static_backend_latency = "10ns"
 
-        # self.mem_ctrl.loc_mem_policy = 'Rambus'
-        self.mem_ctrl.loc_mem_policy = 'CascadeLakeNoPartWrs'
+        self.mem_ctrl.loc_mem_policy = 'Rambus' # 'CascadeLakeNoPartWrs'
 
         # self.mem_ctrl.bypass_dcache = True
 
-        # FOR HBM2
-        # self.mem_ctrl.tRP = '14ns'
-        # self.mem_ctrl.tRCD_RD = '12ns'
-        # self.mem_ctrl.tRL = '18ns'
-
-        # FOR DDR4
-        self.mem_ctrl.tRP = '14.16ns'
-        self.mem_ctrl.tRCD_RD = '14.16ns'
-        self.mem_ctrl.tRL = '14.16ns'
-
         # TDRAM cache
-        # self.loc_mem_ctrl = MemCtrl()
-        # self.loc_mem_ctrl.consider_oldest_write= True
-        # self.loc_mem_ctrl.dram = HBM_2000_4H_1x64_Rambus(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
-        # self.mem_ctrl.loc_mem = self.loc_mem_ctrl.dram
-        # self.loc_mem_ctrl.dram.enable_read_flush_buffer = True
-        # self.loc_mem_ctrl.dram.banks_per_rank = 32
-        # self.loc_mem_ctrl.dram.bank_groups_per_rank = 8
-        # self.loc_mem_ctrl.dram.page_policy = 'close'
-        # self.loc_mem_ctrl.dram.burst_length = 8
-        # self.loc_mem_ctrl.dram.tCCD_L = "4ns"
-        # self.loc_mem_ctrl.dram.tBURST = "4ns"
-        # self.loc_mem_ctrl.dram.tRRD_L = "4ns"
-        # self.loc_mem_ctrl.dram.tRRD = "3ns"
-        # self.loc_mem_ctrl.dram.flushBuffer_high_thresh_perc = '70'
-        # self.loc_mem_ctrl.static_frontend_latency_tc = "1ns"
-        # self.loc_mem_ctrl.static_backend_latency_tc = "1ns"
+        self.loc_mem_ctrl = MemCtrl()
+        self.loc_mem_ctrl.consider_oldest_write= True
+        self.loc_mem_ctrl.dram = TDRAM(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
 
         # HBM2 cache 2 PC
         # self.loc_mem_ctrl = HBMCtrl()
@@ -215,8 +191,8 @@ class MyRubySystem(System):
         # self.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
 
         # Alloy cache
-        self.loc_mem_ctrl = MemCtrl()
-        self.loc_mem_ctrl.dram =  DDR4_2400_16x4_Alloy(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
+        # self.loc_mem_ctrl = MemCtrl()
+        # self.loc_mem_ctrl.dram =  DDR4_2400_16x4_Alloy(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
 
         self.mem_ctrl.loc_mem = self.loc_mem_ctrl.dram
         self.loc_mem_ctrl.static_frontend_latency = "2ns"
@@ -250,26 +226,6 @@ class MyRubySystem(System):
         self.far_mem_ctrl.dram.read_buffer_size = 64
         self.far_mem_ctrl.dram.write_buffer_size = 64
 
-        # DDR4 no cache
-        # self.mem_ctrl = MemCtrl()
-        # self.mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0])
-        # self.mem_ctrl.dram.read_buffer_size = 64
-        # self.mem_ctrl.dram.write_buffer_size = 64
-
-        # HBM2 no cache
-        # self.mem_ctrl = HBMCtrl()
-        # self.mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 0))
-        # self.mem_ctrl.dram_2 =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 1))
-        # self.mem_ctrl.dram.read_buffer_size = 32
-        # self.mem_ctrl.dram.write_buffer_size = 32
-        # self.mem_ctrl.dram_2.read_buffer_size = 32
-        # self.mem_ctrl.dram_2.write_buffer_size = 32
-
-        # HBM2 no cache
-        # self.mem_ctrl = MemCtrl()
-        # self.mem_ctrl.dram =  HBM_2000_4H_1x64_Rambus(range=self.mem_ranges[0], kvm_map=False)
-        # self.mem_ctrl.dram.read_buffer_size = 64
-        # self.mem_ctrl.dram.write_buffer_size = 64
 
 
     def initFS(self, cpus):
