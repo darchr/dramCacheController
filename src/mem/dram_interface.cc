@@ -492,11 +492,16 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             // Every respQueue which will generate an event, increment count
             ++rank_ref.outstandingEvents;
 
-            stats.readBursts++;
-            if (row_hit)
-                stats.readRowHits++;
-            stats.bytesRead += burstSize;
-            stats.perBankRdBursts[mem_pkt->bankId]++;
+            if (!(mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && !mem_pkt->pkt->isDirty && !mem_pkt->pkt->hasDirtyData)) {
+                stats.readBursts++;
+                if (row_hit) {
+                    stats.readRowHits++;
+                }
+                stats.bytesRead += burstSize;
+            }
+            if (!(mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && !mem_pkt->pkt->isDirty)) {
+                stats.perBankRdBursts[mem_pkt->bankId]++;
+            }
 
             // Update latency stats
             stats.totMemAccLat += mem_pkt->readyTime - mem_pkt->entryTime;
@@ -565,14 +570,15 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             // decrement count for DRAM rank
             --rank_ref.writeEntries;
 
-            stats.writeBursts++;
-            if (row_hit)
+            stats.writeBurstsTC++;
+            if (row_hit) {
                 stats.writeRowHits++;
+            }
             stats.bytesWritten += burstSize;
             stats.perBankWrBursts[mem_pkt->bankId]++;
 
             // Update latency stats
-            stats.totMemAccLatWrTC += mem_pkt->readyTime - tRTW_int- mem_pkt->entryTime;
+            stats.totMemAccLatWrTC += mem_pkt->readyTime - tRTW_int - mem_pkt->entryTime;
             stats.totQLatWrTC += cmd_at - mem_pkt->entryTime;
             stats.totBusLatWrTC += tBURST;
         }
@@ -737,8 +743,9 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             ++rank_ref.outstandingEvents;
 
             stats.readBursts++;
-            if (row_hit)
+            if (row_hit) {
                 stats.readRowHits++;
+            }
             stats.bytesRead += burstSize;
             stats.perBankRdBursts[mem_pkt->bankId]++;
 
@@ -766,8 +773,9 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             --rank_ref.writeEntries;
 
             stats.writeBursts++;
-            if (row_hit)
+            if (row_hit) {
                 stats.writeRowHits++;
+            }
             stats.bytesWritten += burstSize;
             stats.perBankWrBursts[mem_pkt->bankId]++;
 
@@ -1138,6 +1146,7 @@ DRAMInterface::processReadFlushBufferEvent()
         stats.totReadFBSent++;
         stats.readBursts++;
         stats.bytesRead += burstSize;
+        stats.totBusLat += tBURST;
 
         Tick nextBurstFB = curTick() + tBURST;
 
@@ -2152,6 +2161,8 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
              "Number of DRAM read bursts"),
     ADD_STAT(writeBursts, statistics::units::Count::get(),
              "Number of DRAM write bursts"),
+    ADD_STAT(writeBurstsTC, statistics::units::Count::get(),
+             "Number of DRAM write bursts for tag check"),
     ADD_STAT(tagResBursts, statistics::units::Count::get(),
              "Number of tag bursts returned by write miss dirties"),
     ADD_STAT(tagBursts, statistics::units::Count::get(),
@@ -2228,6 +2239,16 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
                 statistics::units::Tick, statistics::units::Count>::get(),
              "Average memory access latency per DRAM burst for writes"),
 
+    ADD_STAT(avgQLatWrTC, statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(),
+             "Average queueing delay per DRAM burst for writes tag check"),
+    ADD_STAT(avgBusLatWrTC, statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(),
+             "Average bus latency per DRAM burst for writes tag check"),
+    ADD_STAT(avgMemAccLatWrTC, statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(),
+             "Average memory access latency per DRAM burst for writes tag check"),
+
     ADD_STAT(readRowHits, statistics::units::Count::get(),
              "Number of row buffer hits during reads"),
     ADD_STAT(writeRowHits, statistics::units::Count::get(),
@@ -2282,6 +2303,10 @@ DRAMInterface::DRAMStats::regStats()
     avgBusLatWr.precision(2);
     avgMemAccLatWr.precision(2);
 
+    avgQLatWrTC.precision(2);
+    avgBusLatWrTC.precision(2);
+    avgMemAccLatWrTC.precision(2);
+
     avgFBLenEnq.precision(2);
 
     readRowHitRate.precision(2);
@@ -2313,8 +2338,12 @@ DRAMInterface::DRAMStats::regStats()
     avgBusLatWr = totBusLatWr / writeBursts;
     avgMemAccLatWr = totMemAccLatWr / writeBursts;
 
+    avgQLatWrTC = totQLatWrTC / writeBurstsTC;
+    avgBusLatWrTC = totBusLatWrTC / writeBurstsTC;
+    avgMemAccLatWrTC = totMemAccLatWrTC / writeBurstsTC;
+
     readRowHitRate = (readRowHits / readBursts) * 100;
-    writeRowHitRate = (writeRowHits / writeBursts) * 100;
+    writeRowHitRate = (writeRowHits / (writeBursts+writeBurstsTC)) * 100;
 
     avgRdBW = (bytesRead / 1000000) / simSeconds;
     avgWrBW = (bytesWritten / 1000000) / simSeconds;
@@ -2326,7 +2355,7 @@ DRAMInterface::DRAMStats::regStats()
     busUtilWrite = avgWrBW / peakBW * 100;
 
     pageHitRate = (writeRowHits + readRowHits) /
-        (writeBursts + readBursts) * 100;
+        (writeBursts + writeBurstsTC + readBursts) * 100;
     
     hitMissBusUtil = (((tagResBursts * dram.tCK) + (tagBursts * dram.tTAGBURST)) * 0.000000000001) / simSeconds * 100;
 }

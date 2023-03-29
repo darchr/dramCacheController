@@ -587,6 +587,7 @@ class DRAMInterface : public MemInterface
         /** total number of DRAM bursts serviced */
         statistics::Scalar readBursts;
         statistics::Scalar writeBursts;
+        statistics::Scalar writeBurstsTC;
         statistics::Scalar tagResBursts;
         statistics::Scalar tagBursts;
 
@@ -626,6 +627,10 @@ class DRAMInterface : public MemInterface
         statistics::Formula avgQLatWr;
         statistics::Formula avgBusLatWr;
         statistics::Formula avgMemAccLatWr;
+
+        statistics::Formula avgQLatWrTC;
+        statistics::Formula avgBusLatWrTC;
+        statistics::Formula avgMemAccLatWrTC;
 
         // Row hit count and rate
         statistics::Scalar readRowHits;
