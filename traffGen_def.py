@@ -56,8 +56,11 @@ system.mem_ctrl.static_backend_latency = "10ns"
 #system.mem_ctrl.bypass_dcache = True
 
 system.loc_mem_ctrl = MemCtrl()
-#system.loc_mem_ctrl.consider_oldest_write= True
+system.loc_mem_ctrl.consider_oldest_write= True
 system.loc_mem_ctrl.dram = TDRAM(range=AddrRange('3GiB'), in_addr_map=False, null=True)
+# system.loc_mem_ctrl.oldest_write_age_threshold = 1000000
+# system.loc_mem_ctrl.dram.page_policy = 'close_adaptive'
+# system.loc_mem_ctrl.min_writes_per_switch = 32
 
 # system.loc_mem_ctrl = HBMCtrl()
 # system.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
