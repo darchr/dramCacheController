@@ -218,9 +218,9 @@ class MySystem(System):
 
         self.mem_ctrl = PolicyManager(range=self.mem_ranges[0])
         # FOR DDR4
-        self.mem_ctrl.tRP = '14.16ns'
-        self.mem_ctrl.tRCD_RD = '14.16ns'
-        self.mem_ctrl.tRL = '14.16ns'
+        # self.mem_ctrl.tRP = '14.16ns'
+        # self.mem_ctrl.tRCD_RD = '14.16ns'
+        # self.mem_ctrl.tRL = '14.16ns'
 
         # self.loc_mem_ctrl = HBMCtrl()
         # self.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '1GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)

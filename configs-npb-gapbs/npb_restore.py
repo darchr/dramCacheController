@@ -117,12 +117,6 @@ def parse_options():
 if __name__ == "__m5_main__":
     args = parse_options()
 
-
-    # create the system we are going to simulate
-    system = MySystem(args.kernel, args.disk, args.num_cpus, args,
-                      no_kvm=False)
-
-
     if args.mem_sys == "classic":
         system = MySystem(args.kernel, args.disk, args.num_cpus, args,
                           no_kvm=False)
