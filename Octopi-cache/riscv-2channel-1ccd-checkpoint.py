@@ -49,7 +49,7 @@ cache_hierarchy = OctopiCache(
 memory = RamCache()
 
 processor = SimpleSwitchableProcessor(
-    starting_core_type=CPUTypes.TIMING,
+    starting_core_type=CPUTypes.ATOMIC,
     switch_core_type=CPUTypes.TIMING, # TODO
     isa=ISA.RISCV,
     num_cores=num_cores
