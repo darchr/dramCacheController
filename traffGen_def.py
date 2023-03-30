@@ -60,7 +60,7 @@ system.mem_ctrl.static_backend_latency = "10ns"
 
 system.loc_mem_ctrl = MemCtrl()
 system.loc_mem_ctrl.consider_oldest_write= True
-system.loc_mem_ctrl.dram = TDRAM(range=AddrRange('3GiB'), in_addr_map=False, null=True)
+system.loc_mem_ctrl.dram = TDRAM_32(range=AddrRange('3GiB'), in_addr_map=False, null=True)
 
 # system.loc_mem_ctrl = HBMCtrl()
 # system.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)
@@ -94,6 +94,7 @@ system.loc_mem_ctrl.static_backend_latency_tc = "1ns"
 
 system.loc_mem_ctrl.dram.read_buffer_size = 64
 system.loc_mem_ctrl.dram.write_buffer_size = 64
+#system.loc_mem_ctrl.dram.page_policy = "open"
 
 system.far_mem_ctrl = MemCtrl()
 system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('3GiB'),in_addr_map=False, null=True)
