@@ -165,14 +165,16 @@ class MyRubySystem(System):
         self.mem_ctrl.static_frontend_latency = "10ns"
         self.mem_ctrl.static_backend_latency = "10ns"
 
-        self.mem_ctrl.loc_mem_policy = 'CascadeLakeNoPartWrs' # 'Rambus' # 
+        self.mem_ctrl.loc_mem_policy = 'Rambus' # 'CascadeLakeNoPartWrs' # 
 
-        # self.mem_ctrl.bypass_dcache = True
+        self.mem_ctrl.bypass_dcache = True
 
         # TDRAM cache
-        # self.loc_mem_ctrl = MemCtrl()
-        # self.loc_mem_ctrl.consider_oldest_write= True
-        # self.loc_mem_ctrl.dram = TDRAM(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
+        self.loc_mem_ctrl = MemCtrl()
+        self.loc_mem_ctrl.consider_oldest_write= True
+        self.loc_mem_ctrl.dram = TDRAM(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
+        # optimization
+        # self.loc_mem_ctrl.min_writes_per_switch = 32
 
         # HBM2 cache 2 PC
         # self.loc_mem_ctrl = HBMCtrl()
@@ -191,10 +193,10 @@ class MyRubySystem(System):
         # self.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
 
         # Alloy cache - DDR4
-        self.loc_mem_ctrl = MemCtrl()
-        self.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
-        self.loc_mem_ctrl.dram.burst_length = 10
-        self.loc_mem_ctrl.dram.tBURST = "4.165ns"
+        # self.loc_mem_ctrl = MemCtrl()
+        # self.loc_mem_ctrl.dram =  DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
+        # self.loc_mem_ctrl.dram.burst_length = 10
+        # self.loc_mem_ctrl.dram.tBURST = "4.165ns"
 
         # Alloy cache - HBM2 1 PC
         # self.loc_mem_ctrl = MemCtrl()
