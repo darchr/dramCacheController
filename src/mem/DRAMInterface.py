@@ -1336,6 +1336,91 @@ class TDRAM(DRAMInterface):
 
     two_cycle_activate = True
 
+class TDRAM_32(DRAMInterface):
+
+    # 64-bit interface for a single pseudo channel
+    device_bus_width = 32
+
+    # HBM2 supports BL4
+    burst_length = 16
+
+    # size of channel in bytes, 4H stack of 8Gb dies is 4GiB per stack;
+    # with 16 pseudo channels, 256MiB per pseudo channel
+    device_size = "1GiB"
+
+    device_rowbuffer_size = "2KiB"
+
+    # 1x128 configuration
+    devices_per_rank = 1
+
+    ranks_per_channel = 1
+
+    banks_per_rank = 32
+
+    bank_groups_per_rank = 8
+
+    # 1000 MHz for 2Gbps DDR data rate
+    tCK = "0.25ns"
+
+    # new
+    tTAGBURST = "0.25ns"
+    tRLFAST = "0.25ns"
+    tHM2DQ = "0.25ns"
+    tRTW_int = "1ns"
+    tRFBD = "0.25ns"
+    enable_read_flush_buffer = True
+    flushBuffer_high_thresh_perc = 70
+
+    tRP = "14ns"
+
+    tCCD_L = "2ns"
+
+    tRCD = "12ns"
+    tRCD_WR = "6ns"
+    tCL = "18ns"
+    tCWL = "7ns"
+    tRAS = "28ns"
+
+    tBURST = "2ns"
+
+    # value for 2Gb device from JEDEC spec
+    tRFC = "220ns"
+
+    # value for 2Gb device from JEDEC spec
+    tREFI = "3.9us"
+
+    tWR = "14ns"
+    tRTP = "5ns"
+    tWTR = "4ns"
+    tWTR_L = "9ns"
+    tRTW = "18ns"
+
+    #tAAD from RBus
+    tAAD = "1ns"
+
+    # single rank device, set to 0
+    tCS = "0ns"
+
+    tRRD = "1.5ns"
+    tRRD_L = "2ns"
+
+    # for a single pseudo channel
+    tXAW = "16ns"
+    activation_limit = 4
+
+    # 4tCK
+    tXP = "8ns"
+
+    # start with tRFC + tXP -> 160ns + 8ns = 168ns
+    tXS = "216ns"
+
+    page_policy = 'close'
+
+    read_buffer_size = 64
+    write_buffer_size = 64
+
+    two_cycle_activate = True
+
 # A single LPDDR5 x16 interface (one command/address bus)
 # for a single x16 channel with default timings based on
 # initial JEDEC specification
