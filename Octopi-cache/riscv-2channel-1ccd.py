@@ -42,7 +42,9 @@ cache_hierarchy = OctopiCache(
     num_core_complexes = 1,
     is_fullsystem = True,
 )
+memory = RamCache()
 
+"""
 memory = ChanneledMemory(
     dram_interface_class = HBM_1000_4H_1x64,
     num_channels = 2,
@@ -50,9 +52,10 @@ memory = ChanneledMemory(
     size = "64GiB",
     addr_mapping = None
 )
+"""
 
 processor = SimpleSwitchableProcessor(
-    starting_core_type=CPUTypes.ATOMIC,
+    starting_core_type=CPUTypes.TIMING,
     switch_core_type=CPUTypes.TIMING, # TODO
     isa=ISA.RISCV,
     num_cores=num_cores
@@ -88,9 +91,11 @@ board.set_kernel_disk_workload(
     readfile_contents=f"{command}"
 )
 
-m5.scheduleTickExitFromCurrent(1000000)
+m5.scheduleTickExitFromCurrent(1000000000)
 
 simulator = Simulator(board=board)
 print("Beginning simulation!")
 simulator.run()
+print("We are exiting because : ")
+print(simulator.get_last_exit_event_cause())
 simulator.save_checkpoint(args.checkpoint_path)

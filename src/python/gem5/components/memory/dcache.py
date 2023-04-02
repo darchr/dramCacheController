@@ -54,6 +54,7 @@ class DCacheSystem(AbstractMemorySystem):
         far_mem: Type[ChanneledMemory],
         loc_mem_policy: [str] = None,
         size: [str] = None,
+        cache_size: [str] = None,
     ) -> None:
         """
         :param loc_mem_policy: DRAM cache policy to be used
@@ -66,15 +67,16 @@ class DCacheSystem(AbstractMemorySystem):
         self._size = size
 
         self.policy_manager = PolicyManager()
+        self.policy_manager.static_frontend_latency = "10ns"
+        self.policy_manager.static_backend_latency = "10ns"
+
+
         self.policy_manager.loc_mem_policy = loc_mem_policy
         self.policy_manager.bypass_dcache = False
-        self.policy_manager.tRP = '14.16ns'
-        self.policy_manager.tRCD_RD = '14.16ns'
-        self.policy_manager.tRL = '14.16ns'
 
         #self.policy_manager.always_hit = False
         #self.policy_manager.always_dirty = True
-        self.policy_manager.dram_cache_size = self._size
+        self.policy_manager.dram_cache_size = cache_size
         self.policy_manager.cache_warmup_ratio = 0.95
 
         self.loc_mem = loc_mem()
@@ -91,13 +93,32 @@ class DCacheSystem(AbstractMemorySystem):
         # memory, the stdlib component can then be updated.
         self.policy_manager.loc_mem = self.loc_mem._dram[0]
 
+        self.policy_manager.orb_max_size = 128
+
         for dram in self.far_mem._dram:
             dram.in_addr_map = False
             dram.null = True
+            # DRAM interface DDR4_2400_16x4
+            # by default has a write buffer size of 128
+            dram.write_buffer_size = 64
             #dram.range = AddrRange('1GiB')
 
-        self.loc_mem.get_memory_controllers()[0].port = self.policy_manager.loc_req_port
-        self.far_mem.get_memory_controllers()[0].port = self.policy_manager.far_req_port
+        self._loc_mem_controller = self.loc_mem.get_memory_controllers()[0]
+        self._far_mem_controller = self.far_mem.get_memory_controllers()[0]
+
+        self._loc_mem_controller.port = self.policy_manager.loc_req_port
+        self._far_mem_controller.port = self.policy_manager.far_req_port
+
+        self._loc_mem_controller.consider_oldest_write= True
+        self._loc_mem_controller.static_frontend_latency_tc = "1ns"
+        self._loc_mem_controller.static_backend_latency_tc = "1ns"
+        self._loc_mem_controller.static_frontend_latency = "2ns"
+        self._loc_mem_controller.static_backend_latency = "2ns"
+
+        self._far_mem_controller.static_frontend_latency = "2ns"
+        self._far_mem_controller.static_backend_latency = "2ns"
+
+        # If need to use XBar
 
         #self.farMemXBar = L2XBar(width=64)
         #self.nearMemXBar = L2XBar(width=64)
@@ -117,6 +138,7 @@ class DCacheSystem(AbstractMemorySystem):
 
     @overrides(AbstractMemorySystem)
     def set_memory_range(self, ranges: List[AddrRange]) -> None:
+
         self.policy_manager.range = ranges[0]
         for dram in self.far_mem._dram:
             dram.range = ranges[0]
@@ -173,4 +195,5 @@ def RamCache(
         SingleChannelHBMRambus,
         SingleChannelDDR4_2400,
         'Rambus',
-        size='512MiB')
+        size='64GiB',
+        cache_size='512MiB')

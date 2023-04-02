@@ -49,7 +49,7 @@ cache_hierarchy = OctopiCache(
 memory = RamCache()
 
 processor = SimpleSwitchableProcessor(
-    starting_core_type=CPUTypes.ATOMIC,
+    starting_core_type=CPUTypes.TIMING,
     switch_core_type=CPUTypes.TIMING, # TODO
     isa=ISA.RISCV,
     num_cores=num_cores
@@ -94,12 +94,13 @@ def handle_workbegin():
     m5.stats.reset()
 
     # switch the processor to timing CPU for warmup
+    print("Switching the CPU")
     processor.switch()
     # schedule an exit event for 1 second.
     m5.scheduleTickExitFromCurrent(1000000000000)
     yield False
 
-
+"""
 def handle_cachewarmup():
     print("Cache warmed up as we reached : ")
     print(simulator.get_last_exit_event_cause())
@@ -109,6 +110,19 @@ def handle_cachewarmup():
     m5.stats.reset()
     save_checkpoint()    
     yield True
+"""
+# Running things for 1sec and will
+# not take ckpt if cache gets
+# warmed up during Linux boot
+def handle_cachewarmup():
+    print("Cache warmed up as we reached : ")
+    print(simulator.get_last_exit_event_cause())
+    print("Will continue simulation!")
+
+    m5.stats.dump()
+    m5.stats.reset()
+    #save_checkpoint()    
+    yield False
 
 def handle_schedtick():
     print("Cache warmed up as we reached : ")
