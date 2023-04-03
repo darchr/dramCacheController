@@ -29,17 +29,28 @@ system.mem_mode = 'timing'
 system.generator = PyTrafficGen()
 
 system.mem_ctrl = MemCtrl()
-# system.mem_ctrl.dram = HBM_2000_4H_1x64(range=AddrRange('1GiB'))
-# system.mem_ctrl.dram.burst_length = 8
-# system.mem_ctrl.dram.tBURST = "4ns"
 
+system.mem_ctrl.dram =  TDRAM_32(range=AddrRange('3GiB')) # TDRAM  #TDRAM_32
+system.mem_ctrl.dram.activation_limit = 8
+# system.mem_ctrl.dram.read_buffer_size = 350
+# system.mem_ctrl.dram.write_buffer_size = 350
+# system.mem_ctrl.dram.banks_per_rank = 16
+# system.mem_ctrl.dram.bank_groups_per_rank = 4
+system.mem_ctrl.dram.page_policy = "close_adaptive"
+
+# DDR4 Alloy
 # system.mem_ctrl.dram =  DDR4_2400_16x4(range=AddrRange('3GiB'))
 # system.mem_ctrl.dram.burst_length = 10
 # system.mem_ctrl.dram.tBURST = "4.165ns"
+# system.mem_ctrl.dram.tCCD_L = "5ns" "6.25ns"
+# system.mem_ctrl.dram.is_alloy = True
 
-system.mem_ctrl.dram =  TDRAM_32(range=AddrRange('3GiB')) # TDRAM  #TDRAM_32
-system.mem_ctrl.dram.read_buffer_size = 128
-system.mem_ctrl.dram.write_buffer_size = 128
+# HBM2 1 PC Alloy
+# system.mem_ctrl.dram = HBM_2000_4H_1x64(range=AddrRange('3GiB'))
+# system.mem_ctrl.dram.burst_length = 10
+# system.mem_ctrl.dram.tBURST = "5ns"
+# #system.mem_ctrl.dram.tCCD_L = "7ns"
+# system.mem_ctrl.dram.is_alloy = True
 
 
 system.generator.port = system.mem_ctrl.port

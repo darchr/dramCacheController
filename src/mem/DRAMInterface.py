@@ -58,6 +58,7 @@ class DRAMInterface(MemInterface):
     #                               "controller during refresh")
     enable_read_flush_buffer = Param.Bool(False, "Enable reading from flush buffer "
                                                  "during refresh, only for HBM2_Rambus")
+    is_alloy = Param.Bool(False, "Alloy needs a different decode packet")
 
     # scheduler page policy
     page_policy = Param.PageManage("open_adaptive", "Page management policy")
@@ -562,7 +563,7 @@ class DDR4_2400_16x4(DRAMInterface):
     # CAS-to-CAS delay for bursts to the same bank group
     # tBURST is equivalent to tCCD_S; no explicit parameter required
     # for CAS-to-CAS delay for bursts to different bank groups
-    tCCD_L = "5ns"
+    tCCD_L = '5ns'
 
     # DDR4-2400 17-17-17
     tRCD = "14.16ns"
@@ -1382,14 +1383,14 @@ class TDRAM_32(DRAMInterface):
     bank_groups_per_rank = 8
 
     # 1000 MHz for 2Gbps DDR data rate
-    tCK = "0.25ns"
+    tCK = "0.5ns"
 
     # new
-    tTAGBURST = "0.25ns"
-    tRLFAST = "0.25ns"
-    tHM2DQ = "0.25ns"
+    tTAGBURST = "0.5ns"
+    tRLFAST = "0.5ns"
+    tHM2DQ = "0.5ns"
     tRTW_int = "1ns"
-    tRFBD = "0.25ns"
+    tRFBD = "0.5ns"
     enable_read_flush_buffer = True
     flushBuffer_high_thresh_perc = 70
 

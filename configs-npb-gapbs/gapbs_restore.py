@@ -129,11 +129,11 @@ if __name__ == "__m5_main__":
     numIteration = 0
 
     if args.benchmark=="bfs":
-        numIteration = 44
-    elif args.benchmark=="cc":
         numIteration = 36
+    elif args.benchmark=="cc":
+        numIteration = 28
     elif args.benchmark=="sssp":
-        numIteration = 18
+        numIteration = 16
     else:
         numIteration = 10
 

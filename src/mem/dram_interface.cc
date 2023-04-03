@@ -43,8 +43,6 @@
 #include "base/bitfield.hh"
 #include "base/cprintf.hh"
 #include "base/trace.hh"
-
-#include "debug/DecodePkt.hh"
 #include "debug/DRAM.hh"
 #include "debug/DRAMPower.hh"
 #include "debug/DRAMState.hh"
@@ -498,15 +496,25 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
                     stats.readRowHits++;
                 }
                 stats.bytesRead += burstSize;
+
             }
             if (!(mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && !mem_pkt->pkt->isDirty)) {
                 stats.perBankRdBursts[mem_pkt->bankId]++;
+                // Update latency stats
+                stats.totMemAccLat += mem_pkt->readyTime - mem_pkt->entryTime;
+                stats.totQLat += cmd_at - mem_pkt->entryTime;
+                stats.totBusLat += tBURST;
+            } else{
+                stats.totMemAccLat += mem_pkt->tagCheckReady - mem_pkt->entryTime;
+                stats.totQLat += cmd_at - mem_pkt->entryTime;
+                stats.totBusLat += tBURST;
+                stats.readMC++;
             }
 
             // Update latency stats
-            stats.totMemAccLat += mem_pkt->readyTime - mem_pkt->entryTime;
-            stats.totQLat += cmd_at - mem_pkt->entryTime;
-            stats.totBusLat += tBURST;
+            // stats.totMemAccLat += mem_pkt->readyTime - mem_pkt->entryTime;
+            // stats.totQLat += cmd_at - mem_pkt->entryTime;
+            // stats.totBusLat += tBURST;
         }
         // Wr
         else {
@@ -842,7 +850,8 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
       addToFlushBufferEvent([this] {processAddToFlushBufferEvent();}, name()),
       endOfReadFlushBuffPeriod(0),
       readFlushBufferCount(0),
-      enableReadFlushBuffer(_p.enable_read_flush_buffer)
+      enableReadFlushBuffer(_p.enable_read_flush_buffer),
+      isAlloy(_p.is_alloy)
 {
     DPRINTF(DRAM, "Setting up DRAM Interface\n");
 
@@ -901,26 +910,26 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
                   banksPerRank, bankGroupsPerRank);
         }
         // tCCD_L should be greater than minimal, back-to-back burst delay
-        // if (tCCD_L <= tBURST) {
-        //     fatal("tCCD_L (%d) should be larger than the minimum bus delay "
-        //           "(%d) when bank groups per rank (%d) is greater than 1\n",
-        //           tCCD_L, tBURST, bankGroupsPerRank);
-        // }
+        if (tCCD_L < tBURST) {
+            fatal("tCCD_L (%d) should be larger than the minimum bus delay "
+                  "(%d) when bank groups per rank (%d) is greater than 1\n",
+                  tCCD_L, tBURST, bankGroupsPerRank);
+        }
         
         // tCCD_L_WR should be greater than minimal, back-to-back burst delay
-        // if (tCCD_L_WR <= tBURST) {
-        //     fatal("tCCD_L_WR (%d) should be larger than the minimum bus delay "
-        //           " (%d) when bank groups per rank (%d) is greater than 1\n",
-        //           tCCD_L_WR, tBURST, bankGroupsPerRank);
-        // }
+        if (tCCD_L_WR < tBURST) {
+            fatal("tCCD_L_WR (%d) should be larger than the minimum bus delay "
+                  " (%d) when bank groups per rank (%d) is greater than 1\n",
+                  tCCD_L_WR, tBURST, bankGroupsPerRank);
+        }
         
         // tRRD_L is greater than minimal, same bank group ACT-to-ACT delay
         // some datasheets might specify it equal to tRRD
-        // if (tRRD_L < tRRD) {
-        //     fatal("tRRD_L (%d) should be larger than tRRD (%d) when "
-        //           "bank groups per rank (%d) is greater than 1\n",
-        //           tRRD_L, tRRD, bankGroupsPerRank);
-        // }
+        if (tRRD_L < tRRD) {
+            fatal("tRRD_L (%d) should be larger than tRRD (%d) when "
+                  "bank groups per rank (%d) is greater than 1\n",
+                  tRRD_L, tRRD, bankGroupsPerRank);
+        }
     }
 }
 
@@ -1030,8 +1039,14 @@ DRAMInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
     // always the top bits, and check before creating the packet
     uint64_t row;
 
+    Addr mappedAddr = pkt_addr;
+
+    if (isAlloy) {
+        mappedAddr = ((pkt_addr / 64) * 8) + pkt_addr;
+    }
+
     // Get packed address, starting at 0
-    Addr addr = getCtrlAddr(pkt_addr);
+    Addr addr = getCtrlAddr(mappedAddr);
 
     // truncate the address to a memory burst, which makes it unique to
     // a specific buffer, row, bank, rank and channel
@@ -2159,6 +2174,8 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
 
     ADD_STAT(readBursts, statistics::units::Count::get(),
              "Number of DRAM read bursts"),
+    ADD_STAT(readMC, statistics::units::Count::get(),
+             "Number of DRAM cache read miss cleans"),
     ADD_STAT(writeBursts, statistics::units::Count::get(),
              "Number of DRAM write bursts"),
     ADD_STAT(writeBurstsTC, statistics::units::Count::get(),
@@ -2330,9 +2347,9 @@ DRAMInterface::DRAMStats::regStats()
     hitMissBusUtil.precision(2);
 
     // Formula stats
-    avgQLat = totQLat / readBursts;
-    avgBusLat = totBusLat / readBursts;
-    avgMemAccLat = totMemAccLat / readBursts;
+    avgQLat = totQLat / (readBursts+readMC);
+    avgBusLat = totBusLat / (readBursts+readMC);
+    avgMemAccLat = totMemAccLat / (readBursts+readMC);
 
     avgQLatWr = totQLatWr / writeBursts;
     avgBusLatWr = totBusLatWr / writeBursts;

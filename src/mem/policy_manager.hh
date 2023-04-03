@@ -498,6 +498,9 @@ class PolicyManager : public AbstractMemory
       statistics::Scalar numWrHitDirty;
       statistics::Scalar numWrHitClean;
 
+      statistics::Formula missRatio;
+      statistics::Formula dirtyRatio;
+
     };
 
     PolicyManagerStats polManStats;
