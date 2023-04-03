@@ -584,6 +584,7 @@ class DRAMInterface : public MemInterface
 
         /** total number of DRAM bursts serviced */
         statistics::Scalar readBursts;
+        statistics::Scalar readMC;
         statistics::Scalar writeBursts;
         statistics::Scalar writeBurstsTC;
         statistics::Scalar tagResBursts;
@@ -707,6 +708,7 @@ class DRAMInterface : public MemInterface
     Tick endOfReadFlushBuffPeriod;
     unsigned readFlushBufferCount;
     bool enableReadFlushBuffer;
+    bool isAlloy;
 
     bool checkFwdMrgeInFB(Addr addr) override;
 

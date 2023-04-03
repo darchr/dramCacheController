@@ -2623,7 +2623,12 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
     ADD_STAT(numRdHitDirty, statistics::units::Count::get(), "stat"),
     ADD_STAT(numRdHitClean, statistics::units::Count::get(), "stat"),
     ADD_STAT(numWrHitDirty, statistics::units::Count::get(), "stat"),
-    ADD_STAT(numWrHitClean, statistics::units::Count::get(), "stat")
+    ADD_STAT(numWrHitClean, statistics::units::Count::get(), "stat"),
+
+    ADD_STAT(missRatio,  statistics::units::Rate<
+                statistics::units::Count, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(dirtyRatio,  statistics::units::Rate<
+                statistics::units::Count, statistics::units::Count>::get(), "stat")
 
 {
 }
@@ -2670,6 +2675,9 @@ PolicyManager::PolicyManagerStats::regStats()
     avgWrBWSys.precision(8);
     avgGap.precision(2);
 
+    missRatio.precision(2);
+    dirtyRatio.precision(2);
+
     // Formula stats
     avgRdBWSys = (bytesReadSys) / simSeconds;
     avgWrBWSys = (bytesWrittenSys) / simSeconds;
@@ -2704,6 +2712,9 @@ PolicyManager::PolicyManagerStats::regStats()
     avgTimeFarRdtoSend = (totTimeFarRdtoSend) / (sentFarRdPort);
     avgTimeFarRdtoRecv = (totTimeFarRdtoRecv) / (sentFarRdPort);
     avgTimeFarWrtoSend = (totTimeFarWrtoSend) / (sentFarWrPort);
+
+    missRatio = (numTotMisses / (readReqs + writeReqs)) * 100;
+    dirtyRatio = ((numRdMissDirty + numWrMissDirty) / (readReqs + writeReqs)) * 100;
 
     avgGap = totGap / (readReqs + writeReqs);
 
