@@ -1368,7 +1368,7 @@ class TDRAM_32(DRAMInterface):
     tRLFAST = "0.5ns"
     tHM2DQ = "0.5ns"
     tRTW_int = "1ns"
-    tRFBD = "0.5ns"
+    tRFBD = "1ns"
     enable_read_flush_buffer = True
     flushBuffer_high_thresh_perc = 70
 
