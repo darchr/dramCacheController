@@ -1365,7 +1365,7 @@ class TDRAM_32(DRAMInterface):
 
     # new
     tTAGBURST = "0.5ns"
-    tRLFAST = "0.5ns"
+    tRLFAST = "1ns"
     tHM2DQ = "0.5ns"
     tRTW_int = "1ns"
     tRFBD = "1ns"
@@ -1402,7 +1402,7 @@ class TDRAM_32(DRAMInterface):
     # single rank device, set to 0
     tCS = "0ns"
 
-    tRRD = "1.5ns"
+    tRRD = "2ns"
     tRRD_L = "2ns"
 
     # for a single pseudo channel
