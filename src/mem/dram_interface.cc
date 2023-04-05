@@ -496,15 +496,15 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
                     stats.readRowHits++;
                 }
                 stats.bytesRead += burstSize;
-
             }
+            
             if (!(mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && !mem_pkt->pkt->isDirty)) {
                 stats.perBankRdBursts[mem_pkt->bankId]++;
                 // Update latency stats
                 stats.totMemAccLat += mem_pkt->readyTime - mem_pkt->entryTime;
                 stats.totQLat += cmd_at - mem_pkt->entryTime;
                 stats.totBusLat += tBURST;
-            } else{
+            } else {
                 stats.totMemAccLat += mem_pkt->tagCheckReady - mem_pkt->entryTime;
                 stats.totQLat += cmd_at - mem_pkt->entryTime;
                 stats.totBusLat += tBURST;

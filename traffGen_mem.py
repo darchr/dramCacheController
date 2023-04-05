@@ -36,7 +36,7 @@ system.mem_ctrl.dram.activation_limit = 8
 # system.mem_ctrl.dram.write_buffer_size = 350
 # system.mem_ctrl.dram.banks_per_rank = 16
 # system.mem_ctrl.dram.bank_groups_per_rank = 4
-system.mem_ctrl.dram.page_policy = "close_adaptive"
+#system.mem_ctrl.dram.page_policy = "close_adaptive"
 
 # DDR4 Alloy
 # system.mem_ctrl.dram =  DDR4_2400_16x4(range=AddrRange('3GiB'))
