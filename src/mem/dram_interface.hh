@@ -712,6 +712,10 @@ class DRAMInterface : public MemInterface
 
     bool checkFwdMrgeInFB(Addr addr) override;
 
+    bool checkFwdMrgeInLocWrQ(Addr addr) override { return ctrl->checkFwdMrgeInLocWrQ(addr); }
+
+    bool checkConflictInLocWrQ(Addr addr, unsigned dramCacheSize, unsigned blockSize) override { return ctrl->checkConflictInLocWrQ(addr, dramCacheSize, blockSize); }
+
     std::deque<Addr> flushBuffer;
 
     typedef std::pair<Tick, Addr> tempFBEntry;

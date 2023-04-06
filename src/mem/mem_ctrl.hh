@@ -402,7 +402,7 @@ class MemCtrl : public qos::MemCtrl
      */
     virtual void accessAndRespond(PacketPtr pkt, Tick static_latency,
                                                 MemInterface* mem_intr);
-    void sendTagCheckRespond(MemPacket* pkt);
+    void sendTagCheckRespond(PacketPtr pkt, Tick tagCheckReady, Tick staticLatency);
 
     PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd, Request::FlagsType flags = 0);
     /**
@@ -612,6 +612,7 @@ class MemCtrl : public qos::MemCtrl
         statistics::Scalar servicedByWrQ;
         statistics::Scalar mergedWrBursts;
         statistics::Scalar neitherReadNorWriteReqs;
+        statistics::Scalar numSwchOldWr;
         // Average queue lengths
         statistics::Average avgRdQLen;
         statistics::Average avgWrQLen;
@@ -715,6 +716,10 @@ class MemCtrl : public qos::MemCtrl
     MemCtrl(const MemCtrlParams &p);
 
     virtual AddrRangeList getAddrRanges();
+
+    bool checkFwdMrgeInLocWrQ(Addr addr);
+    Addr returnIndexDC(Addr request_addr, unsigned dramCacheSize, unsigned blockSize);
+    bool checkConflictInLocWrQ(Addr addr, unsigned dramCacheSize, unsigned blockSize);
 
     /**
      * Ensure that all interfaced have drained commands

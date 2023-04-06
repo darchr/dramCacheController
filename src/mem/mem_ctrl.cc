@@ -224,30 +224,29 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
         Addr burst_addr = burstAlign(addr, mem_intr);
         // if the burst address is not present then there is no need
         // looking any further
-        if (!pkt->isTagCheck) {
-            if (isInWriteQueue.find(burst_addr) != isInWriteQueue.end()) {
-                for (const auto& vec : writeQueue) {
-                    for (const auto& p : vec) {
-                        // check if the read is subsumed in the write queue
-                        // packet we are looking at
-                        if (p->addr <= addr &&
-                        ((addr + size) <= (p->addr + p->size))) {
+        
+        if (isInWriteQueue.find(burst_addr) != isInWriteQueue.end()) {
+            for (const auto& vec : writeQueue) {
+                for (const auto& p : vec) {
+                    // check if the read is subsumed in the write queue
+                    // packet we are looking at
+                    if (p->addr <= addr &&
+                    ((addr + size) <= (p->addr + p->size))) {
 
-                            foundInWrQ = true;
-                            stats.servicedByWrQ++;
-                            pktsServicedByWrQ++;
-                            DPRINTF(MemCtrl,
-                                    "Read to addr %x with size %d serviced by "
-                                    "write queue\n",
-                                    addr, size);
-                            stats.bytesReadWrQ += burst_size;
-                            break;
-                        }
+                        foundInWrQ = true;
+                        stats.servicedByWrQ++;
+                        pktsServicedByWrQ++;
+                        DPRINTF(MemCtrl,
+                                "Read to addr %x with size %d serviced by "
+                                "write queue\n",
+                                addr, size);
+                        stats.bytesReadWrQ += burst_size;
+                        break;
                     }
                 }
             }
         }
-
+        
         // If not found in the write q, make a memory packet and
         // push it onto the read queue
         if (!foundInWrQ) {
@@ -293,8 +292,13 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
     }
 
     // If all packets are serviced by write queue, we send the repsonse back
-    if (pktsServicedByWrQ == pkt_count && !pkt->isTagCheck) {
+    if (pktsServicedByWrQ == pkt_count) {
+        if (pkt->isTagCheck) {
+            sendTagCheckRespond(pkt, curTick(), frontendLatencyTC);
+        }
+       
         accessAndRespond(pkt, frontendLatency, mem_intr);
+
         return true;
     }
 
@@ -330,7 +334,7 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
         // see if we can merge with an existing item in the write
         // queue and keep track of whether we have merged or not
         bool merged = (isInWriteQueue.find(burstAlign(addr, mem_intr)) !=
-            isInWriteQueue.end()) && !pkt->isTagCheck;
+            isInWriteQueue.end()); // && !pkt->isTagCheck;
 
         // if the item was not merged we need to create a new write
         // and enqueue it
@@ -383,9 +387,10 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
     // snoop the write queue for any upcoming reads
     // @todo, if a pkt size is larger than burst size, we might need a
     // different front end latency
-    if (!pkt->isTagCheck) {
-        accessAndRespond(pkt, frontendLatency, mem_intr);
-    }
+    // if (!pkt->isTagCheck) {
+    //     accessAndRespond(pkt, frontendLatency, mem_intr);
+    // }
+    accessAndRespond(pkt, frontendLatency, mem_intr);
 }
 
 void
@@ -650,14 +655,18 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
         // the xbar and also the payloadDelay that takes into account the
         // number of data beats.
         Tick response_time;
-        if (pkt->isTagCheck && pkt->isWrite()) {
-            assert(!pkt->owIsRead);
-            // Note: in this case static latency is TagCheckReady time actually!
-            response_time = static_latency + frontendLatencyTC + backendLatencyTC;
-        } else {
-            response_time = curTick() + static_latency + pkt->headerDelay +
+        // if (pkt->isTagCheck && pkt->isWrite()) {
+        //     assert(!pkt->owIsRead);
+        //     // Note: in this case static latency is TagCheckReady time actually!
+        //     response_time = static_latency + frontendLatencyTC + backendLatencyTC;
+        // } else {
+        //     response_time = curTick() + static_latency + pkt->headerDelay +
+        //                         pkt->payloadDelay;
+        // }
+        response_time = curTick() + static_latency + pkt->headerDelay +
                                 pkt->payloadDelay;
-        }
+
+
         // Here we reset the timing of the packet before sending it out.
         pkt->headerDelay = pkt->payloadDelay = 0;
 
@@ -693,21 +702,20 @@ MemCtrl::accessAndRespond(PacketPtr pkt, Tick static_latency,
 }
 
 void
-MemCtrl::sendTagCheckRespond(MemPacket* mem_pkt)
+MemCtrl::sendTagCheckRespond(PacketPtr pkt, Tick tagCheckReady, Tick staticLatency)
 {
-    DPRINTF(MemCtrl, "sendTagCheckRespond : %x \n", mem_pkt->addr);
-    assert(mem_pkt->isRead());
-    assert(mem_pkt->pkt->isRead());
-    assert(mem_pkt->tagCheckReady != MaxTick);
+    DPRINTF(MemCtrl, "sendTagCheckRespond : %x \n", pkt->getAddr());
+    assert(pkt->isRead());
+    assert(tagCheckReady != MaxTick);
 
-    PacketPtr tagCheckResPkt = getPacket(mem_pkt->addr, 8, MemCmd::ReadReq);
+    PacketPtr tagCheckResPkt = getPacket(pkt->getAddr(), 8, MemCmd::ReadReq);
 
-    tagCheckResPkt->isTagCheck = mem_pkt->pkt->isTagCheck;
-    tagCheckResPkt->owIsRead = mem_pkt->pkt->owIsRead;
-    tagCheckResPkt->isHit = mem_pkt->pkt->isHit;
-    tagCheckResPkt->isDirty = mem_pkt->pkt->isDirty;
-    tagCheckResPkt->hasDirtyData = mem_pkt->pkt->hasDirtyData;
-    tagCheckResPkt->dirtyLineAddr = mem_pkt->pkt->dirtyLineAddr;
+    tagCheckResPkt->isTagCheck = pkt->isTagCheck;
+    tagCheckResPkt->owIsRead = pkt->owIsRead;
+    tagCheckResPkt->isHit = pkt->isHit;
+    tagCheckResPkt->isDirty = pkt->isDirty;
+    tagCheckResPkt->hasDirtyData = pkt->hasDirtyData;
+    tagCheckResPkt->dirtyLineAddr = pkt->dirtyLineAddr;
 
     tagCheckResPkt->makeResponse();
 
@@ -718,7 +726,7 @@ MemCtrl::sendTagCheckRespond(MemPacket* mem_pkt)
 
     // queue the packet in the response queue to be sent out after
     // the static latency has passed
-    port.schedTimingResp(tagCheckResPkt, mem_pkt->tagCheckReady + frontendLatencyTC + backendLatencyTC);
+    port.schedTimingResp(tagCheckResPkt, tagCheckReady + staticLatency);
 }
 
 void
@@ -1051,6 +1059,12 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
                  mem_intr->writeQueueSize > writeLowThreshold ||
                  (considerOldestWrite && oldestWriteAge > oldestWriteAgeThreshold))) {
 
+                    if (!(drainState() == DrainState::Draining) && 
+                        !(mem_intr->writeQueueSize > writeLowThreshold) && 
+                        (considerOldestWrite && oldestWriteAge > oldestWriteAgeThreshold)) {
+                        stats.numSwchOldWr++;
+                    }
+
                 DPRINTF(MemCtrl,
                         "Switching to writes due to read queue empty\n");
                 switch_to_writes = true;
@@ -1114,7 +1128,7 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
             if (mem_pkt->isTagCheck) {
                 DPRINTF(MemCtrl, "read times: %x, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
-                sendTagCheckRespond(mem_pkt);
+                sendTagCheckRespond(mem_pkt->pkt, mem_pkt->tagCheckReady, frontendLatencyTC+backendLatencyTC);
             }
 
             DPRINTF(MemCtrl,
@@ -1151,6 +1165,13 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             if (((mem_intr->writeQueueSize > writeHighThreshold) &&
                (mem_intr->readsThisTime >= minReadsPerSwitch || mem_intr->readQueueSize == 0) &&
                !(nvmWriteBlock(mem_intr))) || (considerOldestWrite && oldestWriteAge > oldestWriteAgeThreshold)) {
+
+                if (!((mem_intr->writeQueueSize > writeHighThreshold) &&
+                     (mem_intr->readsThisTime >= minReadsPerSwitch || mem_intr->readQueueSize == 0) &&
+                     !(nvmWriteBlock(mem_intr))) && 
+                    (considerOldestWrite && oldestWriteAge > oldestWriteAgeThreshold)) {
+                        stats.numSwchOldWr++;
+                }
                 switch_to_writes = true;
             }
 
@@ -1212,11 +1233,11 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         DPRINTF(MemCtrl,
         "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
-        if (mem_pkt->isTagCheck) {
-                DPRINTF(MemCtrl, "write times: %x, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
-                // Note: the second argument in this function call is NOT delay!
-                accessAndRespond(mem_pkt->pkt, mem_pkt->tagCheckReady, mem_intr);
-        }
+        // if (mem_pkt->isTagCheck) {
+        //         DPRINTF(MemCtrl, "write times: %x, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
+        //         // Note: the second argument in this function call is NOT delay!
+        //         accessAndRespond(mem_pkt->pkt, mem_pkt->tagCheckReady, mem_intr);
+        // }
 
         isInWriteQueue.erase(burstAlign(mem_pkt->addr, mem_intr));
 
@@ -1264,6 +1285,51 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         retry_wr_req = false;
         port.sendRetryReq();
     }
+}
+
+bool
+MemCtrl::checkFwdMrgeInLocWrQ(Addr addr)
+{
+    for (const auto& vec : writeQueue) {
+        if (vec.empty()) {
+            return false;
+        } else {
+            for (const auto& p : vec) {
+                if (p->addr == addr) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+Addr
+MemCtrl::returnIndexDC(Addr request_addr, unsigned dramCacheSize, unsigned blockSize)
+{
+    int index_bits = ceilLog2(dramCacheSize/blockSize);
+    int block_bits = ceilLog2(blockSize);
+    return bits(request_addr, block_bits + index_bits-1, block_bits);
+}
+
+bool
+MemCtrl::checkConflictInLocWrQ(Addr addr, unsigned dramCacheSize, unsigned blockSize)
+{
+    Addr indexDC = returnIndexDC(addr, dramCacheSize, blockSize);
+
+    for (const auto& vec : writeQueue) {
+        if (vec.empty()) {
+            return false;
+        } else {
+            for (const auto& p : vec) {
+                Addr indexDCWrQPkt = returnIndexDC(p->addr, dramCacheSize, blockSize);
+                if (indexDC == indexDCWrQPkt) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 
 bool
@@ -1315,6 +1381,8 @@ MemCtrl::CtrlStats::CtrlStats(MemCtrl &_ctrl)
              "Number of controller read bursts serviced by the write queue"),
     ADD_STAT(mergedWrBursts, statistics::units::Count::get(),
              "Number of controller write bursts merged with an existing one"),
+    ADD_STAT(numSwchOldWr, statistics::units::Count::get(),
+             "Number of times switching to writes due to having a write request older than the threshold age"),
 
     ADD_STAT(avgRdQLen, statistics::units::Rate<
                 statistics::units::Count, statistics::units::Tick>::get(),

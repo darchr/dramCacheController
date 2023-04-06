@@ -1980,6 +1980,7 @@ DRAMInterface::Rank::processPowerEvent()
     if (prev_state == PWR_REF) {
         // bus IDLED prior to REF
         // counter should be one for refresh command only
+        std::cout << "outstandingEvents= " << outstandingEvents << "\n";
         assert(outstandingEvents == 1);
         // REF complete, decrement count and go back to IDLE
         --outstandingEvents;

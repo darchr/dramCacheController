@@ -53,10 +53,10 @@ system.mem_ctrl.static_frontend_latency = "10ns"
 system.mem_ctrl.static_backend_latency = "10ns"
 #system.mem_ctrl.bypass_dcache = True
 
-# system.loc_mem_ctrl = MemCtrl()
-# system.loc_mem_ctrl.consider_oldest_write= True
-# system.loc_mem_ctrl.dram = TDRAM(range=AddrRange('3GiB'), in_addr_map=False, null=True)
-# system.mem_ctrl.loc_mem_policy = 'Rambus'
+system.loc_mem_ctrl = MemCtrl()
+system.loc_mem_ctrl.consider_oldest_write= True
+system.loc_mem_ctrl.dram = TDRAM(range=AddrRange('3GiB'), in_addr_map=False, null=True)
+system.mem_ctrl.loc_mem_policy = 'Rambus'
 
 # system.loc_mem_ctrl = MemCtrl()
 # #system.loc_mem_ctrl.consider_oldest_write= True
@@ -72,12 +72,12 @@ system.mem_ctrl.static_backend_latency = "10ns"
 # system.loc_mem_ctrl.dram.page_policy = "close_adaptive"
 # system.mem_ctrl.loc_mem_policy = 'CascadeLakeNoPartWrs'
 
-system.loc_mem_ctrl = MemCtrl()
-#system.loc_mem_ctrl.consider_oldest_write= True
-system.loc_mem_ctrl.dram = TDRAM_32(range=AddrRange('3GiB'), in_addr_map=False, null=True)
-system.loc_mem_ctrl.dram.activation_limit = 8
-system.loc_mem_ctrl.dram.page_policy = "close_adaptive"
-system.mem_ctrl.loc_mem_policy = 'Oracle'
+# system.loc_mem_ctrl = MemCtrl()
+# #system.loc_mem_ctrl.consider_oldest_write= True
+# system.loc_mem_ctrl.dram = TDRAM_32(range=AddrRange('3GiB'), in_addr_map=False, null=True)
+# system.loc_mem_ctrl.dram.activation_limit = 8
+# system.loc_mem_ctrl.dram.page_policy = "close_adaptive"
+# system.mem_ctrl.loc_mem_policy = 'Rambus'
 
 # system.loc_mem_ctrl = HBMCtrl()
 # system.loc_mem_ctrl.dram =  HBM_2000_4H_1x64(range=AddrRange(start = '0', end = '3GiB', masks = [1 << 6], intlvMatch = 0), in_addr_map=False, kvm_map=False, null=True)

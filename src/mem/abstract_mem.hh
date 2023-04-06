@@ -242,6 +242,18 @@ class AbstractMemory : public ClockedObject
         return false;
     }
 
+    virtual bool checkFwdMrgeInLocWrQ(Addr addr)
+    {
+        panic("AbstractMemory checkFwdMrgeInLocWrQ should not be executed from here.\n");
+        return false;
+    }
+
+    virtual bool checkConflictInLocWrQ(Addr addr, unsigned dramCacheSize, unsigned blockSize)
+    {
+        panic("AbstractMemory checkConflictInLocWrQ should not be executed from here.\n");
+        return false;
+    }
+
     /**
      * See if this is a null memory that should never store data and
      * always return zero.

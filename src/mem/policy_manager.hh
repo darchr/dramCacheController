@@ -343,6 +343,7 @@ class PolicyManager : public AbstractMemory
     void sendRespondToRequestor(PacketPtr pkt, Tick static_latency);
     void printQSizes() {}
     void handleRequestorPkt(PacketPtr pkt);
+    bool handleConflictingRequestIntoCRB(PacketPtr pkt);
     void checkHitOrMiss(reqBufferEntry* orbEntry);
     bool checkDirty(Addr addr);
     void handleDirtyCacheLine(Addr dirtyLineAddr);
@@ -387,9 +388,11 @@ class PolicyManager : public AbstractMemory
 
       statistics::Scalar servicedByWrQ;
       statistics::Scalar servicedByFB;
+      statistics::Scalar servicedByLocWrQ;
       statistics::Scalar mergedWrBursts;
       statistics::Scalar mergedWrPolManWB;
       statistics::Scalar mergedWrLocMemFB;
+      statistics::Scalar mergedWrLocMemWrQ;
 
       statistics::Scalar numRdRetry;
       statistics::Scalar numWrRetry;
@@ -424,6 +427,7 @@ class PolicyManager : public AbstractMemory
 
       Stats::Scalar numWrBacks;
       Stats::Scalar totNumConf;
+      Stats::Scalar totNumConfLocWrQ;
       Stats::Scalar totNumORBFull;
       Stats::Scalar totNumCRBFull;
 

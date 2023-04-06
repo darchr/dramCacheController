@@ -188,7 +188,9 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         
         bool mergedInLocMemFB = locMem->checkFwdMrgeInFB(pkt->getAddr());
 
-        assert(!(mergedInLocMemFB && merged));
+        bool mergedInLocMemWrQ = locMem->checkFwdMrgeInLocWrQ(pkt->getAddr());
+
+        assert(!(mergedInLocMemWrQ && mergedInLocMemFB && merged));
 
         if (merged) {
 
@@ -214,6 +216,19 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
             // sendRespondToRequestor(pkt, frontendLatency);
 
             // return true;
+        } else if (mergedInLocMemWrQ) {
+
+            polManStats.mergedWrBursts++;
+            polManStats.mergedWrLocMemWrQ++;
+
+            DPRINTF(PolicyManager, "merged in local memory write queue: %lld\n", pkt->getAddr());
+
+            // farMemCtrl->accessInterface(pkt);
+
+            // sendRespondToRequestor(pkt, frontendLatency);
+
+            // return true;
+
         }
 
     }
@@ -223,6 +238,7 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     bool foundInCRB = false;
     bool foundInFarMemWrite = false;
     bool foundInLocMemFB = false;
+    bool foundInLocMemWrQ = false;
 
     if (pkt->isRead()) {
 
@@ -301,7 +317,15 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
             polManStats.bytesReadWrQ += burst_size;
         }
 
-        if (foundInORB || foundInCRB || foundInFarMemWrite || foundInLocMemFB) {
+        if (locMem->checkFwdMrgeInLocWrQ(pkt->getAddr())) {
+            foundInLocMemWrQ = true;
+
+            polManStats.servicedByLocWrQ++;
+
+            polManStats.bytesReadWrQ += burst_size;
+        }
+
+        if (foundInORB || foundInCRB || foundInFarMemWrite || foundInLocMemFB || foundInLocMemWrQ) {
             DPRINTF(PolicyManager, "FW: %lld\n", pkt->getAddr());
             
         //     polManStats.readPktSize[ceilLog2(size)]++;
@@ -320,43 +344,27 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
 
         polManStats.totNumConf++;
 
-        if (CRB.size()>=crbMaxSize) {
-
-            DPRINTF(PolicyManager, "CRBfull: %lld\n", pkt->getAddr());
-            DPRINTF(PolicyManager, "CRBfull: %lld\n", pkt->getAddr());
-
-            polManStats.totNumCRBFull++;
-
-            retryLLC = true;
-
-            if (pkt->isRead()) {
-                polManStats.numRdRetry++;
-            }
-            else {
-                polManStats.numWrRetry++;
-            }
+        if (handleConflictingRequestIntoCRB(pkt)) {
+            return true;
+        } else {
             return false;
         }
-
-        CRB.push_back(std::make_pair(curTick(), pkt));
-        DPRINTF(PolicyManager, "CRB PB: %d: %s\n", pkt->getAddr(), pkt->cmdString());
-
-        DPRINTF(PolicyManager, "CRB PB: %d: %s\n", pkt->getAddr(), pkt->cmdString());
-
-        if (pkt->isWrite()) {
-            isInWriteQueue.insert(pkt->getAddr());
-        }
-
-        if (CRB.size() > maxConf) {
-            maxConf = CRB.size();
-            polManStats.maxNumConf = CRB.size();
-        }
-        return true;
     }
+
+    if (locMem->checkConflictInLocWrQ(pkt->getAddr(), dramCacheSize, blockSize)) {
+
+        polManStats.totNumConfLocWrQ++;
+
+        if (handleConflictingRequestIntoCRB(pkt)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     // check if ORB or FMWB is full and set retry
     if (pktFarMemWrite.size() >= (orbMaxSize / 2)) {
 
-        DPRINTF(PolicyManager, "FMWBfull: %lld\n", pkt->getAddr());
         DPRINTF(PolicyManager, "FMWBfull: %lld\n", pkt->getAddr());
 
         retryLLCFarMemWr = true;
@@ -373,7 +381,6 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     if (ORB.size() >= orbMaxSize) {
 
         DPRINTF(PolicyManager, "ORBfull: addr %lld\n", pkt->getAddr());
-        DPRINTF(PolicyManager, "ORBfull: %lld\n", pkt->getAddr());
 
         polManStats.totNumORBFull++;
 
@@ -403,6 +410,40 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     DPRINTF(PolicyManager, "Policy manager accepted packet 0x%x %d\n", pkt->getAddr(), pkt->getAddr());
 
     return true;
+}
+
+bool
+PolicyManager::handleConflictingRequestIntoCRB(PacketPtr pkt)
+{
+    if (CRB.size()>=crbMaxSize) {
+
+            DPRINTF(PolicyManager, "CRBfull: %lld\n", pkt->getAddr());
+
+            polManStats.totNumCRBFull++;
+
+            retryLLC = true;
+
+            if (pkt->isRead()) {
+                polManStats.numRdRetry++;
+            }
+            else {
+                polManStats.numWrRetry++;
+            }
+            return false;
+        }
+
+        CRB.push_back(std::make_pair(curTick(), pkt));
+        DPRINTF(PolicyManager, "CRB pushed back: %d: %s\n", pkt->getAddr(), pkt->cmdString());
+
+        if (pkt->isWrite()) {
+            isInWriteQueue.insert(pkt->getAddr());
+        }
+
+        if (CRB.size() > maxConf) {
+            maxConf = CRB.size();
+            polManStats.maxNumConf = CRB.size();
+        }
+        return true;
 }
 
 void
@@ -2446,12 +2487,16 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
              "Number of controller read bursts serviced by the write queue"),
     ADD_STAT(servicedByFB, statistics::units::Count::get(),
              "Number of controller read bursts serviced by the flush buffer"),
+    ADD_STAT(servicedByLocWrQ, statistics::units::Count::get(),
+             "Number of controller read bursts serviced by the local mem write queue"),
     ADD_STAT(mergedWrBursts, statistics::units::Count::get(),
              "Number of controller write bursts merged with an existing one"),
     ADD_STAT(mergedWrPolManWB, statistics::units::Count::get(),
                  "Number of controller write bursts merged with an existing one in write back buffer"),
     ADD_STAT(mergedWrLocMemFB, statistics::units::Count::get(),
              "Number of controller write bursts merged with an existing one in flush buffer"),
+    ADD_STAT(mergedWrLocMemWrQ, statistics::units::Count::get(),
+             "Number of controller write bursts merged with an existing one in loc mem write queue"),
 
     ADD_STAT(numRdRetry, statistics::units::Count::get(),
              "Number of times read queue was full causing retry"),
@@ -2522,6 +2567,8 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
             "Total number of write backs from DRAM cache to main memory"),
     ADD_STAT(totNumConf, statistics::units::Count::get(),
             "Total number of packets conflicted on DRAM cache"),
+    ADD_STAT(totNumConfLocWrQ, statistics::units::Count::get(),
+            "Total number of packets conflicted with a packet in local memory write queue"),
     ADD_STAT(totNumORBFull, statistics::units::Count::get(),
             "Total number of packets ORB full"),
     ADD_STAT(totNumCRBFull, statistics::units::Count::get(),
