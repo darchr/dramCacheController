@@ -16,9 +16,7 @@ import m5
 from components.Octopi import OctopiCache
 
 # Sample command to use this script
-# build/RISCV/gem5.opt --outdir=bt.D riscv-2channel-1ccd-checkpoint.py
-# --benchmark bt --size D --ckpt_path checkpoints-npb/bt.D.ckpt/
-#
+# build/RISCV/gem5.opt Octopi-cache/riscv-2channel-1ccd-checkpoint-timing-npb-c.py --benchmark bt --size C --ckpt_path test-dir/
 
 requires(isa_required=ISA.RISCV)
 
@@ -100,17 +98,20 @@ def handle_workbegin():
     m5.scheduleTickExitFromCurrent(1000000000000)
     yield False
 
-"""
-def handle_cachewarmup():
-    print("Cache warmed up as we reached : ")
-    print(simulator.get_last_exit_event_cause())
-    print("Taking the checkpoint!")
+# This event is scheduled every 100ms to get an 
+# update on the progress of the simulation itself
+def handle_progress_update():
 
-    m5.stats.dump()
-    m5.stats.reset()
-    save_checkpoint()
-    yield True
-"""
+    while True:
+        print("Simulated another 100ms")
+
+        print(
+            f"Total sim time so far : {simulator.get_current_tick() / 1e12} sec"
+        )
+                
+        m5.scheduleTickExitFromCurrent(100000000000, "progress_update")
+        yield False
+
 # Running things for 1sec and will
 # not take ckpt if cache gets
 # warmed up during Linux boot
@@ -125,7 +126,7 @@ def handle_cachewarmup():
     yield False
 
 def handle_schedtick():
-    print("Cache warmed up as we reached : ")
+    print("Going to take the ckpt because : ")
     print(simulator.get_last_exit_event_cause())
     print("Taking the checkpoint!")
 
@@ -148,15 +149,16 @@ simulator = Simulator(
         ExitEvent.WORKEND: handle_workend(),
         ExitEvent.CACHE_WARMUP: handle_cachewarmup(),
         ExitEvent.SCHEDULED_TICK: handle_schedtick(),
+        ExitEvent.SCHEDULED_TICK_PROGRESS: handle_progress_update(),
     },
 )
 
 def save_checkpoint():
     simulator.save_checkpoint(args.ckpt_path)
 
-
 print("Beginning simulation!")
 
+m5.scheduleTickExitFromCurrent(100000000000, "progress_update")
 simulator.run()
 
 print("End of the simulation, we should have created a ckpt.")

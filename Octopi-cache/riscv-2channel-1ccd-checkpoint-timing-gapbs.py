@@ -16,8 +16,8 @@ import m5
 from components.Octopi import OctopiCache
 
 # Sample command to use this script
-# build/RISCV/gem5.opt --outdir=bt.D riscv-2channel-1ccd-checkpoint.py
-# --benchmark bt --size D --ckpt_path checkpoints-npb/bt.D.ckpt/
+# build/RISCV/gem5.opt --outdir=bfs.25 riscv-2channel-1ccd-checkpoint.py
+# --benchmark bfs --size 25 --ckpt_path checkpoints-gapbs/bfs.25.ckpt/
 #
 
 requires(isa_required=ISA.RISCV)
@@ -32,7 +32,7 @@ args = parser.parse_args()
 
 num_ccds = 1
 num_cores = 8
-command = f"/home/ubuntu/gem5-npb/NPB3.3-OMP/bin/{args.benchmark}.{args.size}.x;"
+command = f"/home/ubuntu/gapbs/{args.benchmark} -g {args.size};"
 
 cache_hierarchy = OctopiCache(
     l1i_size  = "32KiB",
