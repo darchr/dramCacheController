@@ -43,6 +43,7 @@ class ExitEvent(Enum):
     FAIL = "fail"  # An exit because the simulation has failed.
     CHECKPOINT = "checkpoint"  # An exit to load a checkpoint.
     SCHEDULED_TICK = "scheduled tick exit"
+    SCHEDULED_TICK_PROGRESS = "progress update"
     MAX_TICK = "max tick"  # An exit due to a maximum tick value being met.
     USER_INTERRUPT = (  # An exit due to a user interrupt (e.g., cntr + c)
         "user interupt"
@@ -79,6 +80,8 @@ class ExitEvent(Enum):
             return ExitEvent.MAX_TICK
         elif exit_string == "Tick exit reached":
             return ExitEvent.SCHEDULED_TICK
+        elif exit_string == "progress_update":
+            return ExitEvent.SCHEDULED_TICK_PROGRESS
         elif exit_string == "switchcpu":
             return ExitEvent.SWITCHCPU
         elif exit_string == "m5_fail instruction encountered":
