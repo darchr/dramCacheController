@@ -23,3 +23,9 @@ the relevant links or paths and important notes.
 
 The gem5 directory I have been using is here: `/home/aakahlow/Dcache_Src/dramCacheController`.
 D Class and GAPBS checkpoints will go there. The C class checkpoints will be stored in /projects (exact path in the npb_checkpoint_c_class.sh script).
+
+## Looppoint stuff
+
+- The branch with O3 loop point analysis stuff: https://github.com/darchr/gem5/commits/looppointAnalysis-Ayaz
+- example.py script in the above branch is a modified version of Zhantong's example script to use looppoint analysis probe and print most recent PC + count.
+
