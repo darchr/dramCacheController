@@ -275,6 +275,10 @@ ISA::copyRegsFrom(ThreadContext *src)
     for (auto &id: floatRegClass)
         tc->setReg(id, src->getReg(id));
 
+    for (int i=0; i< miscRegFile.size(); i++) {
+        tc->setMiscRegNoEffect(i, src->readMiscRegNoEffect(i));
+    }
+
     // Lastly copy PC/NPC
     tc->pcState(src->pcState());
 }
