@@ -75,19 +75,21 @@ class O3LooppointAnalysisManager : public SimObject
      * counter maps addresses to a pair of
      * counter and the last tick the address was accessed
      */
-    std::map<Addr, std::pair<int,int>> counter;
+    std::map<Addr, std::pair<int,uint64_t>> counter;
     std::queue<std::pair<Addr,int>> mostRecentPc;
     Addr currentPc;
 
 
   public:
-    std::map<Addr, std::pair<int,int>> 
+    std::map<Addr, std::pair<int,uint64_t>> 
     getCounter() const
     {
         return counter;
     }
 
-    std::pair<int,int>
+    // returns a pair of the count and last tick
+    // the count was incremented
+    std::pair<int,uint64_t>
     getPcCount(Addr pc) const
     {
         if(counter.find(pc) != counter.end()) {
@@ -96,6 +98,8 @@ class O3LooppointAnalysisManager : public SimObject
         return std::make_pair(-1, -1);
     }
 
+    // returns a vector of the most recently
+    // accessed PCs
     std::vector<std::pair<Addr,int>>
     getMostRecentPc() const
     {
