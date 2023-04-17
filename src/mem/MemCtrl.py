@@ -97,8 +97,8 @@ class MemCtrl(QoSMemCtrl):
     static_frontend_latency = Param.Latency("10ns", "Static frontend latency")
     static_backend_latency = Param.Latency("10ns", "Static backend latency")
 
-    static_frontend_latency_tc = Param.Latency("1ns", "Static frontend latency")
-    static_backend_latency_tc = Param.Latency("1ns", "Static backend latency")
+    static_frontend_latency_tc = Param.Latency("0.5ns", "Static frontend latency")
+    static_backend_latency_tc = Param.Latency("0.5ns", "Static backend latency")
 
     command_window = Param.Latency("10ns", "Static backend latency")
 

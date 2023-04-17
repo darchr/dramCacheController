@@ -44,10 +44,10 @@
 #include "base/cprintf.hh"
 #include "base/trace.hh"
 #include "debug/DRAM.hh"
+#include "debug/DRAMT.hh"
 #include "debug/DRAMPower.hh"
 #include "debug/DRAMState.hh"
 #include "debug/MemCtrl.hh"
-#include "debug/TraceDC.hh"
 #include "sim/system.hh"
 
 namespace gem5
@@ -95,15 +95,15 @@ DRAMInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
             const Tick col_allowed_at = pkt->isRead() ? bank.rdAllowedAt :
                                                         bank.wrAllowedAt;
 
-            // DPRINTF(DRAM, "%s checking DRAM packet in bank %d, row %d\n",
-            //         __func__, pkt->bank, pkt->row);
+            DPRINTF(DRAM, "%s : %d, %d, %d, checking DRAM packet in bank %d, row %d, min: %d, cmdRd/Wr: %d, act: %d, pre: %d\n",
+                     __func__, queue.size(), pkt->isRead(), pkt->isTagCheck, pkt->bank, pkt->row, min_col_at/1000, col_allowed_at/1000, bank.actAllowedAt/1000, bank.preAllowedAt/1000);
 
             // check if rank is not doing a refresh and thus is available,
             // if not, jump to the next packet
             if (burstReady(pkt)) {
-                // DPRINTF(DRAM,
-                //         "%s bank %d - Rank %d available\n", __func__,
-                //         pkt->bank, pkt->rank);
+                DPRINTF(DRAM,
+                        "%s bank %d - Rank %d available\n", __func__,
+                        pkt->bank, pkt->rank);
 
                 // check if it is a row hit
                 if (bank.openRow == pkt->row) {
@@ -115,7 +115,7 @@ DRAMInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
                         // commands that can issue seamlessly, without
                         // additional delay, such as same rank accesses
                         // and/or different bank-group accesses
-                        // DPRINTF(DRAM, "%s Seamless buffer hit\n", __func__);
+                        DPRINTF(DRAM, "%s Seamless buffer hit\n", __func__);
                         selected_pkt_it = i;
                         selected_col_at = col_allowed_at;
                         // no need to look through the remaining queue entries
@@ -128,7 +128,7 @@ DRAMInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
                         selected_pkt_it = i;
                         selected_col_at = col_allowed_at;
                         found_prepped_pkt = true;
-                        /// DPRINTF(DRAM, "%s Prepped row buffer hit\n", __func__);
+                        DPRINTF(DRAM, "%s Prepped row buffer hit\n", __func__);
                     }
                 } else if (!found_earliest_pkt) {
                     // if we have not initialised the bank status, do it
@@ -138,6 +138,7 @@ DRAMInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
                         std::tie(earliest_banks, hidden_bank_prep) =
                             minBankPrep(queue, min_col_at);
                         filled_earliest_banks = true;
+                        DPRINTF(DRAM, "%s !filled_earliest_banks\n", __func__);
                     }
 
                     // bank is amongst first available banks
@@ -155,24 +156,27 @@ DRAMInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
                         if (hidden_bank_prep || !found_prepped_pkt) {
                             selected_pkt_it = i;
                             selected_col_at = col_allowed_at;
+                            DPRINTF(DRAM, "%s behind the scenes: %d\n", __func__, bits(earliest_banks[pkt->rank],
+                             pkt->bank, pkt->bank));
+
                         }
                     }
                 }
             } else {
-                // DPRINTF(DRAM, "%s bank %d - Rank %d not available\n", __func__,
-                //         pkt->bank, pkt->rank);
+                DPRINTF(DRAM, "%s bank %d - Rank %d not available\n", __func__,
+                         pkt->bank, pkt->rank);
             }
         }
     }
 
     if (selected_pkt_it == queue.end()) {
-        // DPRINTF(DRAM, "%s no available DRAM ranks found\n", __func__);
+        DPRINTF(DRAM, "%s no available DRAM ranks found\n", __func__);
     }
 
     return std::make_pair(selected_pkt_it, selected_col_at);
 }
 
-void
+Tick
 DRAMInterface::activateBank(Rank& rank_ref, Bank& bank_ref,
                        Tick act_tick, uint32_t row, bool isTagCheck)
 {
@@ -214,6 +218,7 @@ DRAMInterface::activateBank(Rank& rank_ref, Bank& bank_ref,
 
     // The next access has to respect tRAS for this bank
     bank_ref.preAllowedAt = act_at + tRAS;
+
 
     // Respect the row-to-column command delay for both read and write cmds
     bank_ref.rdAllowedAt = std::max(act_at + tRCD_RD, bank_ref.rdAllowedAt);
@@ -265,11 +270,13 @@ DRAMInterface::activateBank(Rank& rank_ref, Bank& bank_ref,
             DPRINTF(DRAM, "Enforcing tXAW with X = %d, next activate "
                     "no earlier than %llu\n", activationLimit,
                     rank_ref.actTicks.back() + tXAW);
-            for (int j = 0; j < banksPerRank; j++)
+            for (int j = 0; j < banksPerRank; j++) {
                 // next activate must not happen before end of window
                 rank_ref.banks[j].actAllowedAt =
-                    std::max(rank_ref.actTicks.back() + tXAW,
-                             rank_ref.banks[j].actAllowedAt);
+                    std::max(rank_ref.actTicks.back() + tXAW, rank_ref.banks[j].actAllowedAt);
+                if (rank_ref.actTicks.back() + tXAW > rank_ref.banks[j].actAllowedAt) {
+                }
+            }
         }
     }
 
@@ -280,6 +287,8 @@ DRAMInterface::activateBank(Rank& rank_ref, Bank& bank_ref,
     else if (rank_ref.activateEvent.when() > act_at)
         // move it sooner in time
         reschedule(rank_ref.activateEvent, act_at);
+
+    return act_at;
 }
 
 void
@@ -318,7 +327,7 @@ DRAMInterface::prechargeBank(Rank& rank_ref, Bank& bank, Tick pre_tick,
     assert(rank_ref.numBanksActive != 0);
     --rank_ref.numBanksActive;
 
-    DPRINTF(DRAM, "Precharging bank %d, rank %d at tick %lld, now got "
+    DPRINTF(DRAMT, "Precharging bank %d, rank %d at tick %lld, now got "
             "%d active\n", bank.bank, rank_ref.rank, pre_at,
             rank_ref.numBanksActive);
 
@@ -352,9 +361,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     DPRINTF(DRAM, "Timing access to addr %#x, rank/bank/row %d %d %d\n",
             mem_pkt->addr, mem_pkt->rank, mem_pkt->bank, mem_pkt->row);
 
-    DPRINTF(TraceDC, "Timing access to addr %d, rank/bank/row %d %d %d\n",
-            mem_pkt->addr, mem_pkt->rank, mem_pkt->bank, mem_pkt->row);
-
+    Tick act_at = MaxTick;
     // get the rank
     Rank& rank_ref = *ranks[mem_pkt->rank];
 
@@ -391,16 +398,16 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
         // Record the activation and deal with all the global timing
         // constraints caused be a new activation (tRRD and tXAW)
-        activateBank(rank_ref, bank_ref, act_tick, mem_pkt->row, mem_pkt->isTagCheck);
+        act_at = activateBank(rank_ref, bank_ref, act_tick, mem_pkt->row, mem_pkt->isTagCheck);
     }
 
     // respect any constraints on the command (e.g. tRCD or tCCD)
     const Tick col_allowed_at = mem_pkt->isRead() ? bank_ref.rdAllowedAt : bank_ref.wrAllowedAt;
-    // const Tick col_allowed_at = mem_pkt->isTagCheck ? bank_ref.rdAllowedAt : (mem_pkt->isRead() ? bank_ref.rdAllowedAt : bank_ref.wrAllowedAt);
 
     // we need to wait until the bus is available before we can issue
     // the command; need to ensure minimum bus delay requirement is met
     Tick cmd_at = std::max({col_allowed_at, next_burst_at, curTick()});
+
 
     // verify that we have command bandwidth to issue the burst
     // if not, shift to next burst window
@@ -428,7 +435,8 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             cmd_at = rank_ref.lastBurstTick + tBURST;
         }
     }
-    DPRINTF(DRAM, "Schedule RD/WR burst at tick %d\n", cmd_at);
+
+        DPRINTF(DRAM, "Schedule RD/WR burst at tick %d\n", cmd_at);
 
     // update the packet ready time
     Tick stall_delay = 0;
@@ -436,9 +444,9 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
         // Calculating the tag check ready time
         if (mem_pkt->pkt->owIsRead) {
-            mem_pkt->tagCheckReady = cmd_at + tRLFAST + tCK;
+            mem_pkt->tagCheckReady = cmd_at - tRCD_RD + tRCD_FAST + tRLFAST;
         } else {
-            mem_pkt->tagCheckReady = cmd_at - (tRTW_int) + tRLFAST + tCK;
+            mem_pkt->tagCheckReady = cmd_at - tRCD_RD - tRTW_int + tRCD_FAST + tRLFAST;
         }
         stats.tagResBursts++;
 
@@ -450,6 +458,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
         // Calculating the data ready time
         if (mem_pkt->pkt->owIsRead) {
+
             mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
 
             // Rd Miss Clean
@@ -520,8 +529,8 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         else {
             assert(!mem_pkt->pkt->owIsRead);
 
-            mem_pkt->readyTime = cmd_at + tRTW_int + tWL + tBURST;
-            
+            mem_pkt->readyTime = cmd_at + tWL + tBURST;
+           
             if (!mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
 
                 DPRINTF(DRAM, "Wr M D: %x\n", mem_pkt->addr);
@@ -553,10 +562,10 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
                     mem_pkt->readyTime += stall_delay;
 
-                    endOfReadFlushBuffPeriod = cmd_at + tRTW_int + tWL + stall_delay;
+                    endOfReadFlushBuffPeriod = cmd_at + tWL + stall_delay;
 
-                    schedule(readFlushBufferEvent, cmd_at + tRTW_int + tWL + tRFBD + tBURST);
-                    DPRINTF(DRAM, "wr M D Schd FBRdEv: %x at %d\n", mem_pkt->addr, cmd_at + tRTW_int + tWL + tRFBD + tBURST);
+                    schedule(readFlushBufferEvent, cmd_at + tWL + tRFBD + tBURST);
+                    DPRINTF(DRAM, "wr M D Schd FBRdEv: %x at %d\n", mem_pkt->addr, cmd_at + tWL + tRFBD + tBURST);
 
                     stats.totStallToFlushFB++;
 
@@ -586,7 +595,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             stats.perBankWrBursts[mem_pkt->bankId]++;
 
             // Update latency stats
-            stats.totMemAccLatWrTC += mem_pkt->readyTime - tRTW_int - mem_pkt->entryTime;
+            stats.totMemAccLatWrTC += mem_pkt->readyTime - mem_pkt->entryTime;
             stats.totQLatWrTC += cmd_at - mem_pkt->entryTime;
             stats.totBusLatWrTC += tBURST;
         }
@@ -595,11 +604,14 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         assert(mem_pkt->tagCheckReady == MaxTick);
         if (mem_pkt->isRead()) {
             mem_pkt->readyTime = cmd_at + tRL + tBURST;
-
         } else {
             mem_pkt->readyTime = cmd_at + tWL + tBURST;
         }
     }
+
+    DPRINTF(DRAMT, "curr pkt, addr: %d, isRd: %d, isTC: %d, bank %d, row %d, act: %d, RdAlw: %d, WrAlw: %d, cmd: %d, rdy: %d\n", 
+    mem_pkt->addr, mem_pkt->pkt->isRead(), mem_pkt->pkt->isTagCheck, (unsigned) mem_pkt->bank, (unsigned) mem_pkt->row,
+    act_at/1000, bank_ref.rdAllowedAt/1000, bank_ref.wrAllowedAt/1000, cmd_at/1000, mem_pkt->readyTime/1000);
 
     rank_ref.lastBurstTick = cmd_at;
 
@@ -618,16 +630,16 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
                     // tCCD_L_WR is required for write-to-write
                     // Need to also take bus turnaround delays into account
                     dly_to_rd_cmd = mem_pkt->isRead() ?
-                                    tCCD_L : std::max(tCCD_L, wrToRdDlySameBG); // 4 : 20     wrToRdDlySameBG(tWL + _p.tBURST_MAX + _p.tWTR_L),
+                                    tCCD_L : std::max(tCCD_L, wrToRdDlySameBG); // 2 : 13     wrToRdDlySameBG(tWL + _p.tBURST_MAX + _p.tWTR_L),
                     dly_to_wr_cmd = mem_pkt->isRead() ?
-                                    std::max(tCCD_L, rdToWrDlySameBG) : // 22 : 4    rdToWrDlySameBG(_p.tRTW + _p.tBURST_MAX),
+                                    std::max(tCCD_L, rdToWrDlySameBG) : // 20 : 2    rdToWrDlySameBG(_p.tRTW + _p.tBURST_MAX),
                                     tCCD_L_WR;
                 } else {
                     // tBURST is default requirement for diff BG timing
                     // Need to also take bus turnaround delays into account
-                    dly_to_rd_cmd = mem_pkt->isRead() ? burst_gap : // 4 : 15 tBURST + tWTR + tWL;
+                    dly_to_rd_cmd = mem_pkt->isRead() ? burst_gap : // 2 : 13 tBURST + tWTR + tWL;
                                                        writeToReadDelay();
-                    dly_to_wr_cmd = mem_pkt->isRead() ? readToWriteDelay() : // 22 : 4  tBURST + tRTW;
+                    dly_to_wr_cmd = mem_pkt->isRead() ? readToWriteDelay() : // 20 : 2  tBURST + tRTW;
                                                        burst_gap;
                 }
             } else {
@@ -653,6 +665,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     bank_ref.preAllowedAt = std::max(bank_ref.preAllowedAt,
                                  mem_pkt->isRead() ? cmd_at + tRTP :
                                  mem_pkt->readyTime + tWR);
+    DPRINTF(DRAMT, "doBurstFunc, bank: %d, PRE: %d\n", (unsigned)bank_ref.bank, bank_ref.preAllowedAt/1000);
 
     // increment the bytes accessed and the accesses per row
     bank_ref.bytesAccessed += burstSize;
@@ -829,14 +842,14 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
       tPPD(_p.tPPD), tAAD(_p.tAAD),
       tXAW(_p.tXAW), tXP(_p.tXP), tXS(_p.tXS),
       tTAGBURST(_p.tTAGBURST), tRLFAST(_p.tRLFAST), tHM2DQ(_p.tHM2DQ),
-      tRTW_int(_p.tRTW_int), tRFBD(_p.tRFBD),
+      tRTW_int(_p.tRTW_int), tRFBD(_p.tRFBD), tRCD_FAST(_p.tRCD_FAST),
       flushBufferHighThreshold(_p.flushBuffer_high_thresh_perc / 100.0),
       clkResyncDelay(_p.tBURST_MAX),
       dataClockSync(_p.data_clock_sync),
       burstInterleave(tBURST != tBURST_MIN),
       twoCycleActivate(_p.two_cycle_activate),
       activationLimit(_p.activation_limit),
-      wrToRdDlySameBG(tWL + _p.tBURST_MAX + _p.tWTR_L),
+      wrToRdDlySameBG(tWL + _p.tBURST_MAX + _p.tWTR),
       rdToWrDlySameBG(_p.tRTW + _p.tBURST_MAX),
       maxFBLen(0),
       pageMgmt(_p.page_policy),
@@ -1332,6 +1345,8 @@ DRAMInterface::suspend()
     }
 }
 
+typedef std::pair<bool, bool> got_waiting_pair;
+
 std::pair<std::vector<uint32_t>, bool>
 DRAMInterface::minBankPrep(const MemPacketQueue& queue,
                       Tick min_col_at) const
@@ -1348,12 +1363,15 @@ DRAMInterface::minBankPrep(const MemPacketQueue& queue,
 
     // determine if we have queued transactions targetting the
     // bank in question
-    std::vector<bool> got_waiting(ranksPerChannel * banksPerRank, false);
+    std::vector<got_waiting_pair> got_waiting(ranksPerChannel * banksPerRank);
     for (const auto& p : queue) {
-        if (p->pseudoChannel != pseudoChannel)
+        if (p->pseudoChannel != pseudoChannel) {
             continue;
-        if (p->isDram() && ranks[p->rank]->inRefIdleState())
-            got_waiting[p->bankId] = true;
+        }
+        if (p->isDram() && ranks[p->rank]->inRefIdleState()) {
+            got_waiting[p->bankId].first = true;
+            got_waiting[p->bankId].second = p->isTagCheck? true : false;
+        }
     }
 
     // Find command with optimal bank timing
@@ -1364,7 +1382,7 @@ DRAMInterface::minBankPrep(const MemPacketQueue& queue,
 
             // if we have waiting requests for the bank, and it is
             // amongst the first available, update the mask
-            if (got_waiting[bank_id]) {
+            if (got_waiting[bank_id].first) {
                 // make sure this rank is not currently refreshing.
                 assert(ranks[i]->inRefIdleState());
                 // simplistic approximation of when the bank can issue
@@ -1377,7 +1395,8 @@ DRAMInterface::minBankPrep(const MemPacketQueue& queue,
                 // latest Tick for which ACT can occur without
                 // incurring additoinal delay on the data bus
                 const Tick tRCD = ctrl->inReadBusState(false,
-                                    (MemInterface*)(this)) ? tRCD_RD : tRCD_WR;
+                                    (MemInterface*)(this)) ? tRCD_RD : 
+                                    (got_waiting[bank_id].second ? tRCD_RD+tRTW_int : tRCD_WR);
                 const Tick hidden_act_max =
                             std::max(min_col_at - tRCD, curTick());
 

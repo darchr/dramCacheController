@@ -54,6 +54,7 @@
 
 #include "base/callback.hh"
 #include "base/statistics.hh"
+#include "debug/MemCtrl.hh"
 #include "enums/MemSched.hh"
 #include "mem/qos/mem_ctrl.hh"
 #include "mem/qport.hh"
@@ -796,6 +797,7 @@ class MemCtrl : public qos::MemCtrl
     {
         assert(pseudo_channel == 0);
         schedule(nextReqEvent, tick);
+        DPRINTF(MemCtrl, "Scheduling next request after refreshing\n");
     }
 
     /**
