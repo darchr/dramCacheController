@@ -16,7 +16,9 @@ import m5
 from components.Octopi import OctopiCache
 
 # Sample command to use this script
-# build/RISCV/gem5.opt Octopi-cache/riscv-2channel-1ccd-checkpoint-timing-npb-c.py --benchmark bt --size C --ckpt_path test-dir/
+# build/RISCV/gem5.opt --outdir=bfs.25 riscv-2channel-1ccd-checkpoint.py
+# --benchmark bfs --size 25 --ckpt_path checkpoints-gapbs/bfs.25.ckpt/
+#
 
 requires(isa_required=ISA.RISCV)
 
@@ -30,7 +32,7 @@ args = parser.parse_args()
 
 num_ccds = 1
 num_cores = 8
-command = f"/home/ubuntu/gem5-npb/NPB3.3-OMP/bin/{args.benchmark}.{args.size}.x;"
+command = f"/home/ubuntu/gapbs/{args.benchmark} -g {args.size};"
 
 cache_hierarchy = OctopiCache(
     l1i_size  = "32KiB",
@@ -46,7 +48,7 @@ cache_hierarchy = OctopiCache(
 )
 memory = RamCache()
 
-processor = SimpleSwitchableProcessor(
+processor = SwitchableProcessor(
     starting_core_type=CPUTypes.TIMING,
     switch_core_type=CPUTypes.TIMING, # TODO
     isa=ISA.RISCV,
@@ -98,20 +100,17 @@ def handle_workbegin():
     m5.scheduleTickExitFromCurrent(1000000000000)
     yield False
 
-# This event is scheduled every 100ms to get an 
-# update on the progress of the simulation itself
-def handle_progress_update():
+"""
+def handle_cachewarmup():
+    print("Cache warmed up as we reached : ")
+    print(simulator.get_last_exit_event_cause())
+    print("Taking the checkpoint!")
 
-    while True:
-        print("Simulated another 100ms")
-
-        print(
-            f"Total sim time so far : {simulator.get_current_tick() / 1e12} sec"
-        )
-                
-        m5.scheduleTickExitFromCurrent(100000000000, "progress_update")
-        yield False
-
+    m5.stats.dump()
+    m5.stats.reset()
+    save_checkpoint()
+    yield True
+"""
 # Running things for 1sec and will
 # not take ckpt if cache gets
 # warmed up during Linux boot
@@ -126,7 +125,7 @@ def handle_cachewarmup():
     yield False
 
 def handle_schedtick():
-    print("Going to take the ckpt because : ")
+    print("Cache warmed up as we reached : ")
     print(simulator.get_last_exit_event_cause())
     print("Taking the checkpoint!")
 
@@ -149,16 +148,15 @@ simulator = Simulator(
         ExitEvent.WORKEND: handle_workend(),
         ExitEvent.CACHE_WARMUP: handle_cachewarmup(),
         ExitEvent.SCHEDULED_TICK: handle_schedtick(),
-        ExitEvent.SCHEDULED_TICK_PROGRESS: handle_progress_update(),
     },
 )
 
 def save_checkpoint():
     simulator.save_checkpoint(args.ckpt_path)
 
+
 print("Beginning simulation!")
 
-m5.scheduleTickExitFromCurrent(100000000000, "progress_update")
 simulator.run()
 
 print("End of the simulation, we should have created a ckpt.")

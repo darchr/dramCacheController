@@ -21,7 +21,7 @@ from m5.objects import O3LooppointAnalysis, O3LooppointAnalysisManager
 
 
 # Sample command to use this script
-# build/RISCV/gem5.opt -re --outdir=/projects/gem5/sssp16-test/ Octopi-cache/restore-npb-gapbs-looppoint.py --benchmark sssp --size C --ckpt_path /projects/gem5/dramcache/jason-checkpoints/npb/c/bt/ckpt
+# build/RISCV/gem5.opt -re --outdir=/projects/gem5/npb-test/ Octopi-cache/restore-npb-gapbs-looppoint.py --benchmark bt --size C --ckpt_path /projects/gem5/dramcache/jason-checkpoints/npb/c/bt/ckpt
 
 requires(isa_required=ISA.RISCV)
 
