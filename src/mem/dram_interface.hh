@@ -513,6 +513,7 @@ class DRAMInterface : public MemInterface
     const Tick tHM2DQ;
     const Tick tRTW_int;
     const Tick tRFBD;
+    const Tick tRCD_FAST;
     float flushBufferHighThreshold;
     const Tick clkResyncDelay;
     const bool dataClockSync;
@@ -555,7 +556,7 @@ class DRAMInterface : public MemInterface
      * @param act_tick Time when the activation takes place
      * @param row Index of the row
      */
-    void activateBank(Rank& rank_ref, Bank& bank_ref, Tick act_tick,
+    Tick  activateBank(Rank& rank_ref, Bank& bank_ref, Tick act_tick,
                       uint32_t row, bool isTagCheck);
 
     /**

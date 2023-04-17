@@ -29,14 +29,9 @@ system.mem_mode = 'timing'
 system.generator = PyTrafficGen()
 
 system.mem_ctrl = MemCtrl()
-
-system.mem_ctrl.dram =  TDRAM_32(range=AddrRange('3GiB')) # TDRAM  #TDRAM_32
+system.mem_ctrl.dram = TDRAM_32(range=AddrRange('3GiB'))
 system.mem_ctrl.dram.activation_limit = 8
-# system.mem_ctrl.dram.read_buffer_size = 350
-# system.mem_ctrl.dram.write_buffer_size = 350
-# system.mem_ctrl.dram.banks_per_rank = 16
-# system.mem_ctrl.dram.bank_groups_per_rank = 4
-#system.mem_ctrl.dram.page_policy = "close_adaptive"
+system.mem_ctrl.dram.addr_mapping = 'RoCoRaBaCh'
 
 # DDR4 Alloy
 # system.mem_ctrl.dram =  DDR4_2400_16x4(range=AddrRange('3GiB'))

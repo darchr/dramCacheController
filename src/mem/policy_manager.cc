@@ -373,7 +373,6 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     if (ORB.size() >= orbMaxSize) {
 
         DPRINTF(PolicyManager, "ORBfull: addr %lld\n", pkt->getAddr());
-        DPRINTF(PolicyManager, "ORBfull: %lld\n", pkt->getAddr());
 
         polManStats.totNumORBFull++;
 

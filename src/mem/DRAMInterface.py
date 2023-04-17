@@ -184,6 +184,7 @@ class DRAMInterface(MemInterface):
     tHM2DQ    = Param.Latency("0ns", "tHM2DQ")
     tRTW_int  = Param.Latency("0ns", "tRTW_int")
     tRFBD     = Param.Latency("0ns", "tRFBD")
+    tRCD_FAST = Param.Latency("0ns", "tRCD_FAST")
     flushBuffer_high_thresh_perc = Param.Percent(0, "Threshold to force writes")
 
     # number of data beats per clock. with DDR, default is 2, one per edge
@@ -1284,6 +1285,7 @@ class TDRAM(DRAMInterface):
     tHM2DQ = "1ns"
     tRTW_int = "2ns"
     tRFBD = "2ns"
+    tRCD_FAST = "7.5ns"
     enable_read_flush_buffer = True
     flushBuffer_high_thresh_perc = 70
 
@@ -1365,12 +1367,13 @@ class TDRAM_32(DRAMInterface):
 
     # new
     tTAGBURST = "0.5ns"
-    tRLFAST = "1ns"
-    tHM2DQ = "0.5ns"
+    tRLFAST = "7.5ns"
+    tHM2DQ = "0ns"
     tRTW_int = "1ns"
     tRFBD = "1ns"
+    tRCD_FAST = "7.5ns"
     enable_read_flush_buffer = True
-    flushBuffer_high_thresh_perc = 70
+    flushBuffer_high_thresh_perc = 80
 
     tRP = "14ns"
 
@@ -1407,7 +1410,7 @@ class TDRAM_32(DRAMInterface):
 
     # for a single pseudo channel
     tXAW = "16ns"
-    activation_limit = 4
+    activation_limit = 8
 
     # 4tCK
     tXP = "8ns"
@@ -1421,6 +1424,8 @@ class TDRAM_32(DRAMInterface):
     write_buffer_size = 64
 
     two_cycle_activate = True
+
+    addr_mapping = 'RoCoRaBaCh'
 
 # A single LPDDR5 x16 interface (one command/address bus)
 # for a single x16 channel with default timings based on

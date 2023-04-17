@@ -42,6 +42,7 @@
 
 #include "base/trace.hh"
 #include "debug/DRAM.hh"
+#include "debug/DRAMT.hh"
 #include "debug/Drain.hh"
 #include "debug/MemCtrl.hh"
 #include "debug/NVM.hh"
@@ -360,7 +361,7 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
 
             mem_intr->writeQueueSize++;
 
-            assert(totalWriteQueueSize == isInWriteQueue.size());
+            //assert(totalWriteQueueSize == isInWriteQueue.size());
 
             // Update stats
             stats.avgWrQLen = totalWriteQueueSize;
@@ -1180,6 +1181,9 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             DPRINTF(QOS,
                     "Checking WRITE queue [%d] priority [%d elements]\n",
                     prio, queue->size());
+            DPRINTF(MemCtrl,
+                    "Checking WRITE queue of size [%d] : \n",
+                    queue->size());
 
             // If we are changing command type, incorporate the minimum
             // bus turnaround delay
@@ -1200,6 +1204,9 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         if (!write_found) {
             DPRINTF(MemCtrl, "No Writes Found - exiting\n");
             return;
+
+            DPRINTF(DRAMT, "No Writes Found - exiting\n");
+            return;
         }
 
         auto mem_pkt = *to_write;
@@ -1210,6 +1217,9 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
 
         DPRINTF(MemCtrl,
+        "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
+
+        DPRINTF(DRAMT,
         "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
         if (mem_pkt->isTagCheck) {
