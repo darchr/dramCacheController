@@ -34,7 +34,7 @@ from .fs_tools import *
 
 class MyRubySystem(System):
 
-    def __init__(self, kernel, disk, mem_sys, num_cpus, opts, restore=False):
+    def __init__(self, link_latency, kernel, disk, mem_sys, num_cpus, opts, restore=False):
         super(MyRubySystem, self).__init__()
         self._opts = opts
 
@@ -70,7 +70,7 @@ class MyRubySystem(System):
         self.createCPU(num_cpus)
 
         # self.intrctrl = IntrControl()
-        self.createMemoryControllersDDR3()
+        self.createMemoryControllersDDR3(link_latency)
 
         # Create the cache hierarchy for the system.
         if mem_sys == 'MI_example':
@@ -156,10 +156,10 @@ class MyRubySystem(System):
         disk2 = CowDisk(img_path_2)
         self.pc.south_bridge.ide.disks = [disk0, disk2]
 
-    def createMemoryControllersDDR3(self):
-        self._createMemoryControllers(1, DDR3_1600_8x8)
+    def createMemoryControllersDDR3(self, link_latency):
+        self._createMemoryControllers(link_latency, 1, DDR3_1600_8x8)
 
-    def _createMemoryControllers(self, num, cls):
+    def _createMemoryControllers(self, link_latency, num, cls):
 
         self.mem_ctrl = PolicyManager(range=self.mem_ranges[0], kvm_map=False)
         self.mem_ctrl.static_frontend_latency = "10ns"
@@ -194,10 +194,13 @@ class MyRubySystem(System):
         # self.far_mem_ctrl.dram.burst_length = 8
         # self.far_mem_ctrl.dram.tBURST = "4ns"
 
-        #self.far_mem_ctrl.consider_oldest_write= True
-
         self.loc_mem_ctrl.port = self.mem_ctrl.loc_req_port
-        self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
+        #self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
+        self.membusPolManFarMem = L2XBar(width=64)
+        self.membusPolManFarMem.cpu_side_ports = self.mem_ctrl.far_req_port
+        self.membusPolManFarMem.mem_side_ports = self.far_mem_ctrl.port
+        self.membusPolManFarMem.frontend_latency = link_latency
+        self.membusPolManFarMem.response_latency = link_latency
 
         self.mem_ctrl.orb_max_size = 128
         self.mem_ctrl.dram_cache_size = "128MiB"

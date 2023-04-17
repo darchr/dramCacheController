@@ -82,6 +82,8 @@ def parse_options():
                 'with x86 ISA.')
 
     # The manditry position arguments.
+    parser.add_argument("link_latency", type=int,
+                        help="link latency")
     parser.add_argument("kernel", type=str,
                         help="Path to the kernel binary to boot")
     parser.add_argument("disk", type=str,
@@ -118,7 +120,7 @@ if __name__ == "__m5_main__":
     args = parse_options()
 
     if args.mem_sys == "classic":
-        system = MySystem(args.kernel, args.disk, args.num_cpus, args,
+        system = MySystem(args.link_latency, args.kernel, args.disk, args.num_cpus, args,
                           no_kvm=False)
     else:
         system = MyRubySystem(args.kernel, args.disk, args.mem_sys,

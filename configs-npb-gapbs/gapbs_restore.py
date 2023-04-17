@@ -68,6 +68,8 @@ def parse_options():
                 'with x86 ISA.')
 
     # The manditry position arguments.
+    parser.add_argument("link_latency", type=int,
+                        help="link latency")
     parser.add_argument("kernel", type=str,
                         help="Path to the kernel binary to boot")
     parser.add_argument("disk", type=str,
@@ -93,7 +95,7 @@ if __name__ == "__m5_main__":
 
 
     # create the system we are going to simulate
-    system = MyRubySystem(args.kernel, args.disk, args.mem_sys,
+    system = MyRubySystem(args.link_latency, args.kernel, args.disk, args.mem_sys,
                           args.num_cpus, args, restore=True)
 
     system.m5ops_base = 0xffff0000
