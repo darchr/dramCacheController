@@ -108,15 +108,6 @@ cache_hierarchy = OctopiCache(
 )
 memory = RamCache()
 
-"""
-processor = SimpleSwitchableProcessor(
-    starting_core_type=CPUTypes.TIMING,
-    switch_core_type=CPUTypes.TIMING, # TODO
-    isa=ISA.RISCV,
-    num_cores=num_cores
-)
-"""
-
 processor = MySimpleProcessor(
     starting_core_type=CPUTypes.O3,
     switch_core_type=CPUTypes.O3,
@@ -234,17 +225,27 @@ print(f"Will restore the checkpoint from : {args.ckpt_path} ")
 
 # Start the simulation so that the 
 # scheduleTickExitFromCurrent() can be used
-simulator.run(1000)
+#simulator.run(1000)
 # progress update
-m5.scheduleTickExitFromCurrent(100_000_000_000, "progress_update")
+#m5.scheduleTickExitFromCurrent(100_000_000_000, "progress_update")
 
-# Running the actual simulation for 1 seconds
-simulator.run(1000_000_000_000)
+def DumpLoopPointCounters():
+    mostRecentPc = lpmanager.getMostRecentPc()
+    print("Most recent (PC, count, tick) at the end of the simulation")
+    for pc, tick in mostRecentPc:
+        count = lpmanager.getPcCount(pc)
+        print(f"{hex(pc)},{count[0]},{count[1]}")
 
+# Simulate 1s in 10 intervals
+numIteration = 10
+
+print("Simulating ten intervals of 100ms!")
+
+for interval_number in range(numIteration):
+    print("Interval number: {} \n".format(interval_number))
+    simulator.run(100_000_000_000)
+    print(f"Exiting simulation loop because of : {simulator.get_last_exit_event_cause()}")
+    DumpLoopPointCounters()
+    m5.stats.dump()
+    
 print("End of the simulation!")
-
-mostRecentPc = lpmanager.getMostRecentPc()
-print("Most recent (PC, count, tick) at the end of the simulation")
-for pc, tick in mostRecentPc:
-    count = lpmanager.getPcCount(pc)
-    print(f"{hex(pc)},{count[0]},{count[1]}\n")

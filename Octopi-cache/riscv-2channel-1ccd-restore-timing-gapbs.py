@@ -10,6 +10,9 @@ from gem5.simulate.simulator import Simulator
 from gem5.components.processors.simple_switchable_processor import (
     SimpleSwitchableProcessor,
 )
+from gem5.components.processors.simple_processor import (
+    SimpleProcessor,
+)
 from gem5.components.memory import CascadeLakeCache, OracleCache, RamCache
 from gem5.simulate.simulator import ExitEvent
 import m5
@@ -18,7 +21,7 @@ from pathlib import Path
 
 # Sample command to use this script
 # build/RISCV/gem5.opt -re --outdir=/projects/gem5/sssp16-test/ Octopi-cache/riscv-2channel-1ccd-restore-timing-gapbs.py --benchmark sssp --size 16 --ckpt_path /projects/gem5/dramcache/jason-checkpoints/gapbs/16/sssp/ckpt
-#
+# build/RISCV/gem5.opt -re --outdir=/projects/gem5/sssp16-test/ Octopi-cache/riscv-2channel-1ccd-restore-timing-gapbs.py --benchmark sssp --size C --ckpt_path /projects/gem5/dramcache/jason-checkpoints/npb/c/bt/ckpt
 
 requires(isa_required=ISA.RISCV)
 
@@ -32,7 +35,8 @@ args = parser.parse_args()
 
 num_ccds = 1
 num_cores = 8
-command = f"/home/ubuntu/gapbs/{args.benchmark} -g {args.size};"
+#command = f"/home/ubuntu/gapbs/{args.benchmark} -g {args.size};"
+command = f"/home/ubuntu/gem5-npb/NPB3.3-OMP/bin/{args.benchmark}.{args.size}.x;"
 
 cache_hierarchy = OctopiCache(
     l1i_size  = "32KiB",
@@ -48,11 +52,17 @@ cache_hierarchy = OctopiCache(
 )
 memory = RamCache()
 
+"""
 processor = SimpleSwitchableProcessor(
     starting_core_type=CPUTypes.TIMING,
     switch_core_type=CPUTypes.TIMING, # TODO
     isa=ISA.RISCV,
     num_cores=num_cores
+)
+"""
+
+processor = SimpleProcessor(
+    cpu_type=CPUTypes.TIMING, isa=ISA.RISCV, num_cores=num_cores
 )
 
 class HighPerformanceRiscvBoard(RiscvBoard):
@@ -133,7 +143,7 @@ simulator = Simulator(
         ExitEvent.WORKEND: handle_workend(),
         ExitEvent.CACHE_WARMUP: handle_cachewarmup(),
         ExitEvent.SCHEDULED_TICK: handle_schedtick(),
-        ExitEvent.SCHEDULED_TICK_PROGRESS: handle_progress_update(),
+        #ExitEvent.SCHEDULED_TICK_PROGRESS: handle_progress_update(),
     },
 )
 
@@ -141,10 +151,10 @@ print("Beginning simulation!")
 print(f"Will restore the checkpoint from : {args.ckpt_path} ")
 
 # progress update
-m5.scheduleTickExitFromCurrent(100000000000, "progress_update")
+#m5.scheduleTickExitFromCurrent(100000000000, "progress_update")
 
 # Running the actual simulation for 1 second
-m5.scheduleTickExitFromCurrent(1000000000000)
-simulator.run()
+#m5.scheduleTickExitFromCurrent(1000000000000)
+simulator.run(1000000000000)
 
 print("End of the simulation!")
