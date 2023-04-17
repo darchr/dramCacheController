@@ -36,7 +36,7 @@ from ...utils.override import overrides
 from m5.objects import AddrRange, DRAMInterface, Port, PolicyManager, L2XBar, IOXBar
 from typing import Type, Optional, Union, Sequence, Tuple, List
 from .memory import _try_convert
-from .dram_interfaces.hbm import HBM_2000_4H_1x64_Rambus
+from .dram_interfaces.hbm import TDRAM_32
 from .dram_interfaces.ddr4 import DDR4_2400_8x8
 from .multi_channel import DualChannelDDR4_2400
 from .single_channel import SingleChannelDDR4_2400
@@ -74,8 +74,6 @@ class DCacheSystem(AbstractMemorySystem):
         self.policy_manager.loc_mem_policy = loc_mem_policy
         self.policy_manager.bypass_dcache = False
 
-        #self.policy_manager.always_hit = False
-        #self.policy_manager.always_dirty = True
         self.policy_manager.dram_cache_size = cache_size
         self.policy_manager.cache_warmup_ratio = 0.95
 
@@ -100,26 +98,23 @@ class DCacheSystem(AbstractMemorySystem):
             dram.null = True
             # DRAM interface DDR4_2400_16x4
             # by default has a write buffer size of 128
+            dram.read_buffer_size = 64
             dram.write_buffer_size = 64
-            #dram.range = AddrRange('1GiB')
 
         self._loc_mem_controller = self.loc_mem.get_memory_controllers()[0]
         self._far_mem_controller = self.far_mem.get_memory_controllers()[0]
 
+        self._loc_mem_controller.consider_oldest_write= True
+        self._loc_mem_controller.static_frontend_latency = "1ns"
+        self._loc_mem_controller.static_backend_latency = "1ns"
+
+        self._far_mem_controller.static_frontend_latency = "1ns"
+        self._far_mem_controller.static_backend_latency = "1ns"
+
         self._loc_mem_controller.port = self.policy_manager.loc_req_port
         self._far_mem_controller.port = self.policy_manager.far_req_port
 
-        self._loc_mem_controller.consider_oldest_write= True
-        self._loc_mem_controller.static_frontend_latency_tc = "1ns"
-        self._loc_mem_controller.static_backend_latency_tc = "1ns"
-        self._loc_mem_controller.static_frontend_latency = "2ns"
-        self._loc_mem_controller.static_backend_latency = "2ns"
-
-        self._far_mem_controller.static_frontend_latency = "2ns"
-        self._far_mem_controller.static_backend_latency = "2ns"
-
         # If need to use XBar
-
         #self.farMemXBar = L2XBar(width=64)
         #self.nearMemXBar = L2XBar(width=64)
 
@@ -157,43 +152,39 @@ class DCacheSystem(AbstractMemorySystem):
     def get_mem_ports(self) -> Sequence[Tuple[AddrRange, Port]]:
         return [(self.policy_manager.range, self.policy_manager.port)]
 
-def SingleChannelHBMRambus(
+def SingleChannelTDRAM32(
     size: Optional[str] = None,
 ) -> AbstractMemorySystem:
     if not size:
         size = "256MiB"
     return ChanneledMemory(
-        HBM_2000_4H_1x64_Rambus,
+        TDRAM_32,
         1,
         64,
         size=size
     )
 
 
-def CascadeLakeCache(
-    size: Optional[str] = "4GiB",
-) -> AbstractMemorySystem:
+def CascadeLakeCache(cache_size) -> AbstractMemorySystem:
     return DCacheSystem(
-        SingleChannelDDR4_2400,
+        SingleChannelTDRAM32,
         SingleChannelDDR4_2400,
         'CascadeLakeNoPartWrs',
-        size='512MiB')
+        size='64GiB',
+        cache_size=cache_size)
 
-def OracleCache(
-    size: Optional[str] = "4GiB",
-) -> AbstractMemorySystem:
+def OracleCache(cache_size) -> AbstractMemorySystem:
     return DCacheSystem(
-        SingleChannelDDR4_2400,
+        SingleChannelTDRAM32,
         SingleChannelDDR4_2400,
         'Oracle',
-        size='512MiB')
+        size='64GiB',
+        cache_size=cache_size)
 
-def RamCache(
-    size: Optional[str] = "4GiB",
-) -> AbstractMemorySystem:
+def RambusCache(cache_size) -> AbstractMemorySystem:
     return DCacheSystem(
-        SingleChannelHBMRambus,
+        SingleChannelTDRAM32,
         SingleChannelDDR4_2400,
         'Rambus',
         size='64GiB',
-        cache_size='512MiB')
+        cache_size=cache_size)

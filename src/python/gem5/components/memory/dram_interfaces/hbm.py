@@ -277,19 +277,19 @@ class HBM_2000_4H_1x64(DRAMInterface):
 
     two_cycle_activate = True
 
-class HBM_2000_4H_1x64_Rambus(DRAMInterface):
+class TDRAM_32(DRAMInterface):
 
     # 64-bit interface for a single pseudo channel
-    device_bus_width = 64
+    device_bus_width = 32
 
     # HBM2 supports BL4
-    burst_length = 8
+    burst_length = 16
 
     # size of channel in bytes, 4H stack of 8Gb dies is 4GiB per stack;
     # with 16 pseudo channels, 256MiB per pseudo channel
-    device_size = "256MiB"
+    device_size = "1GiB"
 
-    device_rowbuffer_size = "1KiB"
+    device_rowbuffer_size = "2KiB"
 
     # 1x128 configuration
     devices_per_rank = 1
@@ -297,23 +297,25 @@ class HBM_2000_4H_1x64_Rambus(DRAMInterface):
     ranks_per_channel = 1
 
     banks_per_rank = 32
+
     bank_groups_per_rank = 8
 
     # 1000 MHz for 2Gbps DDR data rate
-    tCK = "1ns"
+    tCK = "0.5ns"
 
     # new
-    tTAGBURST = "1ns"
-    tRLFAST = "1ns"
-    tHM2DQ = "1ns"
-    tRTW_int = "2ns"
-    tRFBD = "2ns"
+    tTAGBURST = "0.5ns"
+    tRLFAST = "7.5ns"
+    tHM2DQ = "0ns"
+    tRTW_int = "1ns"
+    tRFBD = "1ns"
+    tRCD_FAST = "7.5ns"
     enable_read_flush_buffer = True
-    flushBuffer_high_thresh_perc = 70
+    flushBuffer_high_thresh_perc = 80
 
     tRP = "14ns"
 
-    tCCD_L = "4ns"
+    tCCD_L = "2ns"
 
     tRCD = "12ns"
     tRCD_WR = "6ns"
@@ -321,7 +323,7 @@ class HBM_2000_4H_1x64_Rambus(DRAMInterface):
     tCWL = "7ns"
     tRAS = "28ns"
 
-    tBURST = "4ns"
+    tBURST = "2ns"
 
     # value for 2Gb device from JEDEC spec
     tRFC = "220ns"
@@ -341,12 +343,12 @@ class HBM_2000_4H_1x64_Rambus(DRAMInterface):
     # single rank device, set to 0
     tCS = "0ns"
 
-    tRRD = "3ns"
-    tRRD_L = "4ns"
+    tRRD = "2ns"
+    tRRD_L = "2ns"
 
     # for a single pseudo channel
     tXAW = "16ns"
-    activation_limit = 4
+    activation_limit = 8
 
     # 4tCK
     tXP = "8ns"
@@ -360,3 +362,5 @@ class HBM_2000_4H_1x64_Rambus(DRAMInterface):
     write_buffer_size = 64
 
     two_cycle_activate = True
+
+    addr_mapping = 'RoCoRaBaCh'

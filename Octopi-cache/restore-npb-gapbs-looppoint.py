@@ -12,7 +12,7 @@ from gem5.components.processors.simple_switchable_processor import (
     MySimpleProcessor,
 )
 from gem5.components.processors.simple_processor import SimpleProcessor
-from gem5.components.memory import CascadeLakeCache, OracleCache, RamCache
+from gem5.components.memory import CascadeLakeCache, OracleCache, RambusCache
 from gem5.simulate.simulator import ExitEvent
 import m5
 from components.Octopi import OctopiCache
@@ -21,18 +21,21 @@ from m5.objects import O3LooppointAnalysis, O3LooppointAnalysisManager
 
 
 # Sample command to use this script
-# build/RISCV/gem5.opt -re --outdir=/projects/gem5/npb-test/ Octopi-cache/restore-npb-gapbs-looppoint.py --benchmark bt --size C --ckpt_path /projects/gem5/dramcache/jason-checkpoints/npb/c/bt/ckpt
+# build/RISCV_MESI_Three_Level/gem5.opt -re --outdir=m5out Octopi-cache/restore-npb-gapbs-looppoint.py --experiment RambusBaseline --benchmark bt --cache_size 128MiB
 
 requires(isa_required=ISA.RISCV)
 
 import argparse
 
 parser = argparse.ArgumentParser()
+parser.add_argument("--experiment", type=str)
 parser.add_argument("--benchmark", type=str)
-parser.add_argument("--size", type=str)
-parser.add_argument("--ckpt_path", type=str)
+parser.add_argument("--cache_size", type=str)
 
 args = parser.parse_args()
+
+ckpt_path = "/projects/gem5/dramcache/jason-checkpoints/npb/c/"+args.benchmark+"/ckpt"
+print("Checkpoint directory: "+ckpt_path)
 
 # Valid addresses for looppoint analysis
 # The addresses are the .text section range
@@ -89,9 +92,8 @@ text_size = {
 
 num_ccds = 1
 num_cores = 8
-# command = f"/home/ubuntu/gapbs/{args.benchmark} -g {args.size};"
 command = (
-    f"/home/ubuntu/gem5-npb/NPB3.3-OMP/bin/{args.benchmark}.{args.size}.x;"
+    f"/home/ubuntu/gem5-npb/NPB3.3-OMP/bin/{args.benchmark}.C.x;"
 )
 
 cache_hierarchy = OctopiCache(
@@ -106,7 +108,13 @@ cache_hierarchy = OctopiCache(
     num_core_complexes=1,
     is_fullsystem=True,
 )
-memory = RamCache()
+
+if args.experiment == "RambusBaseline":
+    memory = RambusCache(args.cache_size)
+elif args.experiment == "CascadeLakeBaseline":
+    memory = CascadeLakeCache(args.cache_size)
+elif args.experiment == "OracleBaseline":
+    memory = OracleCache(args.cache_size)
 
 processor = MySimpleProcessor(
     starting_core_type=CPUTypes.O3,
@@ -122,8 +130,8 @@ lpmanager = O3LooppointAnalysisManager()
 for core in processor.get_cores():
     lplistener = O3LooppointAnalysis()
     lplistener.ptmanager = lpmanager
-    lplistener.validAddrRangeStart = int(text_start[args.benchmark], 16)
-    lplistener.validAddrRangeSize = int(text_size[args.benchmark], 16)
+    lplistener.validAddrRangeStart = int(text_start[args.benchmark+".C"], 16)
+    lplistener.validAddrRangeSize = int(text_size[args.benchmark+".C"], 16)
     core.core.probeListener = lplistener
 
 
@@ -155,7 +163,7 @@ board.set_kernel_disk_workload(
         "/projects/gem5/npb-gapbs-riscv.img", root_partition="1"
     ),
     readfile_contents=f"{command}",
-    checkpoint=Path(args.ckpt_path),
+    checkpoint=Path(ckpt_path),
 )
 
 # The first exit_event ends with a `workbegin` cause. This means that the
@@ -221,7 +229,7 @@ simulator = Simulator(
 )
 
 print("Beginning simulation!")
-print(f"Will restore the checkpoint from : {args.ckpt_path} ")
+print(f"Will restore the checkpoint from : {ckpt_path} ")
 
 # Start the simulation so that the 
 # scheduleTickExitFromCurrent() can be used

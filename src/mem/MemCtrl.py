@@ -76,7 +76,7 @@ class MemCtrl(QoSMemCtrl):
     # threshold in percentage for when to start writes if the read
     # queue is empty
     write_low_thresh_perc = Param.Percent(50, "Threshold to start writes")
-    oldest_write_age_threshold = Param.Unsigned(5000000, "The age of oldest write request in the write queue in ticks")
+    oldest_write_age_threshold = Param.Unsigned(2500000, "The age of oldest write request in the write queue in ticks")
     # minimum write bursts to schedule before switching back to reads
     min_writes_per_switch = Param.Unsigned(
         16, "Minimum write bursts before switching to reads"
@@ -97,8 +97,8 @@ class MemCtrl(QoSMemCtrl):
     static_frontend_latency = Param.Latency("10ns", "Static frontend latency")
     static_backend_latency = Param.Latency("10ns", "Static backend latency")
 
-    static_frontend_latency_tc = Param.Latency("0.5ns", "Static frontend latency")
-    static_backend_latency_tc = Param.Latency("0.5ns", "Static backend latency")
+    static_frontend_latency_tc = Param.Latency("0ns", "Static frontend latency")
+    static_backend_latency_tc = Param.Latency("0ns", "Static backend latency")
 
     command_window = Param.Latency("10ns", "Static backend latency")
 
