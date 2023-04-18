@@ -1072,7 +1072,11 @@ class SimObject(object, metaclass=MetaSimObject):
             if issubclass(pdesc.ptype, ptype):
                 match_obj = self._values[pname]
                 if not isproxy(match_obj) and not isNullPointer(match_obj):
-                    all[match_obj] = True
+                    if isinstance(match_obj, SimObjectVector):
+                        for obj in match_obj:
+                            all[obj] = True
+                    else:
+                        all[match_obj] = True
         # Also make sure to sort the keys based on the objects' path to
         # ensure that the order is the same on all hosts
         return sorted(all.keys(), key=lambda o: o.path()), True
@@ -1241,11 +1245,12 @@ class SimObject(object, metaclass=MetaSimObject):
                 params = self.getCCParams()
                 self._ccObject = params.create()
                 # print(f"{self}: Actually created")
-            #else: 
-                # print("I am abstract?")
+            # else:
+            # print("I am abstract?")
         elif self._ccObject == -1:
-            raise RuntimeError("%s: Cycle found in configuration hierarchy." \
-                  % self.path())
+            raise RuntimeError(
+                "%s: Cycle found in configuration hierarchy." % self.path()
+            )
         # print(f"retuning {self._ccObject}")
         return self._ccObject
 
