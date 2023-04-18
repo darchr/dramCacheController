@@ -47,8 +47,9 @@ class MyRubySystem(System):
         self.clk_domain.clock = '5GHz'
         self.clk_domain.voltage_domain = VoltageDomain()
 
-        self.mem_ranges = [AddrRange(Addr('3GiB')), # All data
+        self.mem_ranges = [AddrRange(Addr('128MiB')), # kernel data
                            AddrRange(0xC0000000, size=0x100000), # For I/0
+                           AddrRange(0x100000000, size='16GiB') # starting at 4GiB for 16 GiB
                            ]
 
         self.initFS(num_cpus)
@@ -70,7 +71,7 @@ class MyRubySystem(System):
         self.createCPU(num_cpus)
 
         # self.intrctrl = IntrControl()
-        self.createMemoryControllers()
+        self._createMemoryControllers(1, 2)
 
         # Create the cache hierarchy for the system.
         if mem_sys == 'MI_example':
@@ -86,14 +87,18 @@ class MyRubySystem(System):
             cpus = self.o3Cpu
         else:
             cpus = self.cpu
-        self.caches.setup(self, cpus, self.mem_ctrl, self.mem_ranges[:1],
+        self.caches.setup(self, cpus, [self.kernel_mem_ctrl, self.mem_ctrl],
+                          [self.mem_ranges[0], self.mem_ranges[2]],
                           [self.pc.south_bridge.ide.dma,
                           self.iobus.mem_side_ports],
                           self.iobus)
 
         self.caches.access_backing_store = True
         self.caches.phys_mem = [SimpleMemory(range=self.mem_ranges[0],
-                                           in_addr_map=False)]
+                                           in_addr_map=False),
+                                SimpleMemory(range=self.mem_ranges[2],
+                                             in_addr_map=False)
+                                ]
 
         if self._host_parallel:
             # To get the KVM CPUs to run on different host CPUs
@@ -156,13 +161,17 @@ class MyRubySystem(System):
         disk2 = CowDisk(img_path_2)
         self.pc.south_bridge.ide.disks = [disk0, disk2]
 
-    def createMemoryControllers(self):
+    def _createKernelMemoryController(self, cls):
+        return MemCtrl(dram = cls(range = self.mem_ranges[0], kvm_map = False))
 
-        self.mem_ctrl = PolicyManager(range=self.mem_ranges[0], kvm_map=False)
+    def _createMemoryControllers(self, num, cls):
+        self.kernel_mem_ctrl = self._createKernelMemoryController(DDR3_1600_8x8)
+
+        self.mem_ctrl = PolicyManager(range=self.mem_ranges[2], kvm_map=False)
         self.mem_ctrl.static_frontend_latency = "10ns"
         self.mem_ctrl.static_backend_latency = "10ns"
 
-        self.mem_ctrl.loc_mem_policy = 'Rambus'  # 'CascadeLakeNoPartWrs' # 'Oracle' # 
+        self.mem_ctrl.loc_mem_policy = 'CascadeLakeNoPartWrs' # 'Rambus'  # 'Oracle' # 
 
         # self.mem_ctrl.bypass_dcache = True
 
@@ -170,7 +179,7 @@ class MyRubySystem(System):
         self.loc_mem_ctrl = MemCtrl()
         self.loc_mem_ctrl.consider_oldest_write = True
         self.loc_mem_ctrl.oldest_write_age_threshold = 2500000
-        self.loc_mem_ctrl.dram = TDRAM_32(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
+        self.loc_mem_ctrl.dram = TDRAM_32(range=self.mem_ranges[2], in_addr_map=False, kvm_map=False)
 
         
         self.mem_ctrl.loc_mem = self.loc_mem_ctrl.dram
@@ -181,9 +190,17 @@ class MyRubySystem(System):
 
         # main memory
         self.far_mem_ctrl = MemCtrl()
-        self.far_mem_ctrl.dram = DDR4_2400_16x4(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
+        self.far_mem_ctrl.dram = DDR4_2400_16x4(range=self.mem_ranges[2], in_addr_map=False, kvm_map=False)
         self.far_mem_ctrl.static_frontend_latency = "1ns"
         self.far_mem_ctrl.static_backend_latency = "1ns"
+
+        # far HBM2 1 PC
+        # self.far_mem_ctrl = MemCtrl()
+        # self.far_mem_ctrl.dram =  HBM_2000_4H_1x64(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
+        # self.far_mem_ctrl.dram.burst_length = 8
+        # self.far_mem_ctrl.dram.tBURST = "4ns"
+
+        #self.far_mem_ctrl.consider_oldest_write= True
 
         self.loc_mem_ctrl.port = self.mem_ctrl.loc_req_port
         self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
@@ -193,6 +210,8 @@ class MyRubySystem(System):
 
         self.loc_mem_ctrl.dram.read_buffer_size = 64
         self.loc_mem_ctrl.dram.write_buffer_size = 64
+        # self.loc_mem_ctrl.dram_2.read_buffer_size = 32
+        # self.loc_mem_ctrl.dram_2.write_buffer_size = 32
 
         self.far_mem_ctrl.dram.read_buffer_size = 64
         self.far_mem_ctrl.dram.write_buffer_size = 64
@@ -284,6 +303,9 @@ class MyRubySystem(System):
             # Mark the rest of physical memory as available
             X86E820Entry(addr = 0x100000,
                     size = '%dB' % (self.mem_ranges[0].size() - 0x100000),
+                    range_type = 1),
+            X86E820Entry(addr = 0x100000000,
+                    size = '%dB' % (self.mem_ranges[2].size()),
                     range_type = 1),
             ]
 

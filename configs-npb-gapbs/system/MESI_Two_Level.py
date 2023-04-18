@@ -51,7 +51,7 @@ class MESITwoLevelCache(RubySystem):
 
         self._numL2Caches = 8
 
-    def setup(self, system, cpus, mem_ctrls, dma_ports, iobus):
+    def setup(self, system, cpus, mem_ctrls, mem_ranges, dma_ports, iobus):
         """Set up the Ruby cache subsystem. Note: This can't be done in the
            constructor because many of these items require a pointer to the
            ruby system (self). This causes infinite recursion in initialize()
@@ -73,7 +73,7 @@ class MESITwoLevelCache(RubySystem):
             [L1Cache(system, self, cpu, self._numL2Caches) for cpu in cpus] + \
             [L2Cache(system, self, self._numL2Caches) for num in \
             range(self._numL2Caches)] + \
-            [DirController(self, system.mem_ranges, mem_ctrls)] + \
+            [DirController(self, rng, mem_ctrl) for rng,mem_ctrl in zip(mem_ranges,mem_ctrls)] + \
             [DMAController(self) for i in range(len(dma_ports))]
 
         # Create one sequencer per CPU and dma controller.
@@ -117,14 +117,11 @@ class MESITwoLevelCache(RubySystem):
             cpu.icache_port = self.sequencers[i].in_ports
             cpu.dcache_port = self.sequencers[i].in_ports
             cpu.createInterruptController()
-            isa = buildEnv['TARGET_ISA']
-            if isa == 'x86':
-                cpu.interrupts[0].pio = self.sequencers[i].interrupt_out_port
-                cpu.interrupts[0].int_requestor = self.sequencers[i].in_ports
-                cpu.interrupts[0].int_responder = self.sequencers[i].interrupt_out_port
-            if isa == 'x86' or isa == 'arm':
-                cpu.mmu.connectWalkerPorts(
-                    self.sequencers[i].in_ports, self.sequencers[i].in_ports)
+            cpu.interrupts[0].pio = self.sequencers[i].interrupt_out_port
+            cpu.interrupts[0].int_requestor = self.sequencers[i].in_ports
+            cpu.interrupts[0].int_responder = self.sequencers[i].interrupt_out_port
+            cpu.mmu.connectWalkerPorts(
+                self.sequencers[i].in_ports, self.sequencers[i].in_ports)
 class L1Cache(L1Cache_Controller):
 
     _version = 0
@@ -178,8 +175,7 @@ class L1Cache(L1Cache_Controller):
            2. The x86 mwait instruction is built on top of coherence
            3. The local exclusive monitor in ARM systems
         """
-        if type(cpu) is DerivO3CPU or \
-           buildEnv['TARGET_ISA'] in ('x86', 'arm'):
+        if type(cpu) is X86O3CPU:
             return True
         return False
 
