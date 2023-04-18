@@ -443,7 +443,7 @@ CacheMemory::recordCacheContents(int cntrl, CacheRecorder* tr) const
                     Addr addr = m_cache[i][j]->m_Address;
                     auto rs = params().ruby_system;
                     if (rs->getAccessBackingStore()) {
-                        uint8_t *ptr = rs->getPhysMem()->toHostAddr(addr);
+                        uint8_t *ptr = rs->getPhysMem(addr)->toHostAddr(addr);
                         data.setData(ptr, 0, rs->getBlockSizeBytes());
                     } else {
                         data = m_cache[i][j]->getDataBlk();

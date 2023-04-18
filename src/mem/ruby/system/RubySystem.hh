@@ -37,6 +37,7 @@
 
 #include <unordered_map>
 
+#include "base/addr_range_map.hh"
 #include "base/callback.hh"
 #include "base/output.hh"
 #include "mem/packet.hh"
@@ -75,7 +76,13 @@ class RubySystem : public ClockedObject
     static bool getWarmupEnabled() { return m_warmup_enabled; }
     static bool getCooldownEnabled() { return m_cooldown_enabled; }
 
-    memory::SimpleMemory *getPhysMem() { return m_phys_mem; }
+    memory::SimpleMemory *getPhysMem(Addr addr) {
+        auto it = m_phys_mem.contains(addr);
+        panic_if (it == m_phys_mem.end(),
+                  "Cannot find physical memory for address %#x", addr);
+        return it->second;
+    }
+
     Cycles getStartCycle() { return m_start_cycle; }
     bool getAccessBackingStore() { return m_access_backing_store; }
 
@@ -142,7 +149,7 @@ class RubySystem : public ClockedObject
     static bool m_warmup_enabled;
     static unsigned m_systems_to_warmup;
     static bool m_cooldown_enabled;
-    memory::SimpleMemory *m_phys_mem;
+    AddrRangeMap<memory::SimpleMemory *> m_phys_mem;
     const bool m_access_backing_store;
 
     //std::vector<Network *> m_networks;
