@@ -21,16 +21,16 @@ from m5.objects import O3LooppointAnalysis, O3LooppointAnalysisManager
 
 
 # Sample command to use this script
-# build/RISCV_MESI_Three_Level/gem5.opt -re --outdir=m5out Octopi-cache/restore-npb-gapbs-looppoint.py --experiment RambusBaseline --benchmark bt --cache_size 128MiB
+# build/RISCV_MESI_Three_Level/gem5.opt -re --outdir=m5out Octopi-cache/restore-npb-gapbs-looppoint.py RambusBaseline bt 128MiB
 
 requires(isa_required=ISA.RISCV)
 
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--experiment", type=str)
-parser.add_argument("--benchmark", type=str)
-parser.add_argument("--cache_size", type=str)
+parser.add_argument("experiment", type=str)
+parser.add_argument("benchmark", type=str)
+parser.add_argument("cache_size", type=str)
 
 args = parser.parse_args()
 

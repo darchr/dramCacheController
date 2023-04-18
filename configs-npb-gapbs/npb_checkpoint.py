@@ -118,15 +118,7 @@ if __name__ == "__m5_main__":
 
 
     # create the system we are going to simulate
-    system = MySystem(args.kernel, args.disk, args.num_cpus, args,
-                      no_kvm=False)
-
-
-    if args.mem_sys == "classic":
-        system = MySystem(args.kernel, args.disk, args.num_cpus, args,
-                          no_kvm=False)
-    else:
-        system = MyRubySystem(args.kernel, args.disk, args.mem_sys,
+    system = MyRubySystem(args.kernel, args.disk, args.mem_sys,
                               args.num_cpus, args)
 
     system.m5ops_base = 0xffff0000

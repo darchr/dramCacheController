@@ -117,11 +117,7 @@ def parse_options():
 if __name__ == "__m5_main__":
     args = parse_options()
 
-    if args.mem_sys == "classic":
-        system = MySystem(args.kernel, args.disk, args.num_cpus, args,
-                          no_kvm=False)
-    else:
-        system = MyRubySystem(args.kernel, args.disk, args.mem_sys,
+    system = MyRubySystem(args.kernel, args.disk, args.mem_sys,
                               args.num_cpus, args, restore=True)
 
     system.m5ops_base = 0xffff0000

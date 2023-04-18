@@ -165,7 +165,7 @@ class MyRubySystem(System):
         self.mem_ctrl.static_frontend_latency = "10ns"
         self.mem_ctrl.static_backend_latency = "10ns"
 
-        self.mem_ctrl.loc_mem_policy = 'CascadeLakeNoPartWrs' # 'Rambus'  # 'Oracle' # 
+        self.mem_ctrl.loc_mem_policy = 'Rambus'  # 'CascadeLakeNoPartWrs' # 'Oracle' # 
 
         # self.mem_ctrl.bypass_dcache = True
 
@@ -188,14 +188,6 @@ class MyRubySystem(System):
         self.far_mem_ctrl.static_frontend_latency = "1ns"
         self.far_mem_ctrl.static_backend_latency = "1ns"
 
-        # far HBM2 1 PC
-        # self.far_mem_ctrl = MemCtrl()
-        # self.far_mem_ctrl.dram =  HBM_2000_4H_1x64(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
-        # self.far_mem_ctrl.dram.burst_length = 8
-        # self.far_mem_ctrl.dram.tBURST = "4ns"
-
-        #self.far_mem_ctrl.consider_oldest_write= True
-
         self.loc_mem_ctrl.port = self.mem_ctrl.loc_req_port
         self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
 
@@ -204,8 +196,6 @@ class MyRubySystem(System):
 
         self.loc_mem_ctrl.dram.read_buffer_size = 64
         self.loc_mem_ctrl.dram.write_buffer_size = 64
-        # self.loc_mem_ctrl.dram_2.read_buffer_size = 32
-        # self.loc_mem_ctrl.dram_2.write_buffer_size = 32
 
         self.far_mem_ctrl.dram.read_buffer_size = 64
         self.far_mem_ctrl.dram.write_buffer_size = 64
