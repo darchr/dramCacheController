@@ -70,7 +70,7 @@ class MyRubySystem(System):
         self.createCPU(num_cpus)
 
         # self.intrctrl = IntrControl()
-        self.createMemoryControllersDDR3()
+        self.createMemoryControllers()
 
         # Create the cache hierarchy for the system.
         if mem_sys == 'MI_example':
@@ -156,10 +156,7 @@ class MyRubySystem(System):
         disk2 = CowDisk(img_path_2)
         self.pc.south_bridge.ide.disks = [disk0, disk2]
 
-    def createMemoryControllersDDR3(self):
-        self._createMemoryControllers(1, DDR3_1600_8x8)
-
-    def _createMemoryControllers(self, num, cls):
+    def _createMemoryControllers(self):
 
         self.mem_ctrl = PolicyManager(range=self.mem_ranges[0], kvm_map=False)
         self.mem_ctrl.static_frontend_latency = "10ns"
