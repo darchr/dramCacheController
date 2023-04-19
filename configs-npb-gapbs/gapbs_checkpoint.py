@@ -69,7 +69,16 @@ def parse_options():
 
     # The manditry position arguments.
     parser.add_argument("benchmark", type=str,
-                        help="The NPB application to run")
+                        help="The GAPBS application to run")
+    parser.add_argument("dcache_size", type=str,
+                        help="The size of DRAM cache")
+    parser.add_argument("dcache_policy", type=str,
+                        help="The architecture of DRAM cache: "
+                        "CascadeLakeNoPartWrs, Oracle, BearWriteOpt, Rambus")
+    parser.add_argument("is_link", type=int,
+                        help="whether to use a link for backing store or not")
+    parser.add_argument("link_lat", type=str,
+                        help="latency of the link to backing store")
     return parser.parse_args()
 
 
@@ -85,7 +94,8 @@ if __name__ == "__m5_main__":
     graph = "22"
 
     # create the system we are going to simulate
-    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, args)
+    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, args.dcache_size, args.dcache_policy,
+                            args.is_link, args.link_lat, args)
 
     system.m5ops_base = 0xffff0000
 
@@ -134,10 +144,13 @@ if __name__ == "__m5_main__":
 
     m5.stats.reset()
     print("After reset ************************************************ statring smiulation:\n")
-    for interval_number in range(10):
+    for interval_number in range(100):
         print("Interval number: {} \n".format(interval_number))
         exit_event = m5.simulate(10000000000)
         m5.stats.dump()
+        if (exit_event == "cacheIsWarmedup") :
+            print("Caught cacheIsWarmedup exit event!")
+            break
         print("-------------------------------------------------------------------")
 
     print("After sim ************************************************ End of warm-up \n")

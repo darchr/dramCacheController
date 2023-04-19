@@ -84,8 +84,17 @@ def parse_options():
     # The manditry position arguments.
     parser.add_argument("benchmark", type=str, choices=benchmark_choices,
                         help="The NPB application to run")
-    
-    parser.add_argument("checkpoint_path", help="Path to checkpoint dir")
+    parser.add_argument("dcache_size", type=str,
+                        help="The size of DRAM cache")
+    parser.add_argument("dcache_policy", type=str,
+                        help="The architecture of DRAM cache: "
+                        "CascadeLakeNoPartWrs, Oracle, BearWriteOpt, Rambus")
+    parser.add_argument("is_link", type=int,
+                        help="whether to use a link for backing store or not")
+    parser.add_argument("link_lat", type=str,
+                        help="latency of the link to backing store")
+    parser.add_argument("checkpoint_path", type=str, 
+                        help="Path to checkpoint dir")
     return parser.parse_args()
 
 if __name__ == "__m5_main__":
@@ -97,7 +106,8 @@ if __name__ == "__m5_main__":
     cpu_type = "Timing"
     mem_sys = "MESI_Two_Level"
 
-    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, args, restore=True)
+    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, args.dcache_size, args.dcache_policy,
+                            args.is_link, args.link_lat, args, restore=True)
 
     system.m5ops_base = 0xffff0000
 

@@ -34,7 +34,7 @@ from .fs_tools import *
 
 class MyRubySystem(System):
 
-    def __init__(self, kernel, disk, mem_sys, num_cpus, opts, restore=False):
+    def __init__(self, kernel, disk, mem_sys, num_cpus, dcache_size, policy, is_link, link_lat, opts, restore=False):
         super(MyRubySystem, self).__init__()
         self._opts = opts
 
@@ -71,7 +71,7 @@ class MyRubySystem(System):
         self.createCPU(num_cpus)
 
         # self.intrctrl = IntrControl()
-        self._createMemoryControllers(1, 2)
+        self._createMemoryControllers(dcache_size, policy, is_link, link_lat)
 
         # Create the cache hierarchy for the system.
         if mem_sys == 'MI_example':
@@ -164,14 +164,14 @@ class MyRubySystem(System):
     def _createKernelMemoryController(self, cls):
         return MemCtrl(dram = cls(range = self.mem_ranges[0], kvm_map = False))
 
-    def _createMemoryControllers(self, num, cls):
+    def _createMemoryControllers(self, dcache_size, policy, is_link, link_lat):
         self.kernel_mem_ctrl = self._createKernelMemoryController(DDR3_1600_8x8)
 
         self.mem_ctrl = PolicyManager(range=self.mem_ranges[2], kvm_map=False)
         self.mem_ctrl.static_frontend_latency = "10ns"
         self.mem_ctrl.static_backend_latency = "10ns"
 
-        self.mem_ctrl.loc_mem_policy = 'CascadeLakeNoPartWrs' # 'Rambus'  # 'Oracle' # 
+        self.mem_ctrl.loc_mem_policy = policy
 
         # self.mem_ctrl.bypass_dcache = True
 
@@ -195,10 +195,19 @@ class MyRubySystem(System):
         self.far_mem_ctrl.static_backend_latency = "1ns"
 
         self.loc_mem_ctrl.port = self.mem_ctrl.loc_req_port
-        self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
+
+        # far backing store
+        if (is_link==1):
+            self.membusPolManFarMem = L2XBar(width=64)
+            self.membusPolManFarMem.cpu_side_ports = self.mem_ctrl.far_req_port
+            self.membusPolManFarMem.mem_side_ports = self.far_mem_ctrl.port
+            self.membusPolManFarMem.frontend_latency = link_lat
+            self.membusPolManFarMem.response_latency = link_lat
+        else:
+            self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
 
         self.mem_ctrl.orb_max_size = 128
-        self.mem_ctrl.dram_cache_size = "128MiB"
+        self.mem_ctrl.dram_cache_size = dcache_size
 
         self.loc_mem_ctrl.dram.read_buffer_size = 64
         self.loc_mem_ctrl.dram.write_buffer_size = 64

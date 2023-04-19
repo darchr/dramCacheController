@@ -62,15 +62,24 @@ def writeBenchScript(dir, benchmark_name, size, synthetic):
     return input_file_name
 
 def parse_options():
-
     parser = argparse.ArgumentParser(description='For use with gem5. This '
                 'runs a GAPBS applications. This only works '
                 'with x86 ISA.')
 
     # The manditry position arguments.
     parser.add_argument("benchmark", type=str,
-                        help="The NPB application to run")
-    parser.add_argument("checkpoint_path", help="Path to checkpoint dir")
+                        help="The GAPBS application to run")
+    parser.add_argument("dcache_size", type=str,
+                        help="The size of DRAM cache")
+    parser.add_argument("dcache_policy", type=str,
+                        help="The architecture of DRAM cache: "
+                        "CascadeLakeNoPartWrs, Oracle, BearWriteOpt, Rambus")
+    parser.add_argument("is_link", type=int,
+                        help="whether to use a link for backing store or not")
+    parser.add_argument("link_lat", type=str,
+                        help="latency of the link to backing store")
+    parser.add_argument("checkpoint_path", type=str, 
+                        help="Path to checkpoint dir")
 
     return parser.parse_args()
 
@@ -86,7 +95,8 @@ if __name__ == "__m5_main__":
     graph = "22"
 
     # create the system we are going to simulate
-    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, args, restore=True)
+    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, args.dcache_size, args.dcache_policy,
+                            args.is_link, args.link_lat, args, restore=True)
 
     system.m5ops_base = 0xffff0000
 
