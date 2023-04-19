@@ -32,10 +32,10 @@ from m5.objects import *
 from .fs_tools import *
 
 
-class MyRubySystem(System):
+class MyRubySystemOld(System):
 
     def __init__(self, kernel, disk, mem_sys, num_cpus, opts, restore=False):
-        super(MyRubySystem, self).__init__()
+        super(MyRubySystemOld, self).__init__()
         self._opts = opts
 
         # Use parallel if using KVM. Don't use parallel is restoring cpt

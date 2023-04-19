@@ -33,6 +33,6 @@ class PolicyManager(AbstractMemory):
     static_frontend_latency = Param.Latency("10ns", "Static frontend latency")
     static_backend_latency = Param.Latency("10ns", "Static backend latency")
 
-    cache_warmup_ratio = Param.Float(0.7, "DRAM cache warmup ratio, after that it'll reset the stats")
+    cache_warmup_ratio = Param.Float(0.95, "DRAM cache warmup ratio")
 
     bypass_dcache = Param.Bool(False, "if the DRAM cache needs to be bypassed")

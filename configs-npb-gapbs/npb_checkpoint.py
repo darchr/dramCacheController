@@ -82,44 +82,22 @@ def parse_options():
                 'with x86 ISA.')
 
     # The manditry position arguments.
-    parser.add_argument("kernel", type=str,
-                        help="Path to the kernel binary to boot")
-    parser.add_argument("disk", type=str,
-                        help="Path to the disk image to boot")
-    parser.add_argument("cpu", type=str, choices=supported_cpu_types,
-                        help="The type of CPU to use in the system")
-    parser.add_argument("mem_sys", type=str, choices=supported_protocols,
-                        help="Type of memory system or coherence protocol")
     parser.add_argument("benchmark", type=str, choices=benchmark_choices,
                         help="The NPB application to run")
-    parser.add_argument("num_cpus", type=int, help="Number of CPU cores")
-
-    # The optional arguments.
-    parser.add_argument("--no_host_parallel", action="store_true",
-                        help="Do NOT run gem5 on multiple host threads "
-                              "(kvm only)")
-    parser.add_argument("--second_disk", type=str,
-                        help="The second disk image to mount (/dev/hdb)")
-    parser.add_argument("--no_prefetchers", action="store_true",
-                        help="Enable prefectchers on the caches")
-    parser.add_argument("--l1i_size", type=str, default='32kB',
-                        help="L1 instruction cache size. Default: 32kB")
-    parser.add_argument("--l1d_size", type=str, default='32kB',
-                        help="L1 data cache size. Default: 32kB")
-    parser.add_argument("--l2_size", type=str, default = "256kB",
-                        help="L2 cache size. Default: 256kB")
-    parser.add_argument("--l3_size", type=str, default = "4MB",
-                        help="L2 cache size. Default: 4MB")
 
     return parser.parse_args()
 
 if __name__ == "__m5_main__":
     args = parse_options()
 
+    kernel = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83"
+    disk = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb"
+    num_cpus = 8
+    cpu_type = "Timing"
+    mem_sys = "MESI_Two_Level"
 
     # create the system we are going to simulate
-    system = MyRubySystem(args.kernel, args.disk, args.mem_sys,
-                              args.num_cpus, args)
+    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, args)
 
     system.m5ops_base = 0xffff0000
 
@@ -148,7 +126,7 @@ if __name__ == "__m5_main__":
     globalStart = time.time()
 
     print("Running the simulation")
-    print("Using cpu: {}".format(args.cpu))
+    print("Using cpu: {}".format(cpu_type))
     exit_event = m5.simulate()
 
     if exit_event.getCause() == "workbegin":
@@ -160,20 +138,20 @@ if __name__ == "__m5_main__":
         m5.stats.reset()
         start_tick = m5.curTick()
         start_insts = system.totalInsts()
-        # switching cpu if argument cpu == atomic or timing
-        if args.cpu == 'atomic':
-            system.switchCpus(system.cpu, system.atomicCpu)
-        if args.cpu == 'timing':
-            system.switchCpus(system.cpu, system.timingCpu)
+        # switching CPU to timing
+        system.switchCpus(system.cpu, system.timingCpu)
     else:
         print("Unexpected termination of simulation !")
         exit()
 
-    print("Before warm-up ************************************************ \n")
     m5.stats.reset()
-    exit_event = m5.simulate(100000000000)
-    m5.stats.dump()
-    print("End of warm-up ************************************************ \n")
+    print("After reset ************************************************ statring smiulation:\n")
+    for interval_number in range(10):
+        print("Interval number: {} \n".format(interval_number))
+        exit_event = m5.simulate(10000000000)
+        m5.stats.dump()
+        print("-------------------------------------------------------------------")
 
+    print("After sim ************************************************ End of warm-up \n")
     system.switchCpus(system.timingCpu, system.o3Cpu)
     m5.checkpoint(m5.options.outdir + '/cpt')

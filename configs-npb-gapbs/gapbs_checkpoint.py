@@ -68,32 +68,24 @@ def parse_options():
                 'with x86 ISA.')
 
     # The manditry position arguments.
-    parser.add_argument("kernel", type=str,
-                        help="Path to the kernel binary to boot")
-    parser.add_argument("disk", type=str,
-                        help="Path to the disk image to boot")
-    parser.add_argument("cpu", type=str, choices=supported_cpu_types,
-                        help="The type of CPU to use in the system")
-    parser.add_argument("num_cpus", type=int, help="Number of CPU cores")
-    
-    parser.add_argument("mem_sys", type=str, choices=supported_protocols,
-                        help="Type of memory system or coherence protocol")
     parser.add_argument("benchmark", type=str,
                         help="The NPB application to run")
-    parser.add_argument("synthetic", type = int,
-                        help = "1 for synthetic graph, 0 for real graph")
-    parser.add_argument("graph", type = str,
-                        help = "synthetic=1: integer number. synthetic=0: graph")
-
     return parser.parse_args()
+
 
 if __name__ == "__m5_main__":
     args = parse_options()
 
+    kernel = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83"
+    disk = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-gapbs"
+    num_cpus = 8
+    cpu_type = "Timing"
+    mem_sys = "MESI_Two_Level"
+    synthetic = 1
+    graph = "22"
 
     # create the system we are going to simulate
-    system = MyRubySystem(args.kernel, args.disk, args.mem_sys,
-                          args.num_cpus, args)
+    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, args)
 
     system.m5ops_base = 0xffff0000
 
@@ -102,8 +94,7 @@ if __name__ == "__m5_main__":
 
     # Create and pass a script to the simulated system to run the reuired
     # benchmark
-    system.readfile = writeBenchScript(m5.options.outdir, args.benchmark,
-                                       args.graph, args.synthetic)
+    system.readfile = writeBenchScript(m5.options.outdir, args.benchmark, graph, synthetic)
 
     # set up the root SimObject and start the simulation
     root = Root(full_system = True, system = system)
@@ -123,7 +114,7 @@ if __name__ == "__m5_main__":
     globalStart = time.time()
 
     print("Running the simulation")
-    print("Using cpu: {}".format(args.cpu))
+    print("Using cpu: {}".format(cpu_type))
     exit_event = m5.simulate()
 
     if exit_event.getCause() == "workbegin":
@@ -135,22 +126,20 @@ if __name__ == "__m5_main__":
         m5.stats.reset()
         start_tick = m5.curTick()
         start_insts = system.totalInsts()
-        # switching cpu if argument cpu == atomic or timing
-        if args.cpu == 'atomic':
-            system.switchCpus(system.cpu, system.atomicCpu)
-        if args.cpu == 'timing':
-            system.switchCpus(system.cpu, system.timingCpu)
+        # switching CPU to timing
+        system.switchCpus(system.cpu, system.timingCpu)
     else:
         print("Unexpected termination of simulation !")
         exit()
 
-    print("Before warm-up ************************************************ \n")
     m5.stats.reset()
-    print("After reset ************************************************ \n")
-    exit_event = m5.simulate(100000000000)
-    print("After sim ************************************************ \n")
-    m5.stats.dump()
-    print("End of warm-up ************************************************ \n")
+    print("After reset ************************************************ statring smiulation:\n")
+    for interval_number in range(10):
+        print("Interval number: {} \n".format(interval_number))
+        exit_event = m5.simulate(10000000000)
+        m5.stats.dump()
+        print("-------------------------------------------------------------------")
 
+    print("After sim ************************************************ End of warm-up \n")
     system.switchCpus(system.timingCpu, system.o3Cpu)
     m5.checkpoint(m5.options.outdir + '/cpt')
