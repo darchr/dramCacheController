@@ -76,14 +76,14 @@ O3LooppointAnalysisManager::O3LooppointAnalysisManager(const O3LooppointAnalysis
     : SimObject(p),
     currentPc(0)
 {
-    
+
 }
 
 void
 O3LooppointAnalysisManager::countPc(const Addr pc)
 {
     if (counter.find(pc) == counter.end()){
-        counter.insert(std::make_pair(pc,std::make_pair(0, curTick())));
+        counter.insert(std::make_pair(pc,std::make_pair(Addr(0), curTick())));
     }
     else{
         ++counter.find(pc)->second.first;
@@ -91,10 +91,17 @@ O3LooppointAnalysisManager::countPc(const Addr pc)
         counter.find(pc)->second.second = curTick();
     }
     currentPc = pc;
-    while (mostRecentPc.size() >= 5) {
-        mostRecentPc.pop();
+    auto it = std::find_if(mostRecentPc.begin(), mostRecentPc.end(),
+        [&pc](const std::pair<Addr, Tick>& p) { return p.first == pc; });
+    if (it == mostRecentPc.end()) {
+        // If pc is not in the list, then add it to the front of the list
+        while (mostRecentPc.size() >= 5) {
+            mostRecentPc.pop_back();
+        }
+        mostRecentPc.push_front(std::make_pair(pc,curTick()));
+    } else {
+        it->second = curTick();
     }
-    mostRecentPc.push(std::make_pair(pc,curTick()));
 }
 
 } // namespace o3

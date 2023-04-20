@@ -29,8 +29,8 @@
 #ifndef __CPU_SIMPLE_PROBES_O3LOOPPOINT_ANALYSIS_HH__
 #define __CPU_SIMPLE_PROBES_O3LOOPPOINT_ANALYSIS_HH__
 
+#include <list>
 #include <map>
-#include <queue>
 
 #include "params/O3LooppointAnalysis.hh"
 #include "params/O3LooppointAnalysisManager.hh"
@@ -62,7 +62,7 @@ class O3LooppointAnalysis : public ProbeListenerObject
     Addr validAddrUpperBound;
 };
 
-class O3LooppointAnalysisManager : public SimObject 
+class O3LooppointAnalysisManager : public SimObject
 {
   public:
     O3LooppointAnalysisManager(const O3LooppointAnalysisManagerParams &params);
@@ -75,13 +75,13 @@ class O3LooppointAnalysisManager : public SimObject
      * counter maps addresses to a pair of
      * counter and the last tick the address was accessed
      */
-    std::map<Addr, std::pair<int,uint64_t>> counter;
-    std::queue<std::pair<Addr,int>> mostRecentPc;
+    std::map<Addr, std::pair<uint64_t,Tick>> counter;
+    std::list<std::pair<Addr,Tick>> mostRecentPc;
     Addr currentPc;
 
 
   public:
-    std::map<Addr, std::pair<int,uint64_t>> 
+    std::map<Addr, std::pair<uint64_t,Tick>>
     getCounter() const
     {
         return counter;
@@ -89,7 +89,7 @@ class O3LooppointAnalysisManager : public SimObject
 
     // returns a pair of the count and last tick
     // the count was incremented
-    std::pair<int,uint64_t>
+    std::pair<uint64_t,Tick>
     getPcCount(Addr pc) const
     {
         if(counter.find(pc) != counter.end()) {
@@ -100,16 +100,14 @@ class O3LooppointAnalysisManager : public SimObject
 
     // returns a vector of the most recently
     // accessed PCs
-    std::vector<std::pair<Addr,int>>
+    std::vector<std::pair<Addr,Tick>>
     getMostRecentPc() const
     {
-      std::vector<std::pair<Addr,int>> mostRecentPcVector;
-      std::queue<std::pair<Addr,int>> mostRecentPcCopy = mostRecentPc;
-      while (!mostRecentPcCopy.empty()) {
-        mostRecentPcVector.push_back(mostRecentPcCopy.front());
-        mostRecentPcCopy.pop();
-      }
-      return mostRecentPcVector;
+        std::vector<std::pair<Addr,Tick>> recent_pcs;
+        for (auto it = mostRecentPc.begin(); it != mostRecentPc.end(); it++) {
+            recent_pcs.push_back(*it);
+        }
+        return recent_pcs;
     }
 
     Addr
