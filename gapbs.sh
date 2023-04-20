@@ -1,21 +1,14 @@
-build/X86_MESI_Two_Level/gem5.opt -re  --outdir=../results/chkpt_march20/GAPBS/bc_22    configs-npb-gapbs/gapbs_checkpoint.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-gapbs  timing 8 MESI_Two_Level  bc    1 22  
-build/X86_MESI_Two_Level/gem5.opt -re  --outdir=../results/chkpt_march20/GAPBS/bfs_22   configs-npb-gapbs/gapbs_checkpoint.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-gapbs  timing 8 MESI_Two_Level  bfs   1 22  
-build/X86_MESI_Two_Level/gem5.opt -re  --outdir=../results/chkpt_march20/GAPBS/cc_22    configs-npb-gapbs/gapbs_checkpoint.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-gapbs  timing 8 MESI_Two_Level  cc    1 22  
-build/X86_MESI_Two_Level/gem5.opt -re  --outdir=../results/chkpt_march20/GAPBS/pr_22    configs-npb-gapbs/gapbs_checkpoint.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-gapbs  timing 8 MESI_Two_Level  pr    1 22  
-build/X86_MESI_Two_Level/gem5.opt -re  --outdir=../results/chkpt_march20/GAPBS/tc_22    configs-npb-gapbs/gapbs_checkpoint.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-gapbs  timing 8 MESI_Two_Level  tc    1 22  
-build/X86_MESI_Two_Level/gem5.opt -re  --outdir=../results/chkpt_march20/GAPBS/sssp_22  configs-npb-gapbs/gapbs_checkpoint.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-gapbs  timing 8 MESI_Two_Level  sssp  1 22  
+build/X86_MESI_Two_Level/gem5.opt -re  --outdir=chkpt_Apr19/25/GAPBS/bc    configs-npb-gapbs/gapbs_checkpoint.py bc    512MiB CascadeLakeNoPartWrs 0 0  
+build/X86_MESI_Two_Level/gem5.opt -re  --outdir=chkpt_Apr19/25/GAPBS/bfs   configs-npb-gapbs/gapbs_checkpoint.py bfs   512MiB CascadeLakeNoPartWrs 0 0  
+build/X86_MESI_Two_Level/gem5.opt -re  --outdir=chkpt_Apr19/25/GAPBS/cc    configs-npb-gapbs/gapbs_checkpoint.py cc    512MiB CascadeLakeNoPartWrs 0 0  
+build/X86_MESI_Two_Level/gem5.opt -re  --outdir=chkpt_Apr19/25/GAPBS/pr    configs-npb-gapbs/gapbs_checkpoint.py pr    512MiB CascadeLakeNoPartWrs 0 0  
+build/X86_MESI_Two_Level/gem5.opt -re  --outdir=chkpt_Apr19/25/GAPBS/tc    configs-npb-gapbs/gapbs_checkpoint.py tc    512MiB CascadeLakeNoPartWrs 0 0  
+build/X86_MESI_Two_Level/gem5.opt -re  --outdir=chkpt_Apr19/25/GAPBS/sssp  configs-npb-gapbs/gapbs_checkpoint.py sssp  512MiB CascadeLakeNoPartWrs 0 0  
 
 
-build/X86_MESI_Two_Level/gem5.opt -re  --outdir=../results/TDRAM_32/cascade/GAPBS/bc_22    configs-npb-gapbs/gapbs_restore.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-gapbs  timing 8 MESI_Two_Level  bc    1 22  /home/babaie/projects/ispass2023/runs/results/cptTest/GAPBS_Cas/cpt_100ms_22/bc_22/cpt
-build/X86_MESI_Two_Level/gem5.opt -re  --outdir=../results/TDRAM_32/cascade/GAPBS/bfs_22   configs-npb-gapbs/gapbs_restore.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-gapbs  timing 8 MESI_Two_Level  bfs   1 22  /home/babaie/projects/ispass2023/runs/results/cptTest/GAPBS_Cas/cpt_100ms_22/bfs_22/cpt
-build/X86_MESI_Two_Level/gem5.opt -re  --outdir=../results/TDRAM_32/cascade/GAPBS/cc_22    configs-npb-gapbs/gapbs_restore.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-gapbs  timing 8 MESI_Two_Level  cc    1 22  /home/babaie/projects/ispass2023/runs/results/cptTest/GAPBS_Cas/cpt_100ms_22/cc_22/cpt
-build/X86_MESI_Two_Level/gem5.opt -re  --outdir=../results/TDRAM_32/cascade/GAPBS/pr_22    configs-npb-gapbs/gapbs_restore.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-gapbs  timing 8 MESI_Two_Level  pr    1 22  /home/babaie/projects/ispass2023/runs/results/cptTest/GAPBS_Cas/cpt_100ms_22/pr_22/cpt
-build/X86_MESI_Two_Level/gem5.opt -re  --outdir=../results/TDRAM_32/cascade/GAPBS/tc_22    configs-npb-gapbs/gapbs_restore.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-gapbs  timing 8 MESI_Two_Level  tc    1 22  /home/babaie/projects/ispass2023/runs/results/cptTest/GAPBS_Cas/cpt_100ms_22/tc_22/cpt
-build/X86_MESI_Two_Level/gem5.opt -re  --outdir=../results/TDRAM_32/cascade/GAPBS/sssp_22  configs-npb-gapbs/gapbs_restore.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-gapbs  timing 8 MESI_Two_Level  sssp  1 22  /home/babaie/projects/ispass2023/runs/results/cptTest/GAPBS_Cas/cpt_100ms_22/sssp_22/cpt
-
-screen -S g_cascade_bc
-screen -S g_cascade_bfs
-screen -S g_cascade_cc
-screen -S g_cascade_pr
-screen -S g_cascade_tc
-screen -S g_cascade_sssp
+screen -r g_ckpt2_bc
+screen -r g_ckpt2_bfs
+screen -r g_ckpt2_cc
+screen -r g_ckpt2_pr
+screen -r g_ckpt2_tc
+screen -r g_ckpt2_sssp

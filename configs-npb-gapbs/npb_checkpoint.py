@@ -73,7 +73,8 @@ benchmark_choices = ['bt.A.x', 'cg.A.x', 'ep.A.x', 'ft.A.x',
                      'bt.D.x', 'cg.D.x', 'ep.D.x', 'ft.D.x',
                      'is.D.x', 'lu.D.x', 'mg.D.x', 'sp.D.x',
                      'bt.F.x', 'cg.F.x', 'ep.F.x', 'ft.F.x',
-                     'is.F.x', 'lu.F.x', 'mg.F.x', 'sp.F.x']
+                     'is.F.x', 'lu.F.x', 'mg.F.x', 'sp.F.x',
+                     'ua.C.x', 'ua.D.x']
 
 def parse_options():
 
@@ -161,7 +162,7 @@ if __name__ == "__m5_main__":
         print("Interval number: {} \n".format(interval_number))
         exit_event = m5.simulate(10000000000)
         m5.stats.dump()
-        if (exit_event == "cacheIsWarmedup") :
+        if (exit_event.getCause() == "cacheIsWarmedup") :
             print("Caught cacheIsWarmedup exit event!")
             break
         print("-------------------------------------------------------------------")

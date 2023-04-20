@@ -148,7 +148,7 @@ if __name__ == "__m5_main__":
         print("Interval number: {} \n".format(interval_number))
         exit_event = m5.simulate(10000000000)
         m5.stats.dump()
-        if (exit_event == "cacheIsWarmedup") :
+        if (exit_event.getCause() == "cacheIsWarmedup") :
             print("Caught cacheIsWarmedup exit event!")
             break
         print("-------------------------------------------------------------------")

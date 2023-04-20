@@ -1,21 +1,17 @@
-  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=../results/chkpt_march20/NPB/bt_C_x  configs-npb-gapbs/npb_checkpoint.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb timing MESI_Two_Level bt.C.x  8
-  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=../results/chkpt_march20/NPB/cg_C_x  configs-npb-gapbs/npb_checkpoint.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb timing MESI_Two_Level cg.C.x  8
-  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=../results/chkpt_march20/NPB/is_C_x  configs-npb-gapbs/npb_checkpoint.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb timing MESI_Two_Level is.C.x  8
-  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=../results/chkpt_march20/NPB/lu_C_x  configs-npb-gapbs/npb_checkpoint.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb timing MESI_Two_Level lu.C.x  8
-# build/X86_MESI_Two_Level/gem5.opt  -re --outdir=../results/chkpt_march20/NPB/mg_C_x  configs-npb-gapbs/npb_checkpoint.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb timing MESI_Two_Level mg.C.x  8
-  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=../results/chkpt_march20/NPB/sp_C_x  configs-npb-gapbs/npb_checkpoint.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb timing MESI_Two_Level sp.C.x  8
-  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=../results/chkpt_march20/NPB/ep_C_x  configs-npb-gapbs/npb_checkpoint.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb timing MESI_Two_Level ep.C.x  8
+  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=chkpt_Apr19/256/NPB/bt_C_x  configs-npb-gapbs/npb_checkpoint.py bt.C.x 256MiB CascadeLakeNoPartWrs 0 0
+  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=chkpt_Apr19/256/NPB/cg_C_x  configs-npb-gapbs/npb_checkpoint.py cg.C.x 256MiB CascadeLakeNoPartWrs 0 0
+  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=chkpt_Apr19/256/NPB/ft_C_x  configs-npb-gapbs/npb_checkpoint.py ft.C.x 256MiB CascadeLakeNoPartWrs 0 0
+  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=chkpt_Apr19/256/NPB/is_C_x  configs-npb-gapbs/npb_checkpoint.py is.C.x 256MiB CascadeLakeNoPartWrs 0 0
+  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=chkpt_Apr19/256/NPB/lu_C_x  configs-npb-gapbs/npb_checkpoint.py lu.C.x 256MiB CascadeLakeNoPartWrs 0 0
+  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=chkpt_Apr19/256/NPB/mg_C_x  configs-npb-gapbs/npb_checkpoint.py mg.C.x 256MiB CascadeLakeNoPartWrs 0 0
+  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=chkpt_Apr19/256/NPB/sp_C_x  configs-npb-gapbs/npb_checkpoint.py sp.C.x 256MiB CascadeLakeNoPartWrs 0 0
+  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=chkpt_Apr19/256/NPB/ua_C_x  configs-npb-gapbs/npb_checkpoint.py ua.C.x 256MiB CascadeLakeNoPartWrs 0 0
 
-  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=../results/cascade/NPB/bt_C_x   configs-npb-gapbs/npb_restore.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb timing MESI_Two_Level bt.C.x  8  /home/babaie/projects/ispass2023/runs/results/cptTest/NPB_Cas/cpt_100ms/bt_C_x/cpt
-  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=../results/cascade/NPB/cg_C_x   configs-npb-gapbs/npb_restore.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb timing MESI_Two_Level cg.C.x  8  /home/babaie/projects/ispass2023/runs/results/cptTest/NPB_Cas/cpt_100ms/cg_C_x/cpt
-  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=../results/cascade/NPB/is_C_x   configs-npb-gapbs/npb_restore.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb timing MESI_Two_Level is.C.x  8  /home/babaie/projects/ispass2023/runs/results/cptTest/NPB_Cas/cpt_100ms/is_C_x/cpt
-  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=../results/cascade/NPB/lu_C_x   configs-npb-gapbs/npb_restore.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb timing MESI_Two_Level lu.C.x  8  /home/babaie/projects/ispass2023/runs/results/cptTest/NPB_Cas/cpt_100ms/lu_C_x/cpt
-# build/X86_MESI_Two_Level/gem5.opt  -re --outdir=../results/cascade/NPB/mg_C_x   configs-npb-gapbs/npb_restore.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb timing MESI_Two_Level mg.C.x  8  /home/babaie/projects/ispass2023/runs/results/cptTest/NPB_Cas/cpt_100ms/mg_C_x/cpt
-  build/X86_MESI_Two_Level/gem5.opt  -re --outdir=../results/cascade/NPB/sp_C_x   configs-npb-gapbs/npb_restore.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb timing MESI_Two_Level sp.C.x  8  /home/babaie/projects/ispass2023/runs/results/cptTest/NPB_Cas/cpt_100ms/sp_C_x/cpt
-# build/X86_MESI_Two_Level/gem5.opt  -re --outdir=../results/cascade/NPB/ep_C_x   configs-npb-gapbs/npb_restore.py /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83 /home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb timing MESI_Two_Level ep.C.x  8  /home/babaie/projects/ispass2023/runs/results/cptTest/NPB_Cas/cpt_100ms/ep_C_x/cpt
-
-screen -S n_cascade_bt
-screen -S n_cascade_cg
-screen -S n_cascade_is
-screen -S n_cascade_lu
-screen -S n_cascade_sp
+screen -r n_ckpt2_bt
+screen -r n_ckpt2_cg
+screen -r n_ckpt2_ft
+screen -r n_ckpt2_is
+screen -r n_ckpt2_lu
+screen -r n_ckpt2_mg
+screen -r n_ckpt2_sp
+screen -r n_ckpt2_ua

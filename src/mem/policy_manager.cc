@@ -2057,7 +2057,7 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
 
     if ((numColdMisses >= (unsigned)(cacheWarmupRatio * dramCacheSize/blockSize)) && !resetStatsWarmup) {
         inform("DRAM cache fully warmed up @ %d .. \n", curTick());
-        exitSimLoopNow("cacheIsWarmedup");
+        exitSimLoop("cacheIsWarmedup",0);
         resetStatsWarmup = true;
     }
 }
