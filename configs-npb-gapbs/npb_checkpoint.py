@@ -83,10 +83,10 @@ def parse_options():
                 'with x86 ISA.')
 
     # The manditry position arguments.
-    parser.add_argument("benchmark", type=str, choices=benchmark_choices,
+    parser.add_argument("benchmark", type=str, #choices=benchmark_choices,
                         help="The NPB application to run")
-    parser.add_argument("dcache_size", type=str,
-                        help="The size of DRAM cache")
+    parser.add_argument("class_size", type=str,
+                        help="The NPB application class to run")
     parser.add_argument("dcache_policy", type=str,
                         help="The architecture of DRAM cache: "
                         "CascadeLakeNoPartWrs, Oracle, BearWriteOpt, Rambus")
@@ -107,9 +107,20 @@ if __name__ == "__m5_main__":
     cpu_type = "Timing"
     mem_sys = "MESI_Two_Level"
 
+    dcache_size = ""
+    mem_size = ""
+    if args.class_size == "C":
+        dcache_size = "128MiB"
+        mem_size = "16GiB"
+    elif args.class_size == "D":
+        dcache_size = "512MiB"
+        mem_size = "70GiB"
+    
+    benchmark = args.benchmark+"."+args.class_size+".x"
+
     # create the system we are going to simulate
-    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, args.dcache_size, args.dcache_policy,
-                            args.is_link, args.link_lat, args)
+    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, dcache_size, mem_size, 
+                            args.dcache_policy, args.is_link, args.link_lat, args)
 
     system.m5ops_base = 0xffff0000
 
@@ -118,7 +129,7 @@ if __name__ == "__m5_main__":
 
     # Create and pass a script to the simulated system to run the reuired
     # benchmark
-    system.readfile = writeBenchScript(m5.options.outdir, args.benchmark)
+    system.readfile = writeBenchScript(m5.options.outdir, benchmark)
 
     # set up the root SimObject and start the simulation
     root = Root(full_system = True, system = system)
@@ -153,6 +164,7 @@ if __name__ == "__m5_main__":
         # switching CPU to timing
         system.switchCpus(system.cpu, system.timingCpu)
     else:
+        print(exit_event.getCause())
         print("Unexpected termination of simulation !")
         exit()
 

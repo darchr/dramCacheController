@@ -69,11 +69,12 @@ def parse_options():
     # The manditry position arguments.
     parser.add_argument("benchmark", type=str,
                         help="The GAPBS application to run")
+    parser.add_argument("graph", type=str,
+                        help="The GAPBS application to run")
     parser.add_argument("dcache_size", type=str,
                         help="The size of DRAM cache")
     parser.add_argument("dcache_policy", type=str,
-                        help="The architecture of DRAM cache: "
-                        "CascadeLakeNoPartWrs, Oracle, BearWriteOpt, Rambus")
+                        help="The architecture of DRAM cache")
     parser.add_argument("is_link", type=int,
                         help="whether to use a link for backing store or not")
     parser.add_argument("link_lat", type=str,
@@ -92,10 +93,15 @@ if __name__ == "__m5_main__":
     cpu_type = "Timing"
     mem_sys = "MESI_Two_Level"
     synthetic = 1
-    graph = "22"
+    
+    mem_size = ""
+    if args.graph == "22":
+        mem_size = "16GiB"
+    elif args.graph == "25":
+        mem_size = "64GiB"
 
     # create the system we are going to simulate
-    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, args.dcache_size, args.dcache_policy,
+    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, args.dcache_size, mem_size, args.dcache_policy,
                             args.is_link, args.link_lat, args, restore=True)
 
     system.m5ops_base = 0xffff0000
@@ -105,7 +111,7 @@ if __name__ == "__m5_main__":
 
     # Create and pass a script to the simulated system to run the reuired
     # benchmark
-    system.readfile = writeBenchScript(m5.options.outdir, args.benchmark, graph, synthetic)
+    system.readfile = writeBenchScript(m5.options.outdir, args.benchmark, args.graph, synthetic)
 
 
     # set up the root SimObject and start the simulation

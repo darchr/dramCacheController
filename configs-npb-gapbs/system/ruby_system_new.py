@@ -34,7 +34,7 @@ from .fs_tools import *
 
 class MyRubySystem(System):
 
-    def __init__(self, kernel, disk, mem_sys, num_cpus, dcache_size, policy, is_link, link_lat, opts, restore=False):
+    def __init__(self, kernel, disk, mem_sys, num_cpus, dcache_size, main_mem_size, policy, is_link, link_lat, opts, restore=False):
         super(MyRubySystem, self).__init__()
         self._opts = opts
 
@@ -49,7 +49,7 @@ class MyRubySystem(System):
 
         self.mem_ranges = [AddrRange(Addr('128MiB')), # kernel data
                            AddrRange(0xC0000000, size=0x100000), # For I/0
-                           AddrRange(0x100000000, size='16GiB') # starting at 4GiB for 16 GiB
+                           AddrRange(0x100000000, size=main_mem_size) # starting at 4GiB for 16 GiB
                            ]
 
         self.initFS(num_cpus)
