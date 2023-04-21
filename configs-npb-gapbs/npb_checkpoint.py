@@ -114,7 +114,7 @@ if __name__ == "__m5_main__":
         mem_size = "16GiB"
     elif args.class_size == "D":
         dcache_size = "512MiB"
-        mem_size = "70GiB"
+        mem_size = "85GiB"
     
     benchmark = args.benchmark+"."+args.class_size+".x"
 

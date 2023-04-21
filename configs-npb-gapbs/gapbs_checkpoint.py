@@ -99,7 +99,7 @@ if __name__ == "__m5_main__":
         mem_size = "16GiB"
     elif args.graph == "25":
         dcache_size = "512MiB"
-        mem_size = "70GiB"
+        mem_size = "85GiB"
 
     # create the system we are going to simulate
     system = MyRubySystem(kernel, disk, mem_sys, num_cpus, dcache_size, mem_size, args.dcache_policy,
