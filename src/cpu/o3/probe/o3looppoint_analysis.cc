@@ -83,7 +83,7 @@ void
 O3LooppointAnalysisManager::countPc(const Addr pc)
 {
     if (counter.find(pc) == counter.end()){
-        counter.insert(std::make_pair(pc,std::make_pair(1, curTick())));
+        counter.insert(std::make_pair(pc,std::make_pair(Addr(0), curTick())));
     }
     else{
         ++counter.find(pc)->second.first;
