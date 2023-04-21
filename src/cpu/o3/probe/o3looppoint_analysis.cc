@@ -100,6 +100,12 @@ O3LooppointAnalysisManager::countPc(const Addr pc)
         }
         mostRecentPc.push_front(std::make_pair(pc,curTick()));
     } else {
+        if (it != mostRecentPc.begin()) {
+            // If pc is in the list, but not at the front, then move it to the
+            // front of the list
+            mostRecentPc.push_front(*it);
+            mostRecentPc.erase(it);
+        }
         it->second = curTick();
     }
 }
