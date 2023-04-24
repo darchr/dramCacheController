@@ -2386,12 +2386,49 @@ PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
             polManStats.totTimeFarRdtoSend += ((orbEntry->farRdIssued - orbEntry->farRdEntered)/1000);
             polManStats.totTimeFarRdtoRecv += ((orbEntry->farRdExit - orbEntry->farRdIssued)/1000);
             polManStats.totTimeInLocWrite += ((orbEntry->locWrExit - orbEntry->locWrEntered)/1000);
-        }
+        }  
     }
     else {
         // MUST be updated since they are average, they should be per case
+        if (locMemPolicy == enums::Oracle ) {
+            if ((orbEntry->owPkt->isRead() && orbEntry->isHit) || 
+             (orbEntry->owPkt->isRead() && !orbEntry->isHit && orbEntry->prevDirty) ||
+             (!orbEntry->owPkt->isRead() && !orbEntry->isHit && orbEntry->prevDirty)) {
+                polManStats.totPktORBTime += ((curTick() - orbEntry->locRdEntered)/1000);
+                if (orbEntry->owPkt->isRead()) {
+                    polManStats.totPktORBTimeRd += ((curTick() - orbEntry->locRdEntered)/1000);
+                    polManStats.totTimeTagCheckResRd += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
+                } else {
+                    polManStats.totPktORBTimeWr += ((curTick() - orbEntry->locRdEntered)/1000);
+                    polManStats.totTimeTagCheckResWr += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
+                }
+            }
+            else if (!orbEntry->owPkt->isRead() && (orbEntry->isHit || (!orbEntry->isHit && !orbEntry->prevDirty))) {
+                polManStats.totPktORBTime += ((curTick() - orbEntry->locWrEntered)/1000);
+                polManStats.totPktORBTimeWr += ((curTick() - orbEntry->locWrEntered)/1000);
+                polManStats.totTimeTagCheckResWr += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
+            }
+            else if (orbEntry->owPkt->isRead() && !orbEntry->isHit && !orbEntry->prevDirty) {
+                polManStats.totPktORBTime += ((curTick() - orbEntry->farRdEntered)/1000);
+                polManStats.totPktORBTimeRd += ((curTick() - orbEntry->farRdEntered)/1000);
+                polManStats.totTimeTagCheckResRd += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
+            }
+
+        } else { // locMemPolicy == enums::CascadeLakeNoPartWrs
+                 // This is incorrect for locMemPolicy == enums::BearWriteOpt
+            polManStats.totPktORBTime += ((curTick() - orbEntry->locRdEntered)/1000);
+
+            if (orbEntry->owPkt->isRead()) {
+                polManStats.totPktORBTimeRd += ((curTick() - orbEntry->locRdEntered)/1000);
+                polManStats.totTimeTagCheckResRd += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
+            } else {
+                polManStats.totPktORBTimeWr += ((curTick() - orbEntry->locRdEntered)/1000);
+                polManStats.totTimeTagCheckResWr += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
+            }
+        }
+
         polManStats.totPktLifeTime += ((curTick() - orbEntry->arrivalTick)/1000);
-        polManStats.totPktORBTime += ((curTick() - orbEntry->locRdEntered)/1000);
+
         polManStats.totTimeFarRdtoSend += ((orbEntry->farRdIssued - orbEntry->farRdEntered)/1000);
         polManStats.totTimeFarRdtoRecv += ((orbEntry->farRdExit - orbEntry->farRdIssued)/1000);
         polManStats.totTimeInLocRead += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
@@ -2400,15 +2437,12 @@ PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
 
         if (orbEntry->owPkt->isRead()) {
             polManStats.totPktLifeTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
-            polManStats.totPktORBTimeRd += ((curTick() - orbEntry->locRdEntered)/1000);
-            polManStats.totTimeTagCheckResRd += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
         } else {
             polManStats.totPktLifeTimeWr += ((curTick() - orbEntry->arrivalTick)/1000);
-            polManStats.totPktORBTimeWr += ((curTick() - orbEntry->locRdEntered)/1000);
             polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
             polManStats.totPktRespTimeWr += ((curTick() - orbEntry->arrivalTick)/1000);
-            polManStats.totTimeTagCheckResWr += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
         }
+
     }
 }
 
