@@ -44,7 +44,11 @@ from m5.objects import *
 from system import *
 from info import (
     text_info,
-    interval_info,
+    interval_info_1hr,
+    interval_info_3hr,
+    interval_info_6hr,
+    interval_info_12hr,
+    interval_info_24hr,
     benchmark_choices_gapbs,
     benchmark_choices_npb,
 )
@@ -162,12 +166,12 @@ def do_analysis():
 
 
 def run():
-    print("Simulating 100 intervals of 1ms each! \n")
+    print("Simulating 100 intervals of 10ms each! \n")
 
     for interval_number in range(100):
         print("Interval number: {}".format(interval_number))
-        exit_event = m5.simulate(1_000_000_000)  # 1 ms
-        m5.stats.dump()
+        exit_event = m5.simulate(10_000_000_000)  # 10 ms
+        # m5.stats.dump()
 
         if exit_event.getCause() != "simulate() limit reached":
             if (
@@ -211,7 +215,7 @@ if __name__ == "__m5_main__":
                 + "/cpt"
             )
             dcache_size = "512MiB"
-            mem_size = "70GiB"
+            mem_size = "85GiB"
     else:
         if args.benchmark.split("-")[1] == "22":
             checkpoint_dir = (
@@ -230,7 +234,7 @@ if __name__ == "__m5_main__":
                 + "/cpt"
             )
             dcache_size = "512MiB"
-            mem_size = "70GiB"
+            mem_size = "85GiB"
 
     benchmark = args.benchmark
 
@@ -258,7 +262,7 @@ if __name__ == "__m5_main__":
             lplistener.validAddrRangeSize = text_info[args.benchmark][0]
             core.probeListener = lplistener
     else:
-        pc, count = interval_info[args.benchmark]
+        pc, count = interval_info_1hr[args.benchmark]
         system.global_tracker = PcCountTrackerManager(
             targets=[PcCountPair(pc, count)]
         )
