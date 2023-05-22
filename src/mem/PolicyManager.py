@@ -5,6 +5,7 @@ from m5.objects.AbstractMemory import AbstractMemory
 from m5.objects.DRAMInterface import *
 
 class Policy(Enum): vals = ['CascadeLakeNoPartWrs', 'Oracle', 'BearWriteOpt', 'Rambus']
+class ReplPolicySetAssoc(Enum): vals = ['bip_rp', 'brrip_rp', 'dueling_rp', 'fifo_rp', 'lfu_rp', 'lru_rp', 'mru_rp', 'random_rp', 'second_chance_rp', 'ship_rp', 'tree_plru_rp', 'weighted_lru_rp']
 
 class PolicyManager(AbstractMemory):
     type = 'PolicyManager'
@@ -24,6 +25,8 @@ class PolicyManager(AbstractMemory):
     
     dram_cache_size = Param.MemorySize('128MiB', "DRAM cache block size in bytes")
     block_size = Param.Unsigned(64, "DRAM cache block size in bytes")
+    assoc = Param.Unsigned(1, "Number of ways per each set in DRAM cache, if it is set-associative")
+    replPol = Param.ReplPolicySetAssoc('lru_rp', "Replacement policy, if it is set-associative")
     addr_size = Param.Unsigned(64,"Addr size of the request from outside world")
     orb_max_size = Param.Unsigned(256, "Outstanding Requests Buffer size")
     crb_max_size = Param.Unsigned(32, "Conflicting Requests Buffer size")

@@ -53,7 +53,7 @@ SimObject('MemCtrl.py', sim_objects=['MemCtrl'],
 SimObject('HeteroMemCtrl.py', sim_objects=['HeteroMemCtrl'])
 SimObject('HBMCtrl.py', sim_objects=['HBMCtrl'])
 SimObject('DCacheCtrl.py', sim_objects=['DCacheCtrl'])
-SimObject('PolicyManager.py', sim_objects=['PolicyManager'], enums=['Policy'])
+SimObject('PolicyManager.py', sim_objects=['PolicyManager'], enums=['Policy', 'ReplPolicySetAssoc'])
 SimObject('MemInterface.py', sim_objects=['MemInterface'], enums=['AddrMap'])
 SimObject('DRAMInterface.py', sim_objects=['DRAMInterface'],
         enums=['PageManage'])

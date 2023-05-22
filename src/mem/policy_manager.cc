@@ -24,6 +24,7 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     locMem(p.loc_mem),
     dramCacheSize(p.dram_cache_size),
     blockSize(p.block_size),
+    assoc(p.assoc),
     addrSize(p.addr_size),
     orbMaxSize(p.orb_max_size), orbSize(0),
     crbMaxSize(p.crb_max_size), crbSize(0),
@@ -52,7 +53,11 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
 
     locMem->setPolicyManager(this);
 
-    tagMetadataStore.resize(dramCacheSize/blockSize);
+    tagMetadataStore.resize(dramCacheSize/(blockSize * assoc));
+    for (int i = 0; i < tagMetadataStore.size(); i++) {
+        tagMetadataStore.at(i).resize(assoc);
+    }
+    std::cout << tagMetadataStore.size() << tagMetadataStore.at(100).size() << "\n";
 
 }
 
@@ -317,13 +322,12 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
 
     // process conflicting requests.
     // conflicts are checked only based on Index of DRAM cache
-    if (checkConflictInDramCache(pkt)) {
+    if (checkConflictInORB(pkt)) {
 
         polManStats.totNumConf++;
 
         if (CRB.size()>=crbMaxSize) {
 
-            DPRINTF(PolicyManager, "CRBfull: %lld\n", pkt->getAddr());
             DPRINTF(PolicyManager, "CRBfull: %lld\n", pkt->getAddr());
 
             polManStats.totNumCRBFull++;
@@ -342,8 +346,6 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         CRB.push_back(std::make_pair(curTick(), pkt));
         DPRINTF(PolicyManager, "CRB PB: %d: %s\n", pkt->getAddr(), pkt->cmdString());
 
-        DPRINTF(PolicyManager, "CRB PB: %d: %s\n", pkt->getAddr(), pkt->cmdString());
-
         if (pkt->isWrite()) {
             isInWriteQueue.insert(pkt->getAddr());
         }
@@ -357,7 +359,6 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     // check if ORB or FMWB is full and set retry
     if (pktFarMemWrite.size() >= (orbMaxSize / 2)) {
 
-        DPRINTF(PolicyManager, "FMWBfull: %lld\n", pkt->getAddr());
         DPRINTF(PolicyManager, "FMWBfull: %lld\n", pkt->getAddr());
 
         retryLLCFarMemWr = true;
@@ -472,6 +473,8 @@ PolicyManager::processLocMemReadEvent()
 {
     // sanity check for the chosen packet
     auto orbEntry = ORB.at(pktLocMemRead.front());
+    DPRINTF(PolicyManager, "loc mem read START : %lld--> %d, %d, %d, %d, %d, %d, %d:\n", orbEntry->owPkt->getAddr(), ORB.size(), pktLocMemRead.size(),
+        pktLocMemWrite.size(), pktFarMemRead.size(), pktFarMemWrite.size(), CRB.size(), orbEntry->state);
     assert(orbEntry->validEntry);
     assert(orbEntry->state == locMemRead);
     assert(!orbEntry->issued);
@@ -505,6 +508,8 @@ PolicyManager::processLocMemWriteEvent()
 {
     // sanity check for the chosen packet
     auto orbEntry = ORB.at(pktLocMemWrite.front());
+    DPRINTF(PolicyManager, "loc mem read START : %lld--> %d, %d, %d, %d, %d, %d, %d:\n", orbEntry->owPkt->getAddr(), ORB.size(), pktLocMemRead.size(),
+        pktLocMemWrite.size(), pktFarMemRead.size(), pktFarMemWrite.size(), CRB.size(), orbEntry->state);
     assert(orbEntry->validEntry);
     assert(orbEntry->state == locMemWrite);
     assert(!orbEntry->issued);
@@ -948,6 +953,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->arrivalTick,
                                                 orbEntry->tagDC,
                                                 orbEntry->indexDC,
+                                                orbEntry->wayNum,
                                                 copyOwPkt,
                                                 orbEntry->pol,
                                                 orbEntry->state,
@@ -1072,6 +1078,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->arrivalTick,
                                                 orbEntry->tagDC,
                                                 orbEntry->indexDC,
+                                                orbEntry->wayNum,
                                                 copyOwPkt,
                                                 orbEntry->pol,
                                                 orbEntry->state,
@@ -1187,6 +1194,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->arrivalTick,
                                                 orbEntry->tagDC,
                                                 orbEntry->indexDC,
+                                                orbEntry->wayNum,
                                                 copyOwPkt,
                                                 orbEntry->pol,
                                                 orbEntry->state,
@@ -1315,6 +1323,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->arrivalTick,
                                                 orbEntry->tagDC,
                                                 orbEntry->indexDC,
+                                                orbEntry->wayNum,
                                                 copyOwPkt,
                                                 orbEntry->pol,
                                                 orbEntry->state,
@@ -1400,6 +1409,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->arrivalTick,
                                                 orbEntry->tagDC,
                                                 orbEntry->indexDC,
+                                                orbEntry->wayNum,
                                                 copyOwPkt,
                                                 orbEntry->pol,
                                                 orbEntry->state,
@@ -1516,6 +1526,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->arrivalTick,
                                                 orbEntry->tagDC,
                                                 orbEntry->indexDC,
+                                                orbEntry->wayNum,
                                                 copyOwPkt,
                                                 orbEntry->pol,
                                                 orbEntry->state,
@@ -1629,6 +1640,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->arrivalTick,
                                                 orbEntry->tagDC,
                                                 orbEntry->indexDC,
+                                                orbEntry->wayNum,
                                                 copyOwPkt,
                                                 orbEntry->pol,
                                                 orbEntry->state,
@@ -1751,6 +1763,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->arrivalTick,
                                                 orbEntry->tagDC,
                                                 orbEntry->indexDC,
+                                                orbEntry->wayNum,
                                                 copyOwPkt,
                                                 orbEntry->pol,
                                                 orbEntry->state,
@@ -1849,10 +1862,19 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 void
 PolicyManager::handleRequestorPkt(PacketPtr pkt)
 {
+    Addr tag = returnTagDC(pkt->getAddr(), pkt->getSize());
+    Addr index = returnIndexDC(pkt->getAddr(), pkt->getSize());
+    Addr way = findMatchingWay(index, tag);
+
+    if (way == noMatchingWay) { // MISSED! Candidate = Either there's an empty way to fill in or a victim will be selected.
+        way = getCandidateWay(index);
+    }
+
+    assert(way < assoc);
+
     reqBufferEntry* orbEntry = new reqBufferEntry(
                                 true, curTick(),
-                                returnTagDC(pkt->getAddr(), pkt->getSize()),
-                                returnIndexDC(pkt->getAddr(), pkt->getSize()),
+                                tag, index, way,
                                 pkt,
                                 locMemPolicy, start,
                                 false, false, false,
@@ -1903,6 +1925,7 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
                                             orbEntry->arrivalTick,
                                             orbEntry->tagDC,
                                             orbEntry->indexDC,
+                                            orbEntry->wayNum,
                                             copyOwPkt,
                                             orbEntry->pol,
                                             orbEntry->state,
@@ -1931,11 +1954,11 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     checkHitOrMiss(orbEntry);
 
     if (checkDirty(orbEntry->owPkt->getAddr()) && !orbEntry->isHit) {
-        if (extreme && tagMetadataStore.at(orbEntry->indexDC).farMemAddr == -1) {
+        if (extreme && tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).farMemAddr == -1) {
             // extreme cases are faked. So, this address for cold misses are -1, so we fake it to a random address like 1024.
             orbEntry->dirtyLineAddr = orbEntry->owPkt->getAddr() == 0 ? 64 : (orbEntry->owPkt->getAddr()-64);
         } else {
-            orbEntry->dirtyLineAddr = tagMetadataStore.at(orbEntry->indexDC).farMemAddr;
+            orbEntry->dirtyLineAddr = tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).farMemAddr;
         }
         orbEntry->handleDirtyLine = true;
     }
@@ -1943,24 +1966,24 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     if (extreme) {
         orbEntry->prevDirty = alwaysDirty;
     } else {
-        orbEntry->prevDirty = tagMetadataStore.at(orbEntry->indexDC).dirtyLine;
+        orbEntry->prevDirty = tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).dirtyLine;
     }
 
     // Updating Tag & Metadata
-    tagMetadataStore.at(orbEntry->indexDC).tagDC = orbEntry->tagDC;
-    tagMetadataStore.at(orbEntry->indexDC).indexDC = orbEntry->indexDC;
-    tagMetadataStore.at(orbEntry->indexDC).validLine = true;
+    tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).tagDC = orbEntry->tagDC;
+    tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).indexDC = orbEntry->indexDC;
+    tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).validLine = true;
 
     if (orbEntry->owPkt->isRead()) {
         if (orbEntry->isHit) {
-            tagMetadataStore.at(orbEntry->indexDC).dirtyLine =
-            tagMetadataStore.at(orbEntry->indexDC).dirtyLine;
+            tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).dirtyLine =
+            tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).dirtyLine;
         } else {
-            tagMetadataStore.at(orbEntry->indexDC).dirtyLine = false;
+            tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).dirtyLine = false;
         }
     } else { // write
-        tagMetadataStore.at(orbEntry->indexDC).dirtyLine = true;
-        tagMetadataStore.at(orbEntry->indexDC).farMemAddr =
+        tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).dirtyLine = true;
+        tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).farMemAddr =
                         orbEntry->owPkt->getAddr();
     }
 
@@ -1971,36 +1994,45 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
 }
 
 bool
-PolicyManager::checkConflictInDramCache(PacketPtr pkt)
+PolicyManager::checkConflictInORB(PacketPtr pkt)
 {
-    unsigned indexDC = returnIndexDC(pkt->getAddr(), pkt->getSize());
+    Addr indexDC = returnIndexDC(pkt->getAddr(), pkt->getSize());
+    //Addr tagDC   = returnTagDC(pkt->getAddr(), pkt->getSize());
 
+    std::vector<Addr> sameIndex;
+    
     for (auto e = ORB.begin(); e != ORB.end(); ++e) {
-        if (indexDC == e->second->indexDC && e->second->validEntry) {
+        if (e->second->validEntry && indexDC == e->second->indexDC /*&& tagDC != e->second->tagDC*/) {
 
-            e->second->conflict = true;
-
-            return true;
+            sameIndex.push_back(e->first);
         }
     }
+
+    if (sameIndex.size() == assoc) {
+        for (int i=0; i<assoc; i++) {
+            ORB.at(sameIndex.at(i))->conflict = true;
+        }
+        return true;
+    }
+
     return false;
 }
 
 void
 PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
 {
-    // access the tagMetadataStore data structure to
+    // look up the tagMetadataStore data structure to
     // check if it's hit or miss
 
-    bool currValid = tagMetadataStore.at(orbEntry->indexDC).validLine;
-    bool currDirty = tagMetadataStore.at(orbEntry->indexDC).dirtyLine;
+    bool currValid = tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).validLine;
+    bool currDirty = tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).dirtyLine;
 
     if (extreme) {
         orbEntry->isHit = alwaysHit;
         currValid = true;
         currDirty = alwaysDirty;
     } else {
-        orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).tagDC);
+        orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).tagDC);
     }
 
     if (orbEntry->isHit) {
@@ -2066,10 +2098,16 @@ bool
 PolicyManager::checkDirty(Addr addr)
 {
     Addr index = returnIndexDC(addr, blockSize);
+    Addr tag = returnTagDC(addr, blockSize);
     if (extreme) {
         return alwaysDirty;
     } else {
-        return (tagMetadataStore.at(index).validLine && tagMetadataStore.at(index).dirtyLine);
+        for (int i = 0; i < assoc; i++) {
+            if (tagMetadataStore.at(index).at(i).tagDC == tag) {
+                return (tagMetadataStore.at(index).at(i).validLine && tagMetadataStore.at(index).at(i).dirtyLine);
+            }
+        }
+        return false;
     }
 }
 
@@ -2321,6 +2359,31 @@ PolicyManager::returnTagDC(Addr request_addr, unsigned size)
     int index_bits = ceilLog2(dramCacheSize/blockSize);
     int block_bits = ceilLog2(size);
     return bits(request_addr, addrSize-1, (index_bits+block_bits));
+}
+
+int
+PolicyManager::findMatchingWay(Addr index, Addr tag)
+{
+    for (int i = 0; i < assoc; i++) {
+        if (tagMetadataStore.at(index).at(i).validLine && tagMetadataStore.at(index).at(i).tagDC == tag) {
+            return i;
+        }
+    }
+
+    return noMatchingWay;
+}
+
+int
+PolicyManager::getCandidateWay(Addr index)
+{
+    if (assoc == 1) {
+        // equal to direct mapped cache
+        return 0;
+    } else if () {
+        
+    }
+
+    return -1;
 }
 
 void
@@ -2795,59 +2858,59 @@ PolicyManager::drain()
 void
 PolicyManager::serialize(CheckpointOut &cp) const
 {
-    ScopedCheckpointSection sec(cp, "tagMetadataStore");
-    paramOut(cp, "numEntries", tagMetadataStore.size());
+    // ScopedCheckpointSection sec(cp, "tagMetadataStore");
+    // paramOut(cp, "numEntries", tagMetadataStore.size());
 
-    int count = 0;
-    for (auto const &entry : tagMetadataStore) {
-        ScopedCheckpointSection sec_entry(cp,csprintf("Entry%d", count++));
-        if (entry.validLine) {
-            paramOut(cp, "validLine", entry.validLine);
-            paramOut(cp, "tagDC", entry.tagDC);
-            paramOut(cp, "indexDC", entry.indexDC);
-            paramOut(cp, "dirtyLine", entry.dirtyLine);
-            paramOut(cp, "farMemAddr", entry.farMemAddr);
-        } else {
-            paramOut(cp, "validLine", entry.validLine);
-        }
-    }
+    // int count = 0;
+    // for (auto const &entry : tagMetadataStore) {
+    //     ScopedCheckpointSection sec_entry(cp,csprintf("Entry%d", count++));
+    //     if (entry.validLine) {
+    //         paramOut(cp, "validLine", entry.validLine);
+    //         paramOut(cp, "tagDC", entry.tagDC);
+    //         paramOut(cp, "indexDC", entry.indexDC);
+    //         paramOut(cp, "dirtyLine", entry.dirtyLine);
+    //         paramOut(cp, "farMemAddr", entry.farMemAddr);
+    //     } else {
+    //         paramOut(cp, "validLine", entry.validLine);
+    //     }
+    // }
 }
 
 void
 PolicyManager::unserialize(CheckpointIn &cp)
 {
-    ScopedCheckpointSection sec(cp, "tagMetadataStore");
-    int num_entries = 0;
-    paramIn(cp, "numEntries", num_entries);
-    warn_if(num_entries > tagMetadataStore.size(), "Unserializing larger tag "
-            "store into a smaller tag store. Stopping when index doesn't fit");
-    warn_if(num_entries < tagMetadataStore.size(), "Unserializing smaller "
-            "tag store into a larger tag store. Not fully warmed up.");
+    // ScopedCheckpointSection sec(cp, "tagMetadataStore");
+    // int num_entries = 0;
+    // paramIn(cp, "numEntries", num_entries);
+    // warn_if(num_entries > tagMetadataStore.size(), "Unserializing larger tag "
+    //         "store into a smaller tag store. Stopping when index doesn't fit");
+    // warn_if(num_entries < tagMetadataStore.size(), "Unserializing smaller "
+    //         "tag store into a larger tag store. Not fully warmed up.");
 
-    for (int i = 0; i < num_entries; i++) {
-        ScopedCheckpointSection sec_entry(cp,csprintf("Entry%d", i));
+    // for (int i = 0; i < num_entries; i++) {
+    //     ScopedCheckpointSection sec_entry(cp,csprintf("Entry%d", i));
 
-        bool valid = false;
-        paramIn(cp, "validLine", valid);
-        if (valid) {
-            Addr tag = 0;
-            Addr index = 0;
-            bool dirty = false;
-            Addr far_addr = 0;
-            paramIn(cp, "tagDC", tag);
-            paramIn(cp, "indexDC", index);
-            paramIn(cp, "dirtyLine", dirty);
-            paramIn(cp, "farMemAddr", far_addr);
-            if (index < tagMetadataStore.size()) {
-                // Only insert if this entry fits into the current store.
-                tagMetadataStore[index].tagDC = tag;
-                tagMetadataStore[index].indexDC = index;
-                tagMetadataStore[index].validLine = valid;
-                tagMetadataStore[index].dirtyLine = dirty;
-                tagMetadataStore[index].farMemAddr = far_addr;
-            }
-        }
-    }
+    //     bool valid = false;
+    //     paramIn(cp, "validLine", valid);
+    //     if (valid) {
+    //         Addr tag = 0;
+    //         Addr index = 0;
+    //         bool dirty = false;
+    //         Addr far_addr = 0;
+    //         paramIn(cp, "tagDC", tag);
+    //         paramIn(cp, "indexDC", index);
+    //         paramIn(cp, "dirtyLine", dirty);
+    //         paramIn(cp, "farMemAddr", far_addr);
+    //         if (index < tagMetadataStore.size()) {
+    //             // Only insert if this entry fits into the current store.
+    //             tagMetadataStore[index].tagDC = tag;
+    //             tagMetadataStore[index].indexDC = index;
+    //             tagMetadataStore[index].validLine = valid;
+    //             tagMetadataStore[index].dirtyLine = dirty;
+    //             tagMetadataStore[index].farMemAddr = far_addr;
+    //         }
+    //     }
+    // }
 }
 
 bool

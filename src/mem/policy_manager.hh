@@ -23,6 +23,8 @@
 #include "base/trace.hh"
 #include "base/types.hh"
 #include "enums/Policy.hh"
+#include "enums/ReplPolicySetAssoc.hh"
+#include "mem/cache/replacement_policies/replaceable_entry.hh"
 #include "mem/mem_ctrl.hh"
 #include "mem/mem_interface.hh"
 #include "mem/packet.hh"
@@ -33,6 +35,8 @@
 #include "sim/cur_tick.hh"
 #include "sim/eventq.hh"
 #include "sim/system.hh"
+
+#define noMatchingWay 1000000
 
 namespace gem5
 {
@@ -121,6 +125,7 @@ class PolicyManager : public AbstractMemory
 
     unsigned long long dramCacheSize;
     unsigned blockSize;
+    unsigned assoc;
     unsigned addrSize;
     unsigned orbMaxSize;
     unsigned orbSize;
@@ -157,11 +162,11 @@ class PolicyManager : public AbstractMemory
 
     std::unordered_set<Addr> isInWriteQueue;
 
-    struct tagMetaStoreEntry
+    struct tagMetaStoreEntry : public ReplaceableEntry
     {
       // DRAM cache related metadata
-      Addr tagDC;
-      Addr indexDC;
+      Addr tagDC = -1;
+      Addr indexDC  = -1;
       // constant to indicate that the cache line is valid
       bool validLine = false;
       // constant to indicate that the cache line is dirty
@@ -172,10 +177,11 @@ class PolicyManager : public AbstractMemory
     /** A storage to keep the tag and metadata for the
      * DRAM Cache entries.
      */
-    std::vector<tagMetaStoreEntry> tagMetadataStore;
+    std::vector<std::vector<tagMetaStoreEntry>> tagMetadataStore;
 
     /** Different states a packet can transition from one
-     * to the other while it's process in the DRAM Cache
+     * to the other while it's process in the DRAM Cache223223
+
      * Controller.
      */
     enum reqState
@@ -202,6 +208,7 @@ class PolicyManager : public AbstractMemory
         // DRAM cache related metadata
         Addr tagDC;
         Addr indexDC;
+        int wayNum;
 
         // pointer to the outside world (ow) packet received from llc
         const PacketPtr owPkt;
@@ -245,7 +252,7 @@ class PolicyManager : public AbstractMemory
 
         reqBufferEntry(
           bool _validEntry, Tick _arrivalTick,
-          Addr _tagDC, Addr _indexDC,
+          Addr _tagDC, Addr _indexDC, Addr _wayNum,
           PacketPtr _owPkt,
           enums::Policy _pol, reqState _state,
           bool _issued, bool _isHit, bool _conflict,
@@ -256,7 +263,7 @@ class PolicyManager : public AbstractMemory
           Tick _farRdEntered, Tick _farRdIssued, Tick _farRdExit)
         :
         validEntry(_validEntry), arrivalTick(_arrivalTick),
-        tagDC(_tagDC), indexDC(_indexDC),
+        tagDC(_tagDC), indexDC(_indexDC), wayNum(_wayNum),
         owPkt( _owPkt),
         pol(_pol), state(_state),
         issued(_issued), isHit(_isHit), conflict(_conflict),
@@ -350,7 +357,7 @@ class PolicyManager : public AbstractMemory
     void checkHitOrMiss(reqBufferEntry* orbEntry);
     bool checkDirty(Addr addr);
     void handleDirtyCacheLine(Addr dirtyLineAddr);
-    bool checkConflictInDramCache(PacketPtr pkt);
+    bool checkConflictInORB(PacketPtr pkt);
     void checkConflictInCRB(reqBufferEntry* orbEntry);
     bool resumeConflictingReq(reqBufferEntry* orbEntry);
     void logStatsPolMan(reqBufferEntry* orbEntry);
@@ -367,6 +374,9 @@ class PolicyManager : public AbstractMemory
 
     Addr returnIndexDC(Addr pkt_addr, unsigned size);
     Addr returnTagDC(Addr pkt_addr, unsigned size);
+    int returnWayDC(Addr index, Addr tag);
+    int findMatchingWay(Addr index, Addr tag);
+    int getCandidateWay(Addr index);
 
     // port management
     void locMemRecvReqRetry();

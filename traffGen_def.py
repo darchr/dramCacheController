@@ -56,7 +56,7 @@ system.loc_mem_ctrl = MemCtrl()
 system.loc_mem_ctrl.dram = TDRAM_32(range=AddrRange('3GiB'), in_addr_map=False, null=True)
 system.loc_mem_ctrl.dram.activation_limit = 8
 system.loc_mem_ctrl.dram.addr_mapping = 'RoCoRaBaCh'
-system.mem_ctrl.loc_mem_policy = 'CascadeLakeNoPartWrs'
+system.mem_ctrl.loc_mem_policy = 'Rambus'
 
 system.mem_ctrl.loc_mem = system.loc_mem_ctrl.dram
 system.loc_mem_ctrl.static_frontend_latency = "1ns"

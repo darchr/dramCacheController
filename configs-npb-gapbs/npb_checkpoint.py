@@ -110,8 +110,8 @@ if __name__ == "__m5_main__":
     dcache_size = ""
     mem_size = ""
     if args.class_size == "C":
-        dcache_size = "128MiB"
-        mem_size = "16GiB"
+        dcache_size = "512MiB"
+        mem_size = "8GiB"
     elif args.class_size == "D":
         dcache_size = "512MiB"
         mem_size = "85GiB"
@@ -170,15 +170,15 @@ if __name__ == "__m5_main__":
 
     m5.stats.reset()
     print("After reset ************************************************ statring smiulation:\n")
-    for interval_number in range(100):
+    for interval_number in range(500):
         print("Interval number: {} \n".format(interval_number))
         exit_event = m5.simulate(10000000000)
-        m5.stats.dump()
         if (exit_event.getCause() == "cacheIsWarmedup") :
             print("Caught cacheIsWarmedup exit event!")
             break
         print("-------------------------------------------------------------------")
 
     print("After sim ************************************************ End of warm-up \n")
+    m5.stats.dump()
     system.switchCpus(system.timingCpu, system.o3Cpu)
     m5.checkpoint(m5.options.outdir + '/cpt')

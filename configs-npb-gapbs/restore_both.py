@@ -51,6 +51,7 @@ from info import (
     interval_info_24hr,
     benchmark_choices_gapbs,
     benchmark_choices_npb,
+    interval_info_1hr_512MiB,
 )
 
 
@@ -134,12 +135,12 @@ def parse_options():
     parser.add_argument(
         "link_lat", type=str, help="latency of the link to backing store"
     )
-    parser.add_argument("--do-analysis", action="store_true", default=False)
+    parser.add_argument("--do_analysis", action="store_true", default=False)
     return parser.parse_args()
 
 
 def do_analysis():
-    print("Simulating 100 intervals of 10ms each! \n")
+    print("Doing analysis! Simulating 100 intervals of 10ms each! \n")
     start = time.time()
 
     for interval_number in range(100):
@@ -151,8 +152,10 @@ def do_analysis():
             f"Done with interval {interval_number} at {(time.time() - start)/60:0.2f}"
         )
         mostRecentPc = lpmanager.getMostRecentPc()
+        print(f"Exit because {exit_event.getCause()}, before for")
         for pc, tick in mostRecentPc:
             count = lpmanager.getPcCount(pc)
+            print("in for loop")
             print(f"{hex(pc)},{count[0]},{count[1]}")
         if exit_event.getCause() != "simulate() limit reached":
             if (
@@ -189,52 +192,70 @@ if __name__ == "__m5_main__":
 
     kernel = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83"
     disk = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb"
-    ckpt_base = "/home/babaie/projects/rambusDesign/x86Fixed/dramCacheController/chkpt_Apr19/"
+    ckpt_base = "/home/babaie/projects/rambusDesign/x86Fixed/chkpt_May11/512MiB_8GB_g22_nC/"
 
     num_cpus = 8
     cpu_type = "Timing"
     mem_sys = "MESI_Two_Level"
 
-    dcache_size = ""
-    mem_size = ""
+    dcache_size = "512MiB"
+    mem_size = "8GiB"
     if args.benchmark in benchmark_choices_npb:
-        if args.benchmark.split(".")[1] == "C":
-            checkpoint_dir = (
-                ckpt_base
-                + "128MiB_16GB_g22_nC/NPB/"
-                + args.benchmark.split(".")[0]
-                + "/cpt"
-            )
-            dcache_size = "128MiB"
-            mem_size = "16GiB"
-        elif args.benchmark.split(".")[1] == "D":
-            checkpoint_dir = (
-                ckpt_base
-                + "512MiB_85GB_g25_nD/NPB/"
-                + args.benchmark.split(".")[0]
-                + "/cpt"
-            )
-            dcache_size = "512MiB"
-            mem_size = "85GiB"
-    else:
-        if args.benchmark.split("-")[1] == "22":
-            checkpoint_dir = (
-                ckpt_base
-                + "128MiB_16GB_g22_nC/GAPBS/"
-                + args.benchmark.split("-")[0]
-                + "/cpt"
-            )
-            dcache_size = "128MiB"
-            mem_size = "16GiB"
-        else:
-            checkpoint_dir = (
-                ckpt_base
-                + "512MiB_85GB_g25_nD/GAPBS/"
-                + args.benchmark.split("-")[0]
-                + "/cpt"
-            )
-            dcache_size = "512MiB"
-            mem_size = "85GiB"
+        checkpoint_dir = (
+            ckpt_base
+            + "NPB/"
+            + args.benchmark.split(".")[0]
+            + "/cpt"
+        )
+    elif args.benchmark.split("-")[1] == "22":
+        checkpoint_dir = (
+            ckpt_base
+            + "GAPBS/"
+            + args.benchmark.split("-")[0]
+            + "/cpt"
+        )
+
+    # if args.benchmark in benchmark_choices_npb:
+    #     if args.benchmark.split(".")[1] == "C":
+    #         checkpoint_dir = (
+    #             ckpt_base
+    #             + "128MiB_16GB_g22_nC/NPB/"
+    #             + args.benchmark.split(".")[0]
+    #             + "/cpt"
+    #         )
+    #         dcache_size = "128MiB"
+    #         mem_size = "16GiB"
+    #     elif args.benchmark.split(".")[1] == "D":
+    #         checkpoint_dir = (
+    #             ckpt_base
+    #             + "512MiB_85GB_g25_nD/NPB/"
+    #             + args.benchmark.split(".")[0]
+    #             + "/cpt"
+    #         )
+    #         print(args.benchmark)
+    #         print(ckpt_base)
+    #         print(checkpoint_dir)
+    #         dcache_size = "512MiB"
+    #         mem_size = "85GiB"
+    # else:
+    #     if args.benchmark.split("-")[1] == "22":
+    #         checkpoint_dir = (
+    #             ckpt_base
+    #             + "128MiB_16GB_g22_nC/GAPBS/"
+    #             + args.benchmark.split("-")[0]
+    #             + "/cpt"
+    #         )
+    #         dcache_size = "128MiB"
+    #         mem_size = "16GiB"
+    #     else:
+    #         checkpoint_dir = (
+    #             ckpt_base
+    #             + "512MiB_85GB_g25_nD/GAPBS/"
+    #             + args.benchmark.split("-")[0]
+    #             + "/cpt"
+    #         )
+    #         dcache_size = "512MiB"
+    #         mem_size = "85GiB"
 
     benchmark = args.benchmark
 
@@ -262,7 +283,7 @@ if __name__ == "__m5_main__":
             lplistener.validAddrRangeSize = text_info[args.benchmark][0]
             core.probeListener = lplistener
     else:
-        pc, count = interval_info_1hr[args.benchmark]
+        pc, count = interval_info_1hr_512MiB[args.benchmark]
         system.global_tracker = PcCountTrackerManager(
             targets=[PcCountPair(pc, count)]
         )
