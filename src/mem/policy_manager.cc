@@ -2891,59 +2891,58 @@ PolicyManager::drain()
 void
 PolicyManager::serialize(CheckpointOut &cp) const
 {
-    // ScopedCheckpointSection sec(cp, "tagMetadataStore");
-    // paramOut(cp, "numEntries", tagMetadataStore.size());
-
-    // int count = 0;
-    // for (auto const &entry : tagMetadataStore) {
-    //     ScopedCheckpointSection sec_entry(cp,csprintf("Entry%d", count++));
-    //     if (entry.validLine) {
-    //         paramOut(cp, "validLine", entry.validLine);
-    //         paramOut(cp, "tagDC", entry.tagDC);
-    //         paramOut(cp, "indexDC", entry.indexDC);
-    //         paramOut(cp, "dirtyLine", entry.dirtyLine);
-    //         paramOut(cp, "farMemAddr", entry.farMemAddr);
-    //     } else {
-    //         paramOut(cp, "validLine", entry.validLine);
-    //     }
-    // }
+    ScopedCheckpointSection sec(cp, "tagMetadataStore");
+    paramOut(cp, "numEntries", tagMetadataStore.size()*assoc);
+    int count = 0;
+    for (auto const &set : tagMetadataStore) {
+        for (auto const way : set) {
+            ScopedCheckpointSection sec_entry(cp,csprintf("Entry%d", count++));
+            if (way->validLine) {
+                paramOut(cp, "validLine", way->validLine);
+                paramOut(cp, "tagDC", way->tagDC);
+                paramOut(cp, "indexDC", way->indexDC);
+                paramOut(cp, "dirtyLine", way->dirtyLine);
+                paramOut(cp, "farMemAddr", way->farMemAddr);
+            } else {
+                paramOut(cp, "validLine", way->validLine);
+            }
+        }
+    }
 }
 
 void
 PolicyManager::unserialize(CheckpointIn &cp)
 {
-    // ScopedCheckpointSection sec(cp, "tagMetadataStore");
-    // int num_entries = 0;
-    // paramIn(cp, "numEntries", num_entries);
-    // warn_if(num_entries > tagMetadataStore.size(), "Unserializing larger tag "
-    //         "store into a smaller tag store. Stopping when index doesn't fit");
-    // warn_if(num_entries < tagMetadataStore.size(), "Unserializing smaller "
-    //         "tag store into a larger tag store. Not fully warmed up.");
-
-    // for (int i = 0; i < num_entries; i++) {
-    //     ScopedCheckpointSection sec_entry(cp,csprintf("Entry%d", i));
-
-    //     bool valid = false;
-    //     paramIn(cp, "validLine", valid);
-    //     if (valid) {
-    //         Addr tag = 0;
-    //         Addr index = 0;
-    //         bool dirty = false;
-    //         Addr far_addr = 0;
-    //         paramIn(cp, "tagDC", tag);
-    //         paramIn(cp, "indexDC", index);
-    //         paramIn(cp, "dirtyLine", dirty);
-    //         paramIn(cp, "farMemAddr", far_addr);
-    //         if (index < tagMetadataStore.size()) {
-    //             // Only insert if this entry fits into the current store.
-    //             tagMetadataStore[index].tagDC = tag;
-    //             tagMetadataStore[index].indexDC = index;
-    //             tagMetadataStore[index].validLine = valid;
-    //             tagMetadataStore[index].dirtyLine = dirty;
-    //             tagMetadataStore[index].farMemAddr = far_addr;
-    //         }
-    //     }
-    // }
+    ScopedCheckpointSection sec(cp, "tagMetadataStore");
+    int num_entries = 0;
+    paramIn(cp, "numEntries", num_entries);
+    warn_if(num_entries > tagMetadataStore.size()*assoc, "Unserializing larger tag "
+            "store into a smaller tag store. Stopping when index doesn't fit");
+    warn_if(num_entries < tagMetadataStore.size()*assoc, "Unserializing smaller "
+            "tag store into a larger tag store. Not fully warmed up.");
+    for (int i = 0; i < num_entries; i++) {
+        ScopedCheckpointSection sec_entry(cp,csprintf("Entry%d", i));
+        bool valid = false;
+        paramIn(cp, "validLine", valid);
+        if (valid) {
+            Addr tag = 0;
+            Addr index = 0;
+            bool dirty = false;
+            Addr far_addr = 0;
+            paramIn(cp, "tagDC", tag);
+            paramIn(cp, "indexDC", index);
+            paramIn(cp, "dirtyLine", dirty);
+            paramIn(cp, "farMemAddr", far_addr);
+            if (index < tagMetadataStore.size()) {
+                // Only insert if this entry fits into the current store.
+                tagMetadataStore.at(index).at(i % assoc)->tagDC = tag;
+                tagMetadataStore.at(index).at(i % assoc)->indexDC = index;
+                tagMetadataStore.at(index).at(i % assoc)->validLine = valid;
+                tagMetadataStore.at(index).at(i % assoc)->dirtyLine = dirty;
+                tagMetadataStore.at(index).at(i % assoc)->farMemAddr = far_addr;
+            }
+        }
+    }
 }
 
 bool

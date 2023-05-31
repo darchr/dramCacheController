@@ -95,8 +95,8 @@ if __name__ == "__m5_main__":
     dcache_size = ""
     mem_size = ""
     if args.graph == "22":
-        dcache_size = "128MiB"
-        mem_size = "16GiB"
+        dcache_size = "512MiB"
+        mem_size = "8GiB"
     elif args.graph == "25":
         dcache_size = "512MiB"
         mem_size = "85GiB"
