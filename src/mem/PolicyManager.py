@@ -1,6 +1,7 @@
 from m5.params import *
 from m5.proxy import *
 from m5.SimObject import SimObject
+from m5.objects.ReplacementPolicies import *
 from m5.objects.AbstractMemory import AbstractMemory
 from m5.objects.DRAMInterface import *
 
@@ -39,3 +40,5 @@ class PolicyManager(AbstractMemory):
     cache_warmup_ratio = Param.Float(0.95, "DRAM cache warmup ratio")
 
     bypass_dcache = Param.Bool(False, "if the DRAM cache needs to be bypassed")
+
+    replacement_policy = Param.BaseReplacementPolicy(LRURP(), "Replacement policy")

@@ -24,6 +24,7 @@
 #include "base/types.hh"
 #include "enums/Policy.hh"
 #include "enums/ReplPolicySetAssoc.hh"
+#include "mem/cache/replacement_policies/base.hh"
 #include "mem/cache/replacement_policies/replaceable_entry.hh"
 #include "mem/mem_ctrl.hh"
 #include "mem/mem_interface.hh"
@@ -123,6 +124,9 @@ class PolicyManager : public AbstractMemory
     // MemInterface* locMem;
     AbstractMemory* locMem;
 
+    /** Replacement policy */
+    replacement_policy::Base* replacementPolicy;
+
     unsigned long long dramCacheSize;
     unsigned blockSize;
     unsigned assoc;
@@ -162,25 +166,35 @@ class PolicyManager : public AbstractMemory
 
     std::unordered_set<Addr> isInWriteQueue;
 
-    struct tagMetaStoreEntry : public ReplaceableEntry
-    {
-      // DRAM cache related metadata
-      Addr tagDC = -1;
-      Addr indexDC  = -1;
-      // constant to indicate that the cache line is valid
-      bool validLine = false;
-      // constant to indicate that the cache line is dirty
-      bool dirtyLine = false;
-      Addr farMemAddr = -1;
-    };
+    // class tagMetaStoreEntry : public ReplaceableEntry
+    // {
+    //   // DRAM cache related metadata
+    //   public:
+    //     Addr tagDC;
+    //     Addr indexDC;
+    //     // constant to indicate that the cache line is valid
+    //     bool validLine;
+    //     // constant to indicate that the cache line is dirty
+    //     bool dirtyLine;
+    //     Addr farMemAddr;
+    //     tagMetaStoreEntry(Addr _tagDC, Addr _indexDC, bool _validLine, bool _dirtyLine, Addr _farMemAddr) : 
+    //     tagDC(_tagDC),
+    //     indexDC(_indexDC),
+    //     validLine(_validLine),
+    //     dirtyLine(_dirtyLine),
+    //     farMemAddr(_farMemAddr)
+    //     { }
+    // };
 
     /** A storage to keep the tag and metadata for the
      * DRAM Cache entries.
      */
-    std::vector<std::vector<tagMetaStoreEntry>> tagMetadataStore;
+    std::vector<std::vector<ReplaceableEntry*>> tagMetadataStore;
 
     /** Different states a packet can transition from one
      * to the other while it's process in the DRAM Cache223223
+
+
 
      * Controller.
      */

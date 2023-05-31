@@ -22,6 +22,7 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     farBurstSize(p.far_burst_size),
     locMemPolicy(p.loc_mem_policy),
     locMem(p.loc_mem),
+    replacementPolicy(p.replacement_policy),
     dramCacheSize(p.dram_cache_size),
     blockSize(p.block_size),
     assoc(p.assoc),
@@ -53,11 +54,18 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
 
     locMem->setPolicyManager(this);
 
-    tagMetadataStore.resize(dramCacheSize/(blockSize * assoc));
-    for (int i = 0; i < tagMetadataStore.size(); i++) {
-        tagMetadataStore.at(i).resize(assoc);
+    unsigned numOfSets = dramCacheSize/(blockSize * assoc);
+
+    for (int i = 0; i < numOfSets; i++) {
+        std::vector<ReplaceableEntry*> tempSet;
+        for (int j = 0; j < assoc; j++) {
+            ReplaceableEntry* tempWay = new ReplaceableEntry (-1, -1, false, false, -1);
+            tempWay->replacementData = replacementPolicy->instantiateEntry();
+            tempSet.push_back(tempWay);
+        }
+        tagMetadataStore.push_back(tempSet);
     }
-    std::cout << tagMetadataStore.size() << tagMetadataStore.at(100).size() << "\n";
+    std::cout << tagMetadataStore.size() << ", " << tagMetadataStore.at(100).size() << "\n";
 
 }
 
@@ -125,13 +133,14 @@ PolicyManager::accessLatency()
 bool
 PolicyManager::findInORB(Addr addr)
 {
+    bool found = false;
     for (const auto& e : ORB) {
         if (e.second->owPkt->getAddr() == addr) {
-            return true;
+            found = true;
         }
     }
 
-    return false;
+    return found;
 }
 
 void
@@ -413,6 +422,7 @@ PolicyManager::processTagCheckEvent()
     auto orbEntry = ORB.at(pktTagCheck.front());
     assert(orbEntry->pol == enums::Rambus);
     assert(orbEntry->validEntry);
+    findInORB(orbEntry->owPkt->getAddr());
     assert(orbEntry->state == tagCheck);
     assert(!orbEntry->issued);
 
@@ -1954,11 +1964,11 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     checkHitOrMiss(orbEntry);
 
     if (checkDirty(orbEntry->owPkt->getAddr()) && !orbEntry->isHit) {
-        if (extreme && tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).farMemAddr == -1) {
+        if (extreme && tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->farMemAddr == -1) {
             // extreme cases are faked. So, this address for cold misses are -1, so we fake it to a random address like 1024.
             orbEntry->dirtyLineAddr = orbEntry->owPkt->getAddr() == 0 ? 64 : (orbEntry->owPkt->getAddr()-64);
         } else {
-            orbEntry->dirtyLineAddr = tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).farMemAddr;
+            orbEntry->dirtyLineAddr = tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->farMemAddr;
         }
         orbEntry->handleDirtyLine = true;
     }
@@ -1966,24 +1976,25 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     if (extreme) {
         orbEntry->prevDirty = alwaysDirty;
     } else {
-        orbEntry->prevDirty = tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).dirtyLine;
+        orbEntry->prevDirty = tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->dirtyLine;
     }
 
     // Updating Tag & Metadata
-    tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).tagDC = orbEntry->tagDC;
-    tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).indexDC = orbEntry->indexDC;
-    tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).validLine = true;
+    tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->tagDC = orbEntry->tagDC;
+    tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->indexDC = orbEntry->indexDC;
+    tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->validLine = true;
+    replacementPolicy->touch(tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->replacementData, pkt);
 
     if (orbEntry->owPkt->isRead()) {
         if (orbEntry->isHit) {
-            tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).dirtyLine =
-            tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).dirtyLine;
+            tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->dirtyLine =
+            tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->dirtyLine;
         } else {
-            tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).dirtyLine = false;
+            tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->dirtyLine = false;
         }
     } else { // write
-        tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).dirtyLine = true;
-        tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).farMemAddr =
+        tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->dirtyLine = true;
+        tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->farMemAddr =
                         orbEntry->owPkt->getAddr();
     }
 
@@ -2003,7 +2014,6 @@ PolicyManager::checkConflictInORB(PacketPtr pkt)
     
     for (auto e = ORB.begin(); e != ORB.end(); ++e) {
         if (e->second->validEntry && indexDC == e->second->indexDC /*&& tagDC != e->second->tagDC*/) {
-
             sameIndex.push_back(e->first);
         }
     }
@@ -2024,15 +2034,15 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
     // look up the tagMetadataStore data structure to
     // check if it's hit or miss
 
-    bool currValid = tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).validLine;
-    bool currDirty = tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).dirtyLine;
+    bool currValid = tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->validLine;
+    bool currDirty = tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->dirtyLine;
 
     if (extreme) {
         orbEntry->isHit = alwaysHit;
         currValid = true;
         currDirty = alwaysDirty;
     } else {
-        orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum).tagDC);
+        orbEntry->isHit = currValid && (orbEntry->tagDC == tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->tagDC);
     }
 
     if (orbEntry->isHit) {
@@ -2103,8 +2113,8 @@ PolicyManager::checkDirty(Addr addr)
         return alwaysDirty;
     } else {
         for (int i = 0; i < assoc; i++) {
-            if (tagMetadataStore.at(index).at(i).tagDC == tag) {
-                return (tagMetadataStore.at(index).at(i).validLine && tagMetadataStore.at(index).at(i).dirtyLine);
+            if (tagMetadataStore.at(index).at(i)->tagDC == tag) {
+                return (tagMetadataStore.at(index).at(i)->validLine && tagMetadataStore.at(index).at(i)->dirtyLine);
             }
         }
         return false;
@@ -2348,7 +2358,7 @@ PolicyManager::getAddrRanges()
 Addr
 PolicyManager::returnIndexDC(Addr request_addr, unsigned size)
 {
-    int index_bits = ceilLog2(dramCacheSize/blockSize);
+    int index_bits = ceilLog2(dramCacheSize/(blockSize*assoc));
     int block_bits = ceilLog2(size);
     return bits(request_addr, block_bits + index_bits-1, block_bits);
 }
@@ -2356,7 +2366,7 @@ PolicyManager::returnIndexDC(Addr request_addr, unsigned size)
 Addr
 PolicyManager::returnTagDC(Addr request_addr, unsigned size)
 {
-    int index_bits = ceilLog2(dramCacheSize/blockSize);
+    int index_bits = ceilLog2(dramCacheSize/(blockSize*assoc));
     int block_bits = ceilLog2(size);
     return bits(request_addr, addrSize-1, (index_bits+block_bits));
 }
@@ -2365,7 +2375,7 @@ int
 PolicyManager::findMatchingWay(Addr index, Addr tag)
 {
     for (int i = 0; i < assoc; i++) {
-        if (tagMetadataStore.at(index).at(i).validLine && tagMetadataStore.at(index).at(i).tagDC == tag) {
+        if (tagMetadataStore.at(index).at(i)->validLine && tagMetadataStore.at(index).at(i)->tagDC == tag) {
             return i;
         }
     }
@@ -2379,8 +2389,31 @@ PolicyManager::getCandidateWay(Addr index)
     if (assoc == 1) {
         // equal to direct mapped cache
         return 0;
-    } else if () {
-        
+    } else {
+        // first find an empty way
+        for (int i = 0; i < assoc; i++) {
+            if (!tagMetadataStore.at(index).at(i)->validLine) {
+                return i;
+            }
+        }
+
+        // if no empty way is found (= all the ways are filled), pick a victim to evcuate
+        std::vector<ReplaceableEntry*> entries;
+
+        for (int i = 0; i < assoc; i++) {
+            if (tagMetadataStore.at(index).at(i)->validLine) {
+                entries.push_back(tagMetadataStore.at(index).at(i));
+            }
+        }
+
+        ReplaceableEntry* victim = replacementPolicy->getVictim(entries);
+
+        for (int i = 0; i < assoc; i++) {
+            if (entries.at(i)->tagDC == victim->tagDC) {
+                assert(entries.at(i)->validLine);
+                return i;
+            }
+        }
     }
 
     return -1;

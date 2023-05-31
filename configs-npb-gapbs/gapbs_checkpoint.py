@@ -152,9 +152,10 @@ if __name__ == "__m5_main__":
 
     m5.stats.reset()
     print("After reset ************************************************ statring smiulation:\n")
-    for interval_number in range(100):
+    for interval_number in range(10):
         print("Interval number: {} \n".format(interval_number))
-        exit_event = m5.simulate(10000000000)
+        exit_event = m5.simulate(100000000000)
+        m5.stats.dump()
         if (exit_event.getCause() == "cacheIsWarmedup") :
             print("Caught cacheIsWarmedup exit event!")
             break
@@ -162,5 +163,5 @@ if __name__ == "__m5_main__":
 
     print("After sim ************************************************ End of warm-up \n")
     m5.stats.dump()
-    system.switchCpus(system.timingCpu, system.o3Cpu)
-    m5.checkpoint(m5.options.outdir + '/cpt')
+    #system.switchCpus(system.timingCpu, system.o3Cpu)
+    #m5.checkpoint(m5.options.outdir + '/cpt')

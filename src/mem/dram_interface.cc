@@ -506,7 +506,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
                 }
                 stats.bytesRead += burstSize;
             }
-            
+
             if (!(mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && !mem_pkt->pkt->isDirty)) {
                 stats.perBankRdBursts[mem_pkt->bankId]++;
                 // Update latency stats

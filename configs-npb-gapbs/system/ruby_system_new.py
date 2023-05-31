@@ -173,6 +173,8 @@ class MyRubySystem(System):
 
         self.mem_ctrl.loc_mem_policy = policy
 
+        self.mem_ctrl.assoc = 1
+
         # self.mem_ctrl.bypass_dcache = True
 
         # TDRAM cache
