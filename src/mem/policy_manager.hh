@@ -266,7 +266,7 @@ class PolicyManager : public AbstractMemory
 
         reqBufferEntry(
           bool _validEntry, Tick _arrivalTick,
-          Addr _tagDC, Addr _indexDC, Addr _wayNum,
+          Addr _tagDC, Addr _indexDC, int _wayNum,
           PacketPtr _owPkt,
           enums::Policy _pol, reqState _state,
           bool _issued, bool _isHit, bool _conflict,
@@ -369,7 +369,7 @@ class PolicyManager : public AbstractMemory
     void printQSizes() {}
     void handleRequestorPkt(PacketPtr pkt);
     void checkHitOrMiss(reqBufferEntry* orbEntry);
-    bool checkDirty(Addr addr);
+    bool checkDirty(Addr index, int way);
     void handleDirtyCacheLine(Addr dirtyLineAddr);
     bool checkConflictInORB(PacketPtr pkt);
     void checkConflictInCRB(reqBufferEntry* orbEntry);

@@ -65,8 +65,6 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
         }
         tagMetadataStore.push_back(tempSet);
     }
-    std::cout << tagMetadataStore.size() << ", " << tagMetadataStore.at(100).size() << "\n";
-
 }
 
 Tick
@@ -215,8 +213,8 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
             // farMemCtrl->accessInterface(pkt);
 
             // sendRespondToRequestor(pkt, frontendLatency);
-
-            // return true;
+            accessAndRespond(pkt, frontendLatency);
+            return true;
         } else if (mergedInLocMemFB) {
 
             polManStats.mergedWrBursts++;
@@ -227,8 +225,8 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
             // farMemCtrl->accessInterface(pkt);
 
             // sendRespondToRequestor(pkt, frontendLatency);
-
-            // return true;
+            accessAndRespond(pkt, frontendLatency);
+            return true;
         }
 
     }
@@ -319,13 +317,13 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         if (foundInORB || foundInCRB || foundInFarMemWrite || foundInLocMemFB) {
             DPRINTF(PolicyManager, "FW: %lld\n", pkt->getAddr());
 
-        //     polManStats.readPktSize[ceilLog2(size)]++;
+            polManStats.readPktSize[ceilLog2(size)]++;
 
         //     farMemCtrl->accessInterface(pkt);
 
         //     sendRespondToRequestor(pkt, frontendLatency);
-
-        //     return true;
+            accessAndRespond(pkt, frontendLatency);
+            return true;
         }
     }
 
@@ -1897,7 +1895,7 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
 
     ORB.emplace(pkt->getAddr(), orbEntry);
 
-    DPRINTF(PolicyManager, "handleRequestorPkt added to ORB: adr= %d, index= %d, tag= %d\n", orbEntry->owPkt->getAddr(), orbEntry->indexDC, orbEntry->tagDC);
+    DPRINTF(PolicyManager, "handleRequestorPkt added to ORB: adr= %d, index= %d, tag= %d, %s\n", orbEntry->owPkt->getAddr(), orbEntry->indexDC, orbEntry->tagDC, orbEntry->owPkt->cmdString());
 
     polManStats.avgORBLen = ORB.size();
     polManStats.avgTagCheckQLenStrt = countTagCheckInORB();
@@ -1962,13 +1960,13 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     }
 
     checkHitOrMiss(orbEntry);
-
-    if (checkDirty(orbEntry->owPkt->getAddr()) && !orbEntry->isHit) {
+    if (checkDirty(orbEntry->indexDC, orbEntry->wayNum) && !orbEntry->isHit) {
         if (extreme && tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->farMemAddr == -1) {
             // extreme cases are faked. So, this address for cold misses are -1, so we fake it to a random address like 1024.
             orbEntry->dirtyLineAddr = orbEntry->owPkt->getAddr() == 0 ? 64 : (orbEntry->owPkt->getAddr()-64);
         } else {
             orbEntry->dirtyLineAddr = tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->farMemAddr;
+
         }
         orbEntry->handleDirtyLine = true;
     }
@@ -2001,7 +1999,7 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     // tagMetadataStore.at(orbEntry->indexDC).farMemAddr =
     //                     orbEntry->owPkt->getAddr();
 
-    DPRINTF(PolicyManager, "ORB+: adr= %d, index= %d, tag= %d, cmd= %s, isHit= %d, wasDirty= %d, \n", orbEntry->owPkt->getAddr(), orbEntry->indexDC, orbEntry->tagDC, orbEntry->owPkt->cmdString(), orbEntry->isHit, orbEntry->prevDirty);
+    DPRINTF(PolicyManager, "ORB+: adr= %d, index= %d, tag= %d, cmd= %s, isHit= %d, wasDirty= %d, dirtyAddr= %d\n", orbEntry->owPkt->getAddr(), orbEntry->indexDC, orbEntry->tagDC, orbEntry->owPkt->cmdString(), orbEntry->isHit, orbEntry->prevDirty, orbEntry->dirtyLineAddr);
 }
 
 bool
@@ -2105,19 +2103,16 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
 }
 
 bool
-PolicyManager::checkDirty(Addr addr)
+PolicyManager::checkDirty(Addr index, int way)
 {
-    Addr index = returnIndexDC(addr, blockSize);
-    Addr tag = returnTagDC(addr, blockSize);
+    // Addr index = returnIndexDC(addr, blockSize);
+    // Addr tag = returnTagDC(addr, blockSize);
+    assert(way >= 0);
     if (extreme) {
         return alwaysDirty;
     } else {
-        for (int i = 0; i < assoc; i++) {
-            if (tagMetadataStore.at(index).at(i)->tagDC == tag) {
-                return (tagMetadataStore.at(index).at(i)->validLine && tagMetadataStore.at(index).at(i)->dirtyLine);
-            }
-        }
-        return false;
+        return (tagMetadataStore.at(index).at(way)->validLine && 
+                tagMetadataStore.at(index).at(way)->dirtyLine);
     }
 }
 
