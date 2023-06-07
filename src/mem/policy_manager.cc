@@ -2910,6 +2910,7 @@ PolicyManager::unserialize(CheckpointIn &cp)
 {
     ScopedCheckpointSection sec(cp, "tagMetadataStore");
     int num_entries = 0;
+    unsigned numOfSets = dramCacheSize / (blockSize * assoc);
     paramIn(cp, "numEntries", num_entries);
     warn_if(num_entries > tagMetadataStore.size()*assoc, "Unserializing larger tag "
             "store into a smaller tag store. Stopping when index doesn't fit");
@@ -2918,7 +2919,7 @@ PolicyManager::unserialize(CheckpointIn &cp)
     for (int i = 0; i < num_entries; i++) {
         ScopedCheckpointSection sec_entry(cp,csprintf("Entry%d", i));
         bool valid = false;
-        paramIn(cp, "validLine", valid);
+        paramIn(cp, "validLine", valid);       
         if (valid) {
             Addr tag = 0;
             Addr index = 0;
@@ -2928,13 +2929,14 @@ PolicyManager::unserialize(CheckpointIn &cp)
             paramIn(cp, "indexDC", index);
             paramIn(cp, "dirtyLine", dirty);
             paramIn(cp, "farMemAddr", far_addr);
-            if (index < tagMetadataStore.size()) {
+            Addr newIndex = index % numOfSets;
+            if (newIndex < tagMetadataStore.size()) {
                 // Only insert if this entry fits into the current store.
-                tagMetadataStore.at(index).at(i % assoc)->tagDC = tag;
-                tagMetadataStore.at(index).at(i % assoc)->indexDC = index;
-                tagMetadataStore.at(index).at(i % assoc)->validLine = valid;
-                tagMetadataStore.at(index).at(i % assoc)->dirtyLine = dirty;
-                tagMetadataStore.at(index).at(i % assoc)->farMemAddr = far_addr;
+                tagMetadataStore.at(newIndex).at(i / numOfSets)->tagDC = tag;
+                tagMetadataStore.at(newIndex).at(i / numOfSets)->indexDC = newIndex;
+                tagMetadataStore.at(newIndex).at(i / numOfSets)->validLine = valid;
+                tagMetadataStore.at(newIndex).at(i / numOfSets)->dirtyLine = dirty;
+                tagMetadataStore.at(newIndex).at(i / numOfSets)->farMemAddr = far_addr;
             }
         }
     }
