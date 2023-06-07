@@ -324,7 +324,6 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         if (CRB.size()>=crbMaxSize) {
 
             DPRINTF(PolicyManager, "CRBfull: %lld\n", pkt->getAddr());
-            DPRINTF(PolicyManager, "CRBfull: %lld\n", pkt->getAddr());
 
             polManStats.totNumCRBFull++;
 
@@ -342,8 +341,6 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         CRB.push_back(std::make_pair(curTick(), pkt));
         DPRINTF(PolicyManager, "CRB PB: %d: %s\n", pkt->getAddr(), pkt->cmdString());
 
-        DPRINTF(PolicyManager, "CRB PB: %d: %s\n", pkt->getAddr(), pkt->cmdString());
-
         if (pkt->isWrite()) {
             isInWriteQueue.insert(pkt->getAddr());
         }
@@ -357,7 +354,6 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
     // check if ORB or FMWB is full and set retry
     if (pktFarMemWrite.size() >= (orbMaxSize / 2)) {
 
-        DPRINTF(PolicyManager, "FMWBfull: %lld\n", pkt->getAddr());
         DPRINTF(PolicyManager, "FMWBfull: %lld\n", pkt->getAddr());
 
         retryLLCFarMemWr = true;
@@ -471,21 +467,30 @@ void
 PolicyManager::processLocMemReadEvent()
 {
     // sanity check for the chosen packet
+    
     auto orbEntry = ORB.at(pktLocMemRead.front());
-    assert(orbEntry->validEntry);
-    assert(orbEntry->state == locMemRead);
-    assert(!orbEntry->issued);
+    if (!(locMemPolicy==enums::Oracle && 
+          orbEntry->owPkt->isRead() && !orbEntry->isHit && orbEntry->prevDirty)) {
+        assert(orbEntry->validEntry);
+        assert(orbEntry->state == locMemRead);
+        assert(!orbEntry->issued);
+    }
 
     PacketPtr rdLocMemPkt = getPacket(pktLocMemRead.front(),
-                                   blockSize,
-                                   MemCmd::ReadReq);
-
+                                        blockSize,
+                                        MemCmd::ReadReq);
+    if (locMemPolicy==enums::Oracle && 
+        orbEntry->owPkt->isRead() && !orbEntry->isHit && orbEntry->prevDirty) {
+        rdLocMemPkt->isLocRdDirtyOrc = true;
+    }
     if (locReqPort.sendTimingReq(rdLocMemPkt)) {
-        DPRINTF(PolicyManager, "loc mem read is sent : %lld--> %d, %d, %d, %d, %d, %d\n", rdLocMemPkt->getAddr(), ORB.size(), pktLocMemRead.size(),
-        pktLocMemWrite.size(), pktFarMemRead.size(), pktFarMemWrite.size(), CRB.size());
-        orbEntry->state = waitingLocMemReadResp;
-        orbEntry->issued = true;
-        orbEntry->locRdIssued = curTick();
+        DPRINTF(PolicyManager, "loc mem read is sent : %lld\n", rdLocMemPkt->getAddr());
+        if (!(locMemPolicy==enums::Oracle && 
+          orbEntry->owPkt->isRead() && !orbEntry->isHit && orbEntry->prevDirty)) {
+            orbEntry->state = waitingLocMemReadResp;
+            orbEntry->issued = true;
+            orbEntry->locRdIssued = curTick();
+        }
         pktLocMemRead.pop_front();
         polManStats.sentLocRdPort++;
     } else {
@@ -590,7 +595,7 @@ PolicyManager::processFarMemWriteEvent()
     } else {
         if (drainState() == DrainState::Draining && pktFarMemWrite.empty() &&
             ORB.empty()) {
-            DPRINTF(Drain, "PolicyManager done draining in farMemWrite\n");
+            DPRINTF(PolicyManager, "PolicyManager done draining in farMemWrite\n");
             signalDrainDone();
         }
     }
@@ -615,6 +620,13 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
         assert(pkt->owIsRead);
         assert(!pkt->isHit);
         handleDirtyCacheLine(pkt->dirtyLineAddr);
+        delete pkt;
+        return true;
+    }
+
+    if (locMemPolicy == enums::Oracle && pkt->isLocRdDirtyOrc) {
+        DPRINTF(PolicyManager, "locMemRecvTimingResp: rd miss dirty async ORACLE %d:\n", pkt->getAddr());
+        handleDirtyCacheLine(pkt->getAddr());
         delete pkt;
         return true;
     }
@@ -995,15 +1007,26 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
     ////////////////////////////////////////////////////////////////////////
     /// Oracle
 
-    // RD Hit Dirty & Clean, RD Miss Dirty, WR Miss Dirty
+    // RD Hit Dirty & Clean, WR Miss Dirty
     // start --> read loc
     if (pol == enums::Oracle && state == start &&
-        ((isRead && isHit) || (isRead && !isHit && isDirty) || (!isRead && !isHit && isDirty))
+        ((isRead && isHit))
        ) {
             orbEntry->state = locMemRead;
             orbEntry->locRdEntered = curTick();
             return;
     }
+
+    // RD Miss Dirty
+    // start --> read both mem
+    if (pol == enums::Oracle && state == start && (isRead && !isHit && isDirty))
+    {
+            orbEntry->state = farMemRead;
+            orbEntry->locRdEntered = curTick();
+            orbEntry->farRdEntered = curTick();
+            return;
+    }
+
     // RD Miss Clean
     // start --> read far
     if (pol == enums::Oracle && state == start &&
@@ -1013,11 +1036,9 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
             orbEntry->farRdEntered = curTick();
             return;
     }
-    // WR Hit Dirty & Clean, WR Miss Clean
+    // WR Hit Dirty & Clean, WR Miss Clean, WR Miss Dirty
     // start --> write loc
-    if (pol == enums::Oracle && state == start &&
-        ((!isRead && isHit)|| (!isRead && !isHit && !isDirty))
-       ) {
+    if (pol == enums::Oracle && state == start) {
             orbEntry->state = locMemWrite;
             orbEntry->locWrEntered = curTick();
             return;
@@ -1035,13 +1056,14 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 
     // RD Miss Dirty:
     // start --> read loc --> read far
-    if (pol == enums::Oracle &&
-        isRead && !isHit && isDirty &&
-        state == waitingLocMemReadResp ) {
-            orbEntry->state = farMemRead;
-            orbEntry->farRdEntered = curTick();
-            return;
-    }
+    
+    // if (pol == enums::Oracle &&
+    //     isRead && !isHit && isDirty &&
+    //     state == waitingLocMemReadResp ) {
+    //         orbEntry->state = farMemRead;
+    //         orbEntry->farRdEntered = curTick();
+    //         return;
+    // }
 
     // WR Miss Dirty:
     // start --> read loc --> loc write
@@ -1498,6 +1520,31 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
     }
 
     if (orbEntry->pol == enums::Oracle &&
+        orbEntry->state == farMemRead &&
+        (orbEntry->owPkt->isRead() && !orbEntry->isHit && orbEntry->prevDirty)) {
+
+        // concurrently reads both local and far memories
+        
+        pktLocMemRead.push_back(orbEntry->owPkt->getAddr());
+
+        polManStats.avgLocRdQLenEnq = pktLocMemRead.size();
+
+        if (!locMemReadEvent.scheduled() && !retryLocMemRead) {
+            schedule(locMemReadEvent, curTick());
+        }
+
+        pktFarMemRead.push_back(orbEntry->owPkt->getAddr());
+
+        polManStats.avgFarRdQLenEnq = pktFarMemRead.size();
+
+        if (!farMemReadEvent.scheduled() && !retryFarMemRead) {
+            schedule(farMemReadEvent, curTick());
+        }
+
+        return;
+    }
+
+    if (orbEntry->pol == enums::Oracle &&
         orbEntry->owPkt->isRead() &&
         orbEntry->state == waitingLocMemReadResp &&
         orbEntry->isHit) {
@@ -1582,6 +1629,11 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
             if (!locMemWriteEvent.scheduled() && !retryLocMemWrite) {
                 schedule(locMemWriteEvent, curTick());
             }
+
+            if (orbEntry->owPkt->isWrite() && !orbEntry->isHit && orbEntry->prevDirty) {
+                handleDirtyCacheLine(orbEntry->dirtyLineAddr);
+            }
+
             return;
 
     }

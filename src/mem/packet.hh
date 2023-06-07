@@ -304,6 +304,8 @@ class Packet : public Printable, public Extensible<Packet>
     bool hasDirtyData = false;
     Addr dirtyLineAddr = -1;
 
+    bool isLocRdDirtyOrc = false;
+
 
   private:
     enum : FlagsType
