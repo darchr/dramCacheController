@@ -2067,6 +2067,17 @@ PolicyManager::checkHitOrMiss(reqBufferEntry* orbEntry)
 
         polManStats.numTotMisses++;
 
+        unsigned invalidBlocks = 0;
+        for (int i = 0; i < assoc; i++) {
+            if (!tagMetadataStore.at(orbEntry->indexDC).at(i)->validLine) {
+                invalidBlocks++;
+            }
+        }
+
+        if (invalidBlocks == assoc) {
+            polManStats.numColdMissesSet++;
+        }
+
         if (currValid) {
             polManStats.numHotMisses++;
         } else {
@@ -2746,6 +2757,7 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
     ADD_STAT(numTotHits, statistics::units::Count::get(), "stat"),
     ADD_STAT(numTotMisses, statistics::units::Count::get(), "stat"),
     ADD_STAT(numColdMisses, statistics::units::Count::get(), "stat"),
+    ADD_STAT(numColdMissesSet, statistics::units::Count::get(), "stat"),
     ADD_STAT(numHotMisses, statistics::units::Count::get(), "stat"),
     ADD_STAT(numRdMissClean, statistics::units::Count::get(), "stat"),
     ADD_STAT(numRdMissDirty, statistics::units::Count::get(), "stat"),
@@ -2910,6 +2922,8 @@ PolicyManager::unserialize(CheckpointIn &cp)
 {
     ScopedCheckpointSection sec(cp, "tagMetadataStore");
     int num_entries = 0;
+    unsigned countValid = 0;
+    unsigned countInvalid = 0;
     unsigned numOfSets = dramCacheSize / (blockSize * assoc);
     paramIn(cp, "numEntries", num_entries);
     warn_if(num_entries > tagMetadataStore.size()*assoc, "Unserializing larger tag "
@@ -2919,8 +2933,12 @@ PolicyManager::unserialize(CheckpointIn &cp)
     for (int i = 0; i < num_entries; i++) {
         ScopedCheckpointSection sec_entry(cp,csprintf("Entry%d", i));
         bool valid = false;
-        paramIn(cp, "validLine", valid);       
+        paramIn(cp, "validLine", valid);
+        if (!valid){
+            countInvalid++;
+        }
         if (valid) {
+            countValid++;
             Addr tag = 0;
             Addr index = 0;
             bool dirty = false;
@@ -2932,14 +2950,33 @@ PolicyManager::unserialize(CheckpointIn &cp)
             Addr newIndex = index % numOfSets;
             if (newIndex < tagMetadataStore.size()) {
                 // Only insert if this entry fits into the current store.
-                tagMetadataStore.at(newIndex).at(i / numOfSets)->tagDC = tag;
-                tagMetadataStore.at(newIndex).at(i / numOfSets)->indexDC = newIndex;
-                tagMetadataStore.at(newIndex).at(i / numOfSets)->validLine = valid;
-                tagMetadataStore.at(newIndex).at(i / numOfSets)->dirtyLine = dirty;
-                tagMetadataStore.at(newIndex).at(i / numOfSets)->farMemAddr = far_addr;
+                // tagMetadataStore.at(newIndex).at(i / numOfSets)->tagDC = tag;
+                // tagMetadataStore.at(newIndex).at(i / numOfSets)->indexDC = newIndex;
+                // tagMetadataStore.at(newIndex).at(i / numOfSets)->validLine = valid;
+                // tagMetadataStore.at(newIndex).at(i / numOfSets)->dirtyLine = dirty;
+                // tagMetadataStore.at(newIndex).at(i / numOfSets)->farMemAddr = far_addr;
+                int way = findEmptyWay(newIndex);
+                tagMetadataStore.at(newIndex).at(way)->tagDC = tag;
+                tagMetadataStore.at(newIndex).at(way)->indexDC = newIndex;
+                tagMetadataStore.at(newIndex).at(way)->validLine = valid;
+                tagMetadataStore.at(newIndex).at(way)->dirtyLine = dirty;
+                tagMetadataStore.at(newIndex).at(way)->farMemAddr = far_addr;
             }
         }
     }
+    std::cout << "Counters: " << num_entries << " , " << countInvalid << " , " << countValid << "\n";
+}
+
+int
+PolicyManager::findEmptyWay(Addr index)
+{
+    for (int i=0; i<assoc; i++) {
+        if (!tagMetadataStore.at(index).at(i)->validLine) {
+            return i;
+        }
+    }
+
+    return -1;
 }
 
 bool

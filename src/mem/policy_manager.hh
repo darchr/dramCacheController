@@ -391,6 +391,7 @@ class PolicyManager : public AbstractMemory
     int returnWayDC(Addr index, Addr tag);
     int findMatchingWay(Addr index, Addr tag);
     int getCandidateWay(Addr index);
+    int findEmptyWay(Addr index);
 
     // port management
     void locMemRecvReqRetry();
@@ -510,6 +511,7 @@ class PolicyManager : public AbstractMemory
       statistics::Scalar numTotHits;
       statistics::Scalar numTotMisses;
       statistics::Scalar numColdMisses;
+      statistics::Scalar numColdMissesSet;
       statistics::Scalar numHotMisses;
       statistics::Scalar numRdMissClean;
       statistics::Scalar numRdMissDirty;
