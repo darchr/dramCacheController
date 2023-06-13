@@ -321,6 +321,7 @@ class PolicyManager : public AbstractMemory
     bool retryLLC;
     bool retryLLCFarMemWr;
     bool retryTagCheck;
+    bool retryLocMemReadDirty;
     bool retryLocMemRead;
     bool retryFarMemRead;
     bool retryLocMemWrite;
@@ -361,6 +362,9 @@ class PolicyManager : public AbstractMemory
 
     void processFarMemWriteEvent();
     EventFunctionWrapper farMemWriteEvent;
+
+    void processLocMemReadDirtyEvent();
+    EventFunctionWrapper locMemReadDirtyEvent;
 
     // management functions
     void setNextState(reqBufferEntry* orbEntry);

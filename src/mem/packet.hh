@@ -303,6 +303,7 @@ class Packet : public Printable, public Extensible<Packet>
     bool isDirty = false;
     bool hasDirtyData = false;
     Addr dirtyLineAddr = -1;
+    bool isReadDirty = false;
 
 
   private:
