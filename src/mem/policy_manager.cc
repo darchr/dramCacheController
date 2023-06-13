@@ -2956,7 +2956,7 @@ PolicyManager::unserialize(CheckpointIn &cp)
                 // tagMetadataStore.at(newIndex).at(i / numOfSets)->dirtyLine = dirty;
                 // tagMetadataStore.at(newIndex).at(i / numOfSets)->farMemAddr = far_addr;
                 int way = findEmptyWay(newIndex);
-                tagMetadataStore.at(newIndex).at(way)->tagDC = tag;
+                tagMetadataStore.at(newIndex).at(way)->tagDC = returnTagDC(far_addr, blockSize); // = tag;
                 tagMetadataStore.at(newIndex).at(way)->indexDC = newIndex;
                 tagMetadataStore.at(newIndex).at(way)->validLine = valid;
                 tagMetadataStore.at(newIndex).at(way)->dirtyLine = dirty;
@@ -2964,7 +2964,7 @@ PolicyManager::unserialize(CheckpointIn &cp)
             }
         }
     }
-    std::cout << "Counters: " << num_entries << " , " << countInvalid << " , " << countValid << "\n";
+    //std::cout << "Counters: " << num_entries << " , " << countInvalid << " , " << countValid << "\n";
 }
 
 int
