@@ -249,6 +249,17 @@ class AbstractMemory : public ClockedObject
         return false;
     }
 
+    typedef std::pair<Tick, unsigned> bSlotEntry;
+
+    std::vector<bSlotEntry> availBSlots;
+
+    static bool compareBSlots(bSlotEntry b1, bSlotEntry b2) {return (b1.first < b2.first);}
+
+    virtual unsigned decodeBank(Addr pkt_addr)
+                       {    panic("AbstractMemory decodeBank should not be executed from here.\n");
+                            return 2000;
+                       }
+
     /**
      * See if this is a null memory that should never store data and
      * always return zero.

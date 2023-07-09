@@ -42,7 +42,6 @@
 
 #include "base/trace.hh"
 #include "debug/DRAM.hh"
-#include "debug/DRAMT.hh"
 #include "debug/Drain.hh"
 #include "debug/MemCtrl.hh"
 #include "debug/NVM.hh"
@@ -263,7 +262,9 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
             MemPacket* mem_pkt;
             mem_pkt = mem_intr->decodePacket(pkt, addr, size, true,
                                                     mem_intr->pseudoChannel);
+            mem_pkt->isLocMem = pkt->isLocMem;
             mem_pkt->isTagCheck = pkt->isTagCheck;
+
 
             // Increment read entries of the rank (dram)
             // Increment count to trigger issue of non-deterministic read (nvm)
@@ -339,6 +340,7 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
             MemPacket* mem_pkt;
             mem_pkt = mem_intr->decodePacket(pkt, addr, size, false,
                                                     mem_intr->pseudoChannel);
+            mem_pkt->isLocMem = pkt->isLocMem;
             mem_pkt->isTagCheck = pkt->isTagCheck;
 
             // Default readyTime to Max if nvm interface;
@@ -1204,9 +1206,6 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         if (!write_found) {
             DPRINTF(MemCtrl, "No Writes Found - exiting\n");
             return;
-
-            DPRINTF(DRAMT, "No Writes Found - exiting\n");
-            return;
         }
 
         auto mem_pkt = *to_write;
@@ -1217,9 +1216,6 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
 
         DPRINTF(MemCtrl,
-        "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
-
-        DPRINTF(DRAMT,
         "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
         if (mem_pkt->isTagCheck) {

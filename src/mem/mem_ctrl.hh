@@ -161,6 +161,7 @@ class MemPacket
      * DRAM cache specific flags
      * 
      */
+    bool isLocMem = false;
     bool isTagCheck = false;
     Tick tagCheckReady = MaxTick;
 

@@ -176,7 +176,7 @@ def do_analysis():
 def run():
     print("Simulating 100 intervals of 10ms each! \n")
 
-    for interval_number in range(100):
+    for interval_number in range(1):
         print("Interval number: {}".format(interval_number))
         exit_event = m5.simulate(10_000_000_000)  # 10 ms
         m5.stats.dump()

@@ -437,6 +437,7 @@ PolicyManager::processTagCheckEvent()
                                 MemCmd::WriteReq);
     }
 
+    tagCheckPktPtr->isLocMem = true;
     tagCheckPktPtr->isTagCheck = true;
     tagCheckPktPtr->owIsRead = orbEntry->owPkt->isRead();
     tagCheckPktPtr->isHit = orbEntry->isHit;
@@ -526,6 +527,9 @@ PolicyManager::processLocMemWriteEvent()
                                    blockSize,
                                    MemCmd::WriteReq);
     assert(!wrLocMemPkt->isTagCheck);
+    if (locMemPolicy == enums::Rambus) {
+        wrLocMemPkt->isLocMem = true;
+    }
 
     if (locReqPort.sendTimingReq(wrLocMemPkt)) {
         DPRINTF(PolicyManager, "loc mem write is sent : %lld\n", wrLocMemPkt->getAddr());
@@ -1736,6 +1740,14 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
 
     if (orbEntry->pol == enums::Rambus &&
         orbEntry->state == tagCheck) {
+        // First, let's prob the tag check before putting it into any queue!
+        if (orbEntry->owPkt->isRead() && !orbEntry->isHit &&  tagProb(orbEntry->owPkt->getAddr())) {
+            if (orbEntry->prevDirty) {
+                polManStats.tagProbRdMD++;
+            } else {
+                polManStats.tagProbRdMC++;
+            }
+        }
 
         pktTagCheck.push_back(orbEntry->owPkt->getAddr());
 
@@ -2000,6 +2012,39 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     //                     orbEntry->owPkt->getAddr();
 
     DPRINTF(PolicyManager, "ORB+: adr= %d, index= %d, tag= %d, cmd= %s, isHit= %d, wasDirty= %d, dirtyAddr= %d\n", orbEntry->owPkt->getAddr(), orbEntry->indexDC, orbEntry->tagDC, orbEntry->owPkt->cmdString(), orbEntry->isHit, orbEntry->prevDirty, orbEntry->dirtyLineAddr);
+}
+
+bool
+PolicyManager::tagProb(Addr addr)
+{
+    sort(availBSlots.begin(), availBSlots.end(), compareBSlots);
+
+    std::cout << "bef: " << availBSlots.size() << "\n";
+
+    while (!availBSlots.empty() && availBSlots.at(0).first < curTick()) {
+        availBSlots.erase(availBSlots.begin());
+    }
+
+    std::cout << "aft: " << availBSlots.size() << "\n";
+
+    for (auto i : availBSlots) {
+        std::cout << i.first << ": " << i.second << ", ";
+    }
+
+    unsigned bank = locMem->decodeBank(addr);
+
+    std::cout << " --- bank: " << bank << "\n";
+
+    if (!availBSlots.empty()) {
+        for (int i=0; i<availBSlots.size(); i++) {
+            if(availBSlots.at(i).second != bank) {
+                availBSlots.erase(availBSlots.begin()+i);
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 bool
@@ -2769,6 +2814,9 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
     ADD_STAT(numRdHitClean, statistics::units::Count::get(), "stat"),
     ADD_STAT(numWrHitDirty, statistics::units::Count::get(), "stat"),
     ADD_STAT(numWrHitClean, statistics::units::Count::get(), "stat"),
+
+    ADD_STAT(tagProbRdMC, statistics::units::Count::get(), "stat"),
+    ADD_STAT(tagProbRdMD, statistics::units::Count::get(), "stat"),
 
     ADD_STAT(missRatio,  statistics::units::Rate<
                 statistics::units::Count, statistics::units::Count>::get(), "stat"),

@@ -327,10 +327,6 @@ DRAMInterface::prechargeBank(Rank& rank_ref, Bank& bank, Tick pre_tick,
     assert(rank_ref.numBanksActive != 0);
     --rank_ref.numBanksActive;
 
-    DPRINTF(DRAMT, "Precharging bank %d, rank %d at tick %lld, now got "
-            "%d active\n", bank.bank, rank_ref.rank, pre_at,
-            rank_ref.numBanksActive);
-
     if (trace) {
 
         rank_ref.cmdList.push_back(Command(MemCommand::PRE, bank.bank,
@@ -610,8 +606,12 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     }
 
     DPRINTF(DRAMT, "curr pkt, addr: %d, isRd: %d, isTC: %d, bank %d, row %d, act: %d, RdAlw: %d, WrAlw: %d, cmd: %d, rdy: %d\n", 
-    mem_pkt->addr, mem_pkt->pkt->isRead(), mem_pkt->pkt->isTagCheck, (unsigned) mem_pkt->bank, (unsigned) mem_pkt->row,
+    mem_pkt->addr, mem_pkt->isRead(), mem_pkt->isTagCheck, (unsigned) mem_pkt->bank, (unsigned) mem_pkt->row,
     act_at/1000, bank_ref.rdAllowedAt/1000, bank_ref.wrAllowedAt/1000, cmd_at/1000, mem_pkt->readyTime/1000);
+
+    if (mem_pkt->isLocMem) {
+        polMan->availBSlots.push_back(std::make_pair(cmd_at, mem_pkt->bank));
+    }
 
     rank_ref.lastBurstTick = cmd_at;
 
@@ -665,8 +665,6 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     bank_ref.preAllowedAt = std::max(bank_ref.preAllowedAt,
                                  mem_pkt->isRead() ? cmd_at + tRTP :
                                  mem_pkt->readyTime + tWR);
-    DPRINTF(DRAMT, "doBurstFunc, bank: %d, PRE: %d\n", (unsigned)bank_ref.bank, bank_ref.preAllowedAt/1000);
-
     // increment the bytes accessed and the accesses per row
     bank_ref.bytesAccessed += burstSize;
     ++bank_ref.rowAccesses;
@@ -1129,6 +1127,88 @@ DRAMInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
 
     return new MemPacket(pkt, is_read, true, pseudo_channel, rank, bank, row,
                    bank_id, pkt_addr, size);
+}
+
+unsigned
+DRAMInterface::decodeBank(Addr pkt_addr)
+{
+    // decode the address based on the address mapping scheme, with
+    // Ro, Ra, Co, Ba and Ch denoting row, rank, column, bank and
+    // channel, respectively
+    uint8_t rank;
+    uint8_t bank;
+    // use a 64-bit unsigned during the computations as the row is
+    // always the top bits, and check before creating the packet
+    uint64_t row;
+
+    Addr mappedAddr = pkt_addr;
+
+    if (isAlloy) {
+        mappedAddr = ((pkt_addr / 64) * 8) + pkt_addr;
+    }
+
+    // Get packed address, starting at 0
+    Addr addr = getCtrlAddr(mappedAddr);
+
+    // truncate the address to a memory burst, which makes it unique to
+    // a specific buffer, row, bank, rank and channel
+    addr = addr / burstSize;
+
+    // we have removed the lowest order address bits that denote the
+    // position within the column
+    if (addrMapping == enums::RoRaBaChCo || addrMapping == enums::RoRaBaCoCh) {
+        // the lowest order bits denote the column to ensure that
+        // sequential cache lines occupy the same row
+        addr = addr / burstsPerRowBuffer;
+
+        // after the channel bits, get the bank bits to interleave
+        // over the banks
+        bank = addr % banksPerRank;
+        addr = addr / banksPerRank;
+
+        // after the bank, we get the rank bits which thus interleaves
+        // over the ranks
+        rank = addr % ranksPerChannel;
+        addr = addr / ranksPerChannel;
+
+        // lastly, get the row bits, no need to remove them from addr
+        row = addr % rowsPerBank;
+    } else if (addrMapping == enums::RoCoRaBaCh) {
+        // with emerging technologies, could have small page size with
+        // interleaving granularity greater than row buffer
+        if (burstsPerStripe > burstsPerRowBuffer) {
+            // remove column bits which are a subset of burstsPerStripe
+            addr = addr / burstsPerRowBuffer;
+        } else {
+            // remove lower column bits below channel bits
+            addr = addr / burstsPerStripe;
+        }
+
+        // start with the bank bits, as this provides the maximum
+        // opportunity for parallelism between requests
+        bank = addr % banksPerRank;
+        addr = addr / banksPerRank;
+
+        // next get the rank bits
+        rank = addr % ranksPerChannel;
+        addr = addr / ranksPerChannel;
+
+        // next, the higher-order column bites
+        if (burstsPerStripe < burstsPerRowBuffer) {
+            addr = addr / (burstsPerRowBuffer / burstsPerStripe);
+        }
+
+        // lastly, get the row bits, no need to remove them from addr
+        row = addr % rowsPerBank;
+    } else
+        panic("Unknown address mapping policy chosen!");
+
+    assert(rank < ranksPerChannel);
+    assert(bank < banksPerRank);
+    assert(row < rowsPerBank);
+    assert(row < Bank::NO_ROW);
+
+    return bank;
 }
 
 void DRAMInterface::setupRank(const uint8_t rank, const bool is_read)

@@ -692,6 +692,8 @@ class DRAMInterface : public MemInterface
 
     AbstractMemory* polMan;
 
+    unsigned decodeBank(Addr pkt_addr) override;
+
     Tick get_tRP() override { return tRP;}
     Tick get_tRCD_RD() override { return tRCD_RD;}
     Tick get_tRL() override { return tRL;}
