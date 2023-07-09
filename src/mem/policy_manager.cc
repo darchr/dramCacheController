@@ -2019,21 +2019,11 @@ PolicyManager::tagProb(Addr addr)
 {
     sort(availBSlots.begin(), availBSlots.end(), compareBSlots);
 
-    std::cout << "bef: " << availBSlots.size() << "\n";
-
     while (!availBSlots.empty() && availBSlots.at(0).first < curTick()) {
         availBSlots.erase(availBSlots.begin());
     }
 
-    std::cout << "aft: " << availBSlots.size() << "\n";
-
-    for (auto i : availBSlots) {
-        std::cout << i.first << ": " << i.second << ", ";
-    }
-
     unsigned bank = locMem->decodeBank(addr);
-
-    std::cout << " --- bank: " << bank << "\n";
 
     if (!availBSlots.empty()) {
         for (int i=0; i<availBSlots.size(); i++) {
@@ -3012,7 +3002,6 @@ PolicyManager::unserialize(CheckpointIn &cp)
             }
         }
     }
-    //std::cout << "Counters: " << num_entries << " , " << countInvalid << " , " << countValid << "\n";
 }
 
 int
