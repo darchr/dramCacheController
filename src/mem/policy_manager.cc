@@ -2014,12 +2014,34 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
     DPRINTF(PolicyManager, "ORB+: adr= %d, index= %d, tag= %d, cmd= %s, isHit= %d, wasDirty= %d, dirtyAddr= %d\n", orbEntry->owPkt->getAddr(), orbEntry->indexDC, orbEntry->tagDC, orbEntry->owPkt->cmdString(), orbEntry->isHit, orbEntry->prevDirty, orbEntry->dirtyLineAddr);
 }
 
+void
+PolicyManager::insertBSlot(Tick start, int currBank, int nextBank)
+{
+    assert(currBank != -1);
+    assert(nextBank == -1);
+    bSlotEntry* newEntry = new bSlotEntry(start, currBank, nextBank);
+    availBSlots.push_back(newEntry);
+}
+
+void
+PolicyManager::setNextBank(Tick prevCmdAt, int prevBank, int nextBank)
+{
+    assert(nextBank != -1);
+    for (auto i : availBSlots) {
+        if (i->start == prevCmdAt && i->currBank == prevBank) {
+            assert(i->nextBank == -1);
+            i->nextBank = nextBank;
+            return;
+        }
+    }
+}
+
 bool
 PolicyManager::tagProb(Addr addr)
 {
     sort(availBSlots.begin(), availBSlots.end(), compareBSlots);
 
-    while (!availBSlots.empty() && availBSlots.at(0).first < curTick()) {
+    while (!availBSlots.empty() && availBSlots.at(0)->start < curTick()) {
         availBSlots.erase(availBSlots.begin());
     }
 
@@ -2027,12 +2049,21 @@ PolicyManager::tagProb(Addr addr)
 
     if (!availBSlots.empty()) {
         for (int i=0; i<availBSlots.size(); i++) {
-            if(availBSlots.at(i).second != bank) {
-                availBSlots.erase(availBSlots.begin()+i);
-                return true;
+            if(availBSlots.at(i)->currBank != -1 && availBSlots.at(i)->nextBank != -1) {
+                // check for bank conflicts
+                bool all3SlotsDiffBank = availBSlots.at(i)->currBank != bank &&
+                                         availBSlots.at(i)->nextBank != bank &&
+                                         availBSlots.at(i)->currBank != availBSlots.at(i)->nextBank;
+                bool bothASlotsEqual = availBSlots.at(i)->currBank == availBSlots.at(i)->nextBank;
+                
+                if (all3SlotsDiffBank || bothASlotsEqual) {
+                    availBSlots.erase(availBSlots.begin()+i);
+                    return true;
+                }
             }
         }
     }
+
 
     return false;
 }

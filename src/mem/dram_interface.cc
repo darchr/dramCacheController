@@ -610,7 +610,14 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     act_at/1000, bank_ref.rdAllowedAt/1000, bank_ref.wrAllowedAt/1000, cmd_at/1000, mem_pkt->readyTime/1000);
 
     if (mem_pkt->isLocMem) {
-        polMan->availBSlots.push_back(std::make_pair(cmd_at, mem_pkt->bank));
+        // std::cout << "loc mem prev: " << prevCmdAt << ", " << prevBank << "\n";
+        polMan->insertBSlot(cmd_at, mem_pkt->bank, -1);
+        if (prevCmdAt != 0) {
+            polMan->setNextBank(prevCmdAt, prevBank, mem_pkt->bank);
+        }
+        prevCmdAt = cmd_at;
+        prevBank = mem_pkt->bank;
+        // std::cout << "loc mem next: " << prevCmdAt << ", " << prevBank << "\n";
     }
 
     rank_ref.lastBurstTick = cmd_at;
@@ -862,7 +869,9 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
       endOfReadFlushBuffPeriod(0),
       readFlushBufferCount(0),
       enableReadFlushBuffer(_p.enable_read_flush_buffer),
-      isAlloy(_p.is_alloy)
+      isAlloy(_p.is_alloy),
+      prevCmdAt(0),
+      prevBank(-1)
 {
     DPRINTF(DRAM, "Setting up DRAM Interface\n");
 

@@ -249,15 +249,31 @@ class AbstractMemory : public ClockedObject
         return false;
     }
 
-    typedef std::pair<Tick, unsigned> bSlotEntry;
+    // typedef std::pair<Tick, unsigned> bSlotEntry;
 
-    std::vector<bSlotEntry> availBSlots;
+    class bSlotEntry {
+        public:
+            Tick start;
+            int currBank;
+            int nextBank;
 
-    static bool compareBSlots(bSlotEntry b1, bSlotEntry b2) {return (b1.first < b2.first);}
+            bSlotEntry(Tick _start, int _currBank, int _nextBank):
+            start(_start), currBank(_currBank), nextBank(_nextBank) {}
+    };
+
+    std::vector<bSlotEntry*> availBSlots;
+
+    static bool compareBSlots(bSlotEntry* b1, bSlotEntry* b2) {return (b1->start < b2->start);}
 
     virtual unsigned decodeBank(Addr pkt_addr)
                        {    panic("AbstractMemory decodeBank should not be executed from here.\n");
                             return 2000;
+                       }
+    virtual void insertBSlot(Tick start, int currBank, int nextBank)
+                       {    panic("AbstractMemory insertBSlot should not be executed from here.\n");
+                       }
+    virtual void setNextBank(Tick prevCmdAt, int prevBank, int nextBank)
+                       {    panic("AbstractMemory setNextBank should not be executed from here.\n");
                        }
 
     /**

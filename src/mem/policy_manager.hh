@@ -380,6 +380,9 @@ class PolicyManager : public AbstractMemory
     Tick accessLatency();
     bool findInORB(Addr addr);
     bool tagProb(Addr addr);
+    //static bool compareBSlots(bSlotEntry b1, bSlotEntry b2) override {return (b1.start < b2.start);}
+    void insertBSlot(Tick start, int currBank, int nextBank) override;
+    void setNextBank(Tick prevCmdAt, int prevBank, int nextBank) override;
 
     unsigned countTagCheckInORB();
     unsigned countLocRdInORB();

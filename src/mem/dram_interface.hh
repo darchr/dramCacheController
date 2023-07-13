@@ -712,6 +712,8 @@ class DRAMInterface : public MemInterface
     unsigned readFlushBufferCount;
     bool enableReadFlushBuffer;
     bool isAlloy;
+    Tick prevCmdAt;
+    int prevBank;
 
     bool checkFwdMrgeInFB(Addr addr) override;
 
