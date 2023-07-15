@@ -36,6 +36,7 @@ class MyRubySystem(System):
 
     def __init__(self, kernel, disk, mem_sys, num_cpus, assoc, dcache_size, main_mem_size, policy, is_link, link_lat, opts, restore=False):
         super(MyRubySystem, self).__init__()
+        print("Creating MyRubySystem")
         self._opts = opts
 
         # Use parallel if using KVM. Don't use parallel is restoring cpt

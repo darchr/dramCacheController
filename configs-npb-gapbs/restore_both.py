@@ -145,7 +145,7 @@ def parse_options():
 
 
 def do_analysis():
-    print("Doing analysis! Simulating 100 intervals of 10ms each! \n")
+    print("**************** Doing analysis! Simulating 100 intervals of 10ms each! ********************\n")
     start = time.time()
 
     for interval_number in range(100):
@@ -197,69 +197,49 @@ if __name__ == "__m5_main__":
 
     kernel = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83"
     disk = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb"
-    ckpt_base = "/home/babaie/projects/rambusDesign/x86Fixed/dramCacheController/chkpt_Apr19/"
+    ckpt_base = "/home/babaie/projects/rambusDesign/1gigDRAMCache/dramCacheController/chkpt1GigDC/"
 
     num_cpus = 8
     cpu_type = "Timing"
     mem_sys = "MESI_Two_Level"
 
-    # dcache_size = "512MiB"
-    # mem_size = "8GiB"
-    if args.benchmark in benchmark_choices_npb:
-        checkpoint_dir = (
-            ckpt_base
-            + "NPB/"
-            + args.benchmark.split(".")[0]
-            + "/cpt"
-        )
-    elif args.benchmark.split("-")[1] == "22":
-        checkpoint_dir = (
-            ckpt_base
-            + "GAPBS/"
-            + args.benchmark.split("-")[0]
-            + "/cpt"
-        )
+    dcache_size = "1GB"
+    mem_size = ""
+    checkpoint_dir = ""
 
     if args.benchmark in benchmark_choices_npb:
         if args.benchmark.split(".")[1] == "C":
             checkpoint_dir = (
                 ckpt_base
-                + "128MiB_16GB_g22_nC/NPB/"
+                + "1GB_8GB_g22_nC/NPB/"
                 + args.benchmark.split(".")[0]
                 + "/cpt"
             )
-            dcache_size = "128MiB"
-            mem_size = "16GiB"
+            mem_size = "8GiB"
         elif args.benchmark.split(".")[1] == "D":
             checkpoint_dir = (
                 ckpt_base
-                + "512MiB_85GB_g25_nD/NPB/"
+                + "1GB_85GB_g25_nD/NPB/"
                 + args.benchmark.split(".")[0]
                 + "/cpt"
             )
-            print(args.benchmark)
-            print(ckpt_base)
-            print(checkpoint_dir)
-            dcache_size = "512MiB"
             mem_size = "85GiB"
     else:
         if args.benchmark.split("-")[1] == "22":
             checkpoint_dir = (
                 ckpt_base
-                + "128MiB_16GB_g22_nC/GAPBS/"
+                + "1GB_8GB_g22_nC/GAPBS/"
                 + args.benchmark.split("-")[0]
                 + "/cpt"
             )
-            dcache_size = "128MiB"
-            mem_size = "16GiB"
-        else:
+            mem_size = "8GiB"
+        elif args.benchmark.split("-")[1] == "25":
             checkpoint_dir = (
                 ckpt_base
-                + "512MiB_85GB_g25_nD/GAPBS/"
+                + "1GB_85GB_g25_nD/GAPBS/"
                 + args.benchmark.split("-")[0]
                 + "/cpt"
             )
-            dcache_size = "512MiB"
             mem_size = "85GiB"
 
     benchmark = args.benchmark

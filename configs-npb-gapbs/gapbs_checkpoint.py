@@ -95,14 +95,14 @@ if __name__ == "__m5_main__":
     dcache_size = ""
     mem_size = ""
     if args.graph == "22":
-        dcache_size = "512MiB"
+        dcache_size = "1GiB"
         mem_size = "8GiB"
     elif args.graph == "25":
-        dcache_size = "512MiB"
+        dcache_size = "1GiB"
         mem_size = "85GiB"
-
+    assoc = 1
     # create the system we are going to simulate
-    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, dcache_size, mem_size, args.dcache_policy,
+    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, assoc, dcache_size, mem_size, args.dcache_policy,
                             args.is_link, args.link_lat, args)
 
     system.m5ops_base = 0xffff0000
@@ -152,10 +152,9 @@ if __name__ == "__m5_main__":
 
     m5.stats.reset()
     print("After reset ************************************************ statring smiulation:\n")
-    for interval_number in range(1):
+    for interval_number in range(150):
         print("Interval number: {} \n".format(interval_number))
-        exit_event = m5.simulate(100000000)
-        m5.stats.dump()
+        exit_event = m5.simulate(10000000000)
         if (exit_event.getCause() == "cacheIsWarmedup") :
             print("Caught cacheIsWarmedup exit event!")
             break
