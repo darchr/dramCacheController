@@ -57,4 +57,3 @@
 # build/X86_MESI_Two_Level/gem5.opt -re  --outdir=chkpt1GigDC/1GB_85GB_g25_nD_1halfSec/GAPBS/pr    configs-npb-gapbs/gapbs_checkpoint.py   pr    25 CascadeLakeNoPartWrs 0 0 &
 # build/X86_MESI_Two_Level/gem5.opt -re  --outdir=chkpt1GigDC/1GB_85GB_g25_nD_1halfSec/GAPBS/tc    configs-npb-gapbs/gapbs_checkpoint.py   tc    25 CascadeLakeNoPartWrs 0 0 &
 # build/X86_MESI_Two_Level/gem5.opt -re  --outdir=chkpt1GigDC/1GB_85GB_g25_nD_1halfSec/GAPBS/sssp  configs-npb-gapbs/gapbs_checkpoint.py   sssp  25 CascadeLakeNoPartWrs 0 0 &
-build/X86_MESI_Two_Level/gem5.opt -re --outdir=chkpt1GigDC/1GB_85GB_g25_nD_1halfSec/NPB/ft configs-npb-gapbs/npb_checkpoint.py ft.D.x D CascadeLakeNoPartWrs 0 0

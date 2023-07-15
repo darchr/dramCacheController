@@ -33,7 +33,7 @@ from m5.objects import *
 
 class MyRubySystem(System):
 
-    def __init__(self, mem_sys, num_cpus, opts, restore=False):
+    def __init__(self, mem_sys, num_cpus, assoc, dcache_size, main_mem_size, policy, is_link, link_lat, opts, restore=False):
         super(MyRubySystem, self).__init__()
         self._opts = opts
 
@@ -42,10 +42,10 @@ class MyRubySystem(System):
         self.clk_domain.clock = '5GHz'
         self.clk_domain.voltage_domain = VoltageDomain()
 
-        self.mem_ranges = [AddrRange(Addr('32GiB'))]
+        self.mem_ranges = [AddrRange(Addr(main_mem_size))]
 
         # self.intrctrl = IntrControl()
-        self.createMemoryControllersDDR3()
+        self._createMemoryControllers(assoc, dcache_size, policy, is_link, link_lat)
 
         # Create the cache hierarchy for the system.
         if mem_sys == 'MI_example':
@@ -78,25 +78,22 @@ class MyRubySystem(System):
                                            in_addr_map=False)
 
 
-    def createMemoryControllersDDR3(self):
-        self._createMemoryControllers(1, DDR3_1600_8x8)
-
-    def _createMemoryControllers(self, num, cls):
+    def _createMemoryControllers(self, assoc, dcache_size, policy, is_link, link_lat):
 
         self.mem_ctrl = PolicyManager(range=self.mem_ranges[0], kvm_map=False)
         self.mem_ctrl.static_frontend_latency = "10ns"
         self.mem_ctrl.static_backend_latency = "10ns"
 
-        self.mem_ctrl.loc_mem_policy = "Rambus"
+        self.mem_ctrl.loc_mem_policy = policy
 
-        self.mem_ctrl.assoc = 1
+        self.mem_ctrl.assoc = assoc
 
         # self.mem_ctrl.bypass_dcache = True
 
         # TDRAM cache
         self.loc_mem_ctrl = MemCtrl()
         self.loc_mem_ctrl.consider_oldest_write = True
-        self.loc_mem_ctrl.oldest_write_age_threshold = 1000000000
+        self.loc_mem_ctrl.oldest_write_age_threshold = 5000000
         self.loc_mem_ctrl.dram = TDRAM_32(range=self.mem_ranges[0], in_addr_map=False, kvm_map=False)
 
 
@@ -117,7 +114,7 @@ class MyRubySystem(System):
         self.far_mem_ctrl.port = self.mem_ctrl.far_req_port
 
         self.mem_ctrl.orb_max_size = 128
-        self.mem_ctrl.dram_cache_size = "128MiB"
+        self.mem_ctrl.dram_cache_size = dcache_size
 
         self.loc_mem_ctrl.dram.read_buffer_size = 64
         self.loc_mem_ctrl.dram.write_buffer_size = 64

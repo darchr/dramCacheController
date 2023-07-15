@@ -24,43 +24,60 @@ parser = argparse.ArgumentParser(
 benchmark_choices = ["charlie", "delta", "merced", "whiskey"]
 
 parser.add_argument(
-    "--path",
+    "path",
     type=str,
-    required=True,
     help="Main directory containing the traces.",
 )
 
 parser.add_argument(
-    "--workload",
+    "workload",
     type=str,
-    required=True,
     help="Input the benchmark program to execute.",
     choices=benchmark_choices,
 )
 
 parser.add_argument(
-    "--players",
+    "players",
     type=int,
-    required=True,
     help="Input the number of players to use.",
 )
 
 parser.add_argument(
-    "--dram",
-    type = str,
-    help = "Memory device to use"
+    "dcache_policy",
+    type=str,
+    help="The architecture of DRAM cache: "
+    "CascadeLakeNoPartWrs, Oracle, BearWriteOpt, Rambus",
+)
+parser.add_argument(
+    "assoc",
+    type=int,
+    help="THe associativity of the DRAM cache",
+)
+parser.add_argument(
+    "dcache_size",
+    type=str,
+    help="The size of DRAM cache",
+)
+parser.add_argument(
+    "main_mem_size",
+    type=str,
+    help="The size of main memory",
+)
+parser.add_argument(
+    "is_link",
+    type=int,
+    help="whether to use a link for backing store or not",
+)
+parser.add_argument(
+    "link_lat",
+    type=str,
+    help="latency of the link to backing store"
 )
 
 args = parser.parse_args()
 
-
-MemTypes = {
-    'ddr4_2400' : DDR4_2400_16x4,
-    'hbm_2000' : HBM_2000_4H_1x64,
-}
-
 #system = System()
-system = MyRubySystem("MESI_Two_Level", args.players, args)
+system = MyRubySystem("MESI_Two_Level", args.players, args.assoc, args.dcache_size, args.main_mem_size, args.dcache_policy, args.is_link, args.link_lat, args)
 
 root = Root(full_system=True, system=system)
 
