@@ -170,7 +170,7 @@ if __name__ == "__m5_main__":
 
     m5.stats.reset()
     print("After reset ************************************************ statring smiulation:\n")
-    for interval_number in range(150):
+    for interval_number in range(105):
         print("Interval number: {} \n".format(interval_number))
         exit_event = m5.simulate(10000000000)
         if (exit_event.getCause() == "cacheIsWarmedup") :

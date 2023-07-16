@@ -52,6 +52,7 @@ from info import (
     benchmark_choices_gapbs,
     benchmark_choices_npb,
     interval_info_1hr_512MiB,
+    interval_info_1GBdramCache_3hr,
 )
 
 
@@ -211,7 +212,7 @@ if __name__ == "__m5_main__":
         if args.benchmark.split(".")[1] == "C":
             checkpoint_dir = (
                 ckpt_base
-                + "1GB_8GB_g22_nC/NPB/"
+                + "1GB_8GB_g22_nC_1halfSec/NPB/"
                 + args.benchmark.split(".")[0]
                 + "/cpt"
             )
@@ -219,7 +220,7 @@ if __name__ == "__m5_main__":
         elif args.benchmark.split(".")[1] == "D":
             checkpoint_dir = (
                 ckpt_base
-                + "1GB_85GB_g25_nD/NPB/"
+                + "1GB_85GB_g25_nD_1halfSec/NPB/"
                 + args.benchmark.split(".")[0]
                 + "/cpt"
             )
@@ -228,7 +229,7 @@ if __name__ == "__m5_main__":
         if args.benchmark.split("-")[1] == "22":
             checkpoint_dir = (
                 ckpt_base
-                + "1GB_8GB_g22_nC/GAPBS/"
+                + "1GB_8GB_g22_nC_1halfSec/GAPBS/"
                 + args.benchmark.split("-")[0]
                 + "/cpt"
             )
@@ -236,7 +237,7 @@ if __name__ == "__m5_main__":
         elif args.benchmark.split("-")[1] == "25":
             checkpoint_dir = (
                 ckpt_base
-                + "1GB_85GB_g25_nD/GAPBS/"
+                + "1GB_85GB_g25_nD_1halfSec/GAPBS/"
                 + args.benchmark.split("-")[0]
                 + "/cpt"
             )
@@ -269,7 +270,7 @@ if __name__ == "__m5_main__":
             lplistener.validAddrRangeSize = text_info[args.benchmark][0]
             core.probeListener = lplistener
     else:
-        pc, count = interval_info_1hr[args.benchmark]
+        pc, count = interval_info_1GBdramCache_3hr[args.benchmark]
         system.global_tracker = PcCountTrackerManager(
             targets=[PcCountPair(pc, count)]
         )
