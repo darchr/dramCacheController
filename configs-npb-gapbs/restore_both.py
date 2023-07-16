@@ -141,6 +141,11 @@ def parse_options():
     parser.add_argument(
         "link_lat", type=str, help="latency of the link to backing store"
     )
+    parser.add_argument(
+        "bypass",
+        type=int,
+        help="bypass DRAM cache",
+    )
     parser.add_argument("--do_analysis", action="store_true", default=False)
     return parser.parse_args()
 
@@ -256,6 +261,7 @@ if __name__ == "__m5_main__":
         args.dcache_policy,
         args.is_link,
         args.link_lat,
+        args.bypass,
         args,
         restore=True,
     )
