@@ -34,7 +34,7 @@ from .fs_tools import *
 
 class MyRubySystem(System):
 
-    def __init__(self, kernel, disk, mem_sys, num_cpus, assoc, dcache_size, main_mem_size, policy, is_link, link_lat, bypass, opts, restore=False):
+    def __init__(self, kernel, disk, mem_sys, num_cpus, assoc, dcache_size, main_mem_size, policy, is_link, link_lat, bypass, tRL, opts, restore=False):
         super(MyRubySystem, self).__init__()
         print("Creating MyRubySystem")
         self._opts = opts
@@ -72,7 +72,7 @@ class MyRubySystem(System):
         self.createCPU(num_cpus)
 
         # self.intrctrl = IntrControl()
-        self._createMemoryControllers(assoc, dcache_size, policy, is_link, link_lat, bypass)
+        self._createMemoryControllers(assoc, dcache_size, policy, is_link, link_lat, bypass, tRL)
 
         # Create the cache hierarchy for the system.
         if mem_sys == 'MI_example':
@@ -165,7 +165,7 @@ class MyRubySystem(System):
     def _createKernelMemoryController(self, cls):
         return MemCtrl(dram = cls(range = self.mem_ranges[0], kvm_map = False))
 
-    def _createMemoryControllers(self, assoc, dcache_size, policy, is_link, link_lat, bypass):
+    def _createMemoryControllers(self, assoc, dcache_size, policy, is_link, link_lat, bypass, tRL):
         self.kernel_mem_ctrl = self._createKernelMemoryController(DDR3_1600_8x8)
 
         self.mem_ctrl = PolicyManager(range=self.mem_ranges[2], kvm_map=False)
@@ -217,6 +217,8 @@ class MyRubySystem(System):
 
         self.loc_mem_ctrl.dram.read_buffer_size = 64
         self.loc_mem_ctrl.dram.write_buffer_size = 64
+        self.loc_mem_ctrl.dram.tRL_FAST = tRL
+        self.loc_mem_ctrl.dram.tRCD_FAST = tRL
 
         self.far_mem_ctrl.dram.read_buffer_size = 64
         self.far_mem_ctrl.dram.write_buffer_size = 64

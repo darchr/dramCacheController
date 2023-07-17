@@ -112,7 +112,7 @@ class PolicyManager : public AbstractMemory
     unsigned locBurstSize;
     unsigned farBurstSize;
 
-    enums::Policy locMemPolicy;
+    // enums::Policy locMemPolicy;
 
     /**
      * The following are basic design parameters of the unified
@@ -233,18 +233,18 @@ class PolicyManager : public AbstractMemory
         bool issued;
         bool isHit;
         bool conflict;
-        //bool fbDirtyData = false;
-
-        Addr dirtyLineAddr;
-        bool handleDirtyLine;
-        bool prevDirty = false;
+        bool prevDirty;
         // rcvdRdResp is only used for read misses,
         // since the data response from a tag check 
         // may be received too late 
         // (after rd from far mem & write to loc).
         // Note: writes responds are  very quick, 
         // just an ack with a frontend latency only.
-        bool rcvdRdResp = false;
+        bool rcvdLocRdResp;
+        bool rcvdFarRdResp;
+        Addr dirtyLineAddr;
+        bool handleDirtyLine;
+
 
         // recording the tick when the req transitions into a new stats.
         // The subtract between each two consecutive states entrance ticks,
@@ -270,6 +270,7 @@ class PolicyManager : public AbstractMemory
           PacketPtr _owPkt,
           enums::Policy _pol, reqState _state,
           bool _issued, bool _isHit, bool _conflict,
+          bool _prevDirty, bool _rcvdLocRdResp, bool _rcvdFarRdResp,
           Addr _dirtyLineAddr, bool _handleDirtyLine,
           Tick _tagCheckEntered, Tick _tagCheckIssued, Tick _tagCheckExit,
           Tick _locRdEntered, Tick _locRdIssued, Tick _locRdExit,
@@ -281,6 +282,7 @@ class PolicyManager : public AbstractMemory
         owPkt( _owPkt),
         pol(_pol), state(_state),
         issued(_issued), isHit(_isHit), conflict(_conflict),
+        prevDirty(_prevDirty), rcvdLocRdResp(_rcvdLocRdResp), rcvdFarRdResp(_rcvdFarRdResp),
         dirtyLineAddr(_dirtyLineAddr), handleDirtyLine(_handleDirtyLine),
         tagCheckEntered(_tagCheckEntered), tagCheckIssued(_tagCheckIssued), tagCheckExit(_tagCheckExit),
         locRdEntered(_locRdEntered), locRdIssued(_locRdIssued), locRdExit(_locRdExit),
@@ -379,6 +381,7 @@ class PolicyManager : public AbstractMemory
     PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd, Request::FlagsType flags = 0);
     Tick accessLatency();
     bool findInORB(Addr addr);
+    unsigned findDupInORB(Addr addr);
 
     unsigned countTagCheckInORB();
     unsigned countLocRdInORB();
@@ -482,6 +485,9 @@ class PolicyManager : public AbstractMemory
       statistics::Scalar totTimeTagCheckRes;
       statistics::Scalar totTimeTagCheckResRd;
       statistics::Scalar totTimeTagCheckResWr;
+      statistics::Scalar totTimeTagCheckResRdH;
+      statistics::Scalar totTimeTagCheckResRdMC;
+      statistics::Scalar totTimeTagCheckResRdMD;
       statistics::Scalar totTimeInLocRead;
       statistics::Scalar totTimeInLocWrite;
       statistics::Scalar totTimeInFarRead;
@@ -501,6 +507,9 @@ class PolicyManager : public AbstractMemory
       statistics::Formula avgTimeTagCheckRes;
       statistics::Formula avgTimeTagCheckResRd;
       statistics::Formula avgTimeTagCheckResWr;
+      statistics::Formula avgTimeTagCheckResRdH;
+      statistics::Formula avgTimeTagCheckResRdMC;
+      statistics::Formula avgTimeTagCheckResRdMD;
       statistics::Formula avgTimeInLocRead;
       statistics::Formula avgTimeInLocWrite;
       statistics::Formula avgTimeInFarRead;

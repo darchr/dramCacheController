@@ -163,6 +163,12 @@ class MemPacket
      */
     bool isTagCheck = false;
     Tick tagCheckReady = MaxTick;
+    bool isLocMem = false;
+    Tick BSlotBusyUntil = MaxTick;
+    bool probedRdH = false;
+    bool probedRdMC = false;
+    bool probedRdMD = false;
+
 
 
     /**
@@ -629,6 +635,12 @@ class MemCtrl : public qos::MemCtrl
         statistics::Histogram rdPerTurnAround;
         statistics::Histogram wrPerTurnAround;
 
+        statistics::Scalar noCandidBSlot;
+        statistics::Scalar foundCandidBSlot;
+        statistics::Scalar foundCandidBSlotRH;
+        statistics::Scalar foundCandidBSlotRMC;
+        statistics::Scalar foundCandidBSlotRMD;
+
         statistics::Scalar bytesReadWrQ;
         statistics::Scalar bytesReadSys;
         statistics::Scalar bytesWrittenSys;
@@ -658,6 +670,12 @@ class MemCtrl : public qos::MemCtrl
         // per-requestor raed and write average memory access latency
         statistics::Formula requestorReadAvgLat;
         statistics::Formula requestorWriteAvgLat;
+
+        statistics::Scalar deltaAbSlotRdH;
+        statistics::Scalar deltaAbSlotRdMD;
+
+        statistics::Formula avgDeltaAbSlotRdH;
+        statistics::Formula avgDeltaAbSlotRdMD;
     };
 
     CtrlStats stats;
@@ -823,6 +841,12 @@ class MemCtrl : public qos::MemCtrl
     void accessAndRespond(PacketPtr pkt, Tick static_latency) { accessAndRespond(pkt, static_latency, dram); }
 
     void updateOldestWriteAge();
+
+    bool findCandidateForBSlot(MemPacket* AslotPkt);
+
+    void handleTCforBSlotPkt(MemPacketQueue::iterator BslotPktIt, Tick BSlotTagBankBusyUntil);
+
+    MemPacketQueue::iterator searchReadQueueForBSlot(MemPacketQueue& queue, MemPacket* AslotPkt);
 
     Port &getPort(const std::string &if_name,
                   PortID idx=InvalidPortID) override;

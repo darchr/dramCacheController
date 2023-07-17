@@ -146,6 +146,11 @@ def parse_options():
         type=int,
         help="bypass DRAM cache",
     )
+    parser.add_argument(
+        "tRL",
+        type=str,
+        help="tRL",
+    )
     parser.add_argument("--do_analysis", action="store_true", default=False)
     return parser.parse_args()
 
@@ -185,7 +190,7 @@ def run():
     for interval_number in range(100):
         print("Interval number: {}".format(interval_number))
         exit_event = m5.simulate(10_000_000_000)  # 10 ms
-        #m5.stats.dump()
+        # m5.stats.dump()
 
         if exit_event.getCause() != "simulate() limit reached":
             if (
@@ -262,6 +267,7 @@ if __name__ == "__m5_main__":
         args.is_link,
         args.link_lat,
         args.bypass,
+        args.tRL,
         args,
         restore=True,
     )
