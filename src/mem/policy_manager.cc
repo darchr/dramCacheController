@@ -38,6 +38,7 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     cacheWarmupRatio(p.cache_warmup_ratio),
     infoCacheWarmupRatio(0.05),
     resetStatsWarmup(false),
+    bypassInsertOnExclusive(p.bypass_on_exclusive),
     prevArrival(0),
     retryLLC(false), retryLLCFarMemWr(false),
     retryTagCheck(false), retryLocMemRead(false), retryFarMemRead(false),
@@ -970,6 +971,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->conflict,
                                                 orbEntry->dirtyLineAddr,
                                                 orbEntry->handleDirtyLine,
+                                                orbEntry->bypassInsert,
                                                 orbEntry->tagCheckEntered,
                                                 orbEntry->tagCheckIssued,
                                                 orbEntry->tagCheckExit,
@@ -1095,6 +1097,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->conflict,
                                                 orbEntry->dirtyLineAddr,
                                                 orbEntry->handleDirtyLine,
+                                                orbEntry->bypassInsert,
                                                 orbEntry->tagCheckEntered,
                                                 orbEntry->tagCheckIssued,
                                                 orbEntry->tagCheckExit,
@@ -1190,51 +1193,58 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
         orbEntry->state == waitingFarMemReadResp &&
         !orbEntry->isHit) {
 
-            PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
-                                             false,
-                                             orbEntry->owPkt->isRead());
-
             accessAndRespond(orbEntry->owPkt,
                              frontendLatency + backendLatency + backendLatency);
 
-            ORB.at(copyOwPkt->getAddr()) = new reqBufferEntry(
-                                                orbEntry->validEntry,
-                                                orbEntry->arrivalTick,
-                                                orbEntry->tagDC,
-                                                orbEntry->indexDC,
-                                                orbEntry->wayNum,
-                                                copyOwPkt,
-                                                orbEntry->pol,
-                                                orbEntry->state,
-                                                orbEntry->issued,
-                                                orbEntry->isHit,
-                                                orbEntry->conflict,
-                                                orbEntry->dirtyLineAddr,
-                                                orbEntry->handleDirtyLine,
-                                                orbEntry->tagCheckEntered,
-                                                orbEntry->tagCheckIssued,
-                                                orbEntry->tagCheckExit,
-                                                orbEntry->locRdEntered,
-                                                orbEntry->locRdIssued,
-                                                orbEntry->locRdExit,
-                                                orbEntry->locWrEntered,
-                                                orbEntry->locWrIssued,
-                                                orbEntry->locWrExit,
-                                                orbEntry->farRdEntered,
-                                                orbEntry->farRdIssued,
-                                                orbEntry->farRdExit);
-            delete orbEntry;
+            if (orbEntry->bypassInsert) {
+                polManStats.numBypassInsert++;
+                orbEntry->locWrExit = curTick();
+                orbEntry->state = waitingLocMemWriteResp;
+            } else {
 
-            orbEntry = ORB.at(copyOwPkt->getAddr());
+                PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
+                                                false,
+                                                orbEntry->owPkt->isRead());
+
+                ORB.at(copyOwPkt->getAddr()) = new reqBufferEntry(
+                                                    orbEntry->validEntry,
+                                                    orbEntry->arrivalTick,
+                                                    orbEntry->tagDC,
+                                                    orbEntry->indexDC,
+                                                    orbEntry->wayNum,
+                                                    copyOwPkt,
+                                                    orbEntry->pol,
+                                                    orbEntry->state,
+                                                    orbEntry->issued,
+                                                    orbEntry->isHit,
+                                                    orbEntry->conflict,
+                                                    orbEntry->dirtyLineAddr,
+                                                    orbEntry->handleDirtyLine,
+                                                    orbEntry->bypassInsert,
+                                                    orbEntry->tagCheckEntered,
+                                                    orbEntry->tagCheckIssued,
+                                                    orbEntry->tagCheckExit,
+                                                    orbEntry->locRdEntered,
+                                                    orbEntry->locRdIssued,
+                                                    orbEntry->locRdExit,
+                                                    orbEntry->locWrEntered,
+                                                    orbEntry->locWrIssued,
+                                                    orbEntry->locWrExit,
+                                                    orbEntry->farRdEntered,
+                                                    orbEntry->farRdIssued,
+                                                    orbEntry->farRdExit);
+                delete orbEntry;
+
+                orbEntry = ORB.at(copyOwPkt->getAddr());
+
+                orbEntry->state = locMemWrite;
+                DPRINTF(PolicyManager, "set: waitingFarMemReadResp -> locMemWrite : %d\n", orbEntry->owPkt->getAddr());
+            }
 
             polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
             polManStats.totPktRespTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
 
-            orbEntry->state = locMemWrite;
-
             orbEntry->locWrEntered = curTick();
-
-            DPRINTF(PolicyManager, "set: waitingFarMemReadResp -> locMemWrite : %d\n", orbEntry->owPkt->getAddr());
 
             return;
     }
@@ -1319,47 +1329,55 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
             assert(orbEntry->owPkt->isRead());
             assert(!orbEntry->isHit);
 
-            PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
-                                             false,
-                                             orbEntry->owPkt->isRead());
-
             accessAndRespond(orbEntry->owPkt,
                              frontendLatency + backendLatency + backendLatency);
 
-            ORB.at(copyOwPkt->getAddr()) = new reqBufferEntry(
-                                                orbEntry->validEntry,
-                                                orbEntry->arrivalTick,
-                                                orbEntry->tagDC,
-                                                orbEntry->indexDC,
-                                                orbEntry->wayNum,
-                                                copyOwPkt,
-                                                orbEntry->pol,
-                                                orbEntry->state,
-                                                orbEntry->issued,
-                                                orbEntry->isHit,
-                                                orbEntry->conflict,
-                                                orbEntry->dirtyLineAddr,
-                                                orbEntry->handleDirtyLine,
-                                                orbEntry->tagCheckEntered,
-                                                orbEntry->tagCheckIssued,
-                                                orbEntry->tagCheckExit,
-                                                orbEntry->locRdEntered,
-                                                orbEntry->locRdIssued,
-                                                orbEntry->locRdExit,
-                                                orbEntry->locWrEntered,
-                                                orbEntry->locWrIssued,
-                                                orbEntry->locWrExit,
-                                                orbEntry->farRdEntered,
-                                                orbEntry->farRdIssued,
-                                                orbEntry->farRdExit);
-            delete orbEntry;
+            if (orbEntry->bypassInsert) {
+                polManStats.numBypassInsert++;
+                orbEntry->locWrExit = curTick();
+                orbEntry->state = waitingLocMemWriteResp;
+            } else {
 
-            orbEntry = ORB.at(copyOwPkt->getAddr());
+                PacketPtr copyOwPkt = new Packet(orbEntry->owPkt,
+                                                false,
+                                                orbEntry->owPkt->isRead());
+
+                ORB.at(copyOwPkt->getAddr()) = new reqBufferEntry(
+                                                    orbEntry->validEntry,
+                                                    orbEntry->arrivalTick,
+                                                    orbEntry->tagDC,
+                                                    orbEntry->indexDC,
+                                                    orbEntry->wayNum,
+                                                    copyOwPkt,
+                                                    orbEntry->pol,
+                                                    orbEntry->state,
+                                                    orbEntry->issued,
+                                                    orbEntry->isHit,
+                                                    orbEntry->conflict,
+                                                    orbEntry->dirtyLineAddr,
+                                                    orbEntry->handleDirtyLine,
+                                                    orbEntry->bypassInsert,
+                                                    orbEntry->tagCheckEntered,
+                                                    orbEntry->tagCheckIssued,
+                                                    orbEntry->tagCheckExit,
+                                                    orbEntry->locRdEntered,
+                                                    orbEntry->locRdIssued,
+                                                    orbEntry->locRdExit,
+                                                    orbEntry->locWrEntered,
+                                                    orbEntry->locWrIssued,
+                                                    orbEntry->locWrExit,
+                                                    orbEntry->farRdEntered,
+                                                    orbEntry->farRdIssued,
+                                                    orbEntry->farRdExit);
+                delete orbEntry;
+
+                orbEntry = ORB.at(copyOwPkt->getAddr());
+
+                orbEntry->state = locMemWrite;
+            }
 
             polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
             polManStats.totPktRespTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
-
-            orbEntry->state = locMemWrite;
 
             orbEntry->locWrEntered = curTick();
 
@@ -1426,6 +1444,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->conflict,
                                                 orbEntry->dirtyLineAddr,
                                                 orbEntry->handleDirtyLine,
+                                                orbEntry->bypassInsert,
                                                 orbEntry->tagCheckEntered,
                                                 orbEntry->tagCheckIssued,
                                                 orbEntry->tagCheckExit,
@@ -1543,6 +1562,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->conflict,
                                                 orbEntry->dirtyLineAddr,
                                                 orbEntry->handleDirtyLine,
+                                                orbEntry->bypassInsert,
                                                 orbEntry->tagCheckEntered,
                                                 orbEntry->tagCheckIssued,
                                                 orbEntry->tagCheckExit,
@@ -1657,6 +1677,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->conflict,
                                                 orbEntry->dirtyLineAddr,
                                                 orbEntry->handleDirtyLine,
+                                                orbEntry->bypassInsert,
                                                 orbEntry->tagCheckEntered,
                                                 orbEntry->tagCheckIssued,
                                                 orbEntry->tagCheckExit,
@@ -1780,6 +1801,7 @@ PolicyManager::handleNextState(reqBufferEntry* orbEntry)
                                                 orbEntry->conflict,
                                                 orbEntry->dirtyLineAddr,
                                                 orbEntry->handleDirtyLine,
+                                                orbEntry->bypassInsert,
                                                 orbEntry->tagCheckEntered,
                                                 orbEntry->tagCheckIssued,
                                                 orbEntry->tagCheckExit,
@@ -1887,6 +1909,8 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
                                 locMemPolicy, start,
                                 false, false, false,
                                 -1, false,
+                                pkt->isExpressSnoop() && 
+                                    bypassInsertOnExclusive,
                                 MaxTick, MaxTick, MaxTick,
                                 MaxTick, MaxTick, MaxTick,
                                 MaxTick, MaxTick, MaxTick,
@@ -1942,6 +1966,7 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
                                             orbEntry->conflict,
                                             orbEntry->dirtyLineAddr,
                                             orbEntry->handleDirtyLine,
+                                            orbEntry->bypassInsert,
                                             orbEntry->tagCheckEntered,
                                             orbEntry->tagCheckIssued,
                                             orbEntry->tagCheckExit,
@@ -2239,8 +2264,12 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
                 Addr confAddr = entry.second->getAddr();
 
                 ORB.erase(orbEntry->owPkt->getAddr());
-
-                delete orbEntry->owPkt;
+                
+                if (orbEntry->bypassInsert && bypassInsertOnExclusive) {
+                    // don't delete the pkt because we used it to send a response.
+                } else {
+                    delete orbEntry->owPkt;
+                }
 
                 delete orbEntry;
 
@@ -2266,7 +2295,11 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
 
         ORB.erase(orbEntry->owPkt->getAddr());
 
-        delete orbEntry->owPkt;
+        if (orbEntry->bypassInsert && bypassInsertOnExclusive) {
+            // don't delete the pkt because we used it to send a response.
+        } else {
+            delete orbEntry->owPkt;
+        }
 
         delete orbEntry;
 
@@ -2769,6 +2802,7 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
     ADD_STAT(numRdHitClean, statistics::units::Count::get(), "stat"),
     ADD_STAT(numWrHitDirty, statistics::units::Count::get(), "stat"),
     ADD_STAT(numWrHitClean, statistics::units::Count::get(), "stat"),
+    ADD_STAT(numBypassInsert, statistics::units::Count::get(), "stat"),
 
     ADD_STAT(missRatio,  statistics::units::Rate<
                 statistics::units::Count, statistics::units::Count>::get(), "stat"),

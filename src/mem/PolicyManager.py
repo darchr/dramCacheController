@@ -42,3 +42,6 @@ class PolicyManager(AbstractMemory):
     bypass_dcache = Param.Bool(False, "if the DRAM cache needs to be bypassed")
 
     replacement_policy = Param.BaseReplacementPolicy(LRURP(), "Replacement policy")
+
+    bypass_on_exclusive = Param.Bool(False, "Bypass DRAM cache insert on"
+                                     " exclusive requests")

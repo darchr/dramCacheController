@@ -925,7 +925,7 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
     // conservative estimate of when we have to schedule the next
     // request to not introduce any unecessary bubbles. In most cases
     // we will wake up sooner than we have to.
-    mem_intr->nextReqTime = mem_intr->nextBurstAt - mem_intr->commandOffset();
+    mem_intr->nextReqTime = std::min(mem_intr->nextBurstAt, mem_intr->commandOffset());
 
     // Update the common bus stats
     if (mem_pkt->isRead()) {

@@ -309,6 +309,7 @@ machine(MachineType:Directory, "MESI Two Level directory protocol")
   action(qf_queueMemoryFetchRequest, "qf", desc="Queue off-chip fetch request") {
     peek(requestNetwork_in, RequestMsg) {
       enqueue(memQueue_out, MemoryMsg, to_mem_ctrl_latency) {
+        out_msg.ReadX := in_msg.Type == CoherenceRequestType:GETX;
         out_msg.addr := address;
         out_msg.Type := MemoryRequestType:MEMORY_READ;
         out_msg.Sender := in_msg.Requestor;

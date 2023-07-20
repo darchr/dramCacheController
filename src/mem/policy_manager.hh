@@ -162,6 +162,8 @@ class PolicyManager : public AbstractMemory
     float infoCacheWarmupRatio;
     bool resetStatsWarmup;
 
+    bool bypassInsertOnExclusive;
+
     Tick prevArrival;
 
     std::unordered_set<Addr> isInWriteQueue;
@@ -237,6 +239,7 @@ class PolicyManager : public AbstractMemory
 
         Addr dirtyLineAddr;
         bool handleDirtyLine;
+        bool bypassInsert;
         bool prevDirty = false;
         // rcvdRdResp is only used for read misses,
         // since the data response from a tag check 
@@ -271,6 +274,7 @@ class PolicyManager : public AbstractMemory
           enums::Policy _pol, reqState _state,
           bool _issued, bool _isHit, bool _conflict,
           Addr _dirtyLineAddr, bool _handleDirtyLine,
+          bool _bypass_insert,
           Tick _tagCheckEntered, Tick _tagCheckIssued, Tick _tagCheckExit,
           Tick _locRdEntered, Tick _locRdIssued, Tick _locRdExit,
           Tick _locWrEntered, Tick _locWrIssued, Tick _locWrExit,
@@ -282,6 +286,7 @@ class PolicyManager : public AbstractMemory
         pol(_pol), state(_state),
         issued(_issued), isHit(_isHit), conflict(_conflict),
         dirtyLineAddr(_dirtyLineAddr), handleDirtyLine(_handleDirtyLine),
+        bypassInsert(_bypass_insert),
         tagCheckEntered(_tagCheckEntered), tagCheckIssued(_tagCheckIssued), tagCheckExit(_tagCheckExit),
         locRdEntered(_locRdEntered), locRdIssued(_locRdIssued), locRdExit(_locRdExit),
         locWrEntered(_locWrEntered), locWrIssued(_locWrIssued), locWrExit(_locWrExit),
@@ -523,6 +528,7 @@ class PolicyManager : public AbstractMemory
       statistics::Scalar numRdHitClean;
       statistics::Scalar numWrHitDirty;
       statistics::Scalar numWrHitClean;
+      statistics::Scalar numBypassInsert;
 
       statistics::Formula missRatio;
       statistics::Formula dirtyRatio;

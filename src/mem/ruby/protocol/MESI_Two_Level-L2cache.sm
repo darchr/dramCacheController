@@ -285,6 +285,16 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     }
   }
 
+  CoherenceRequestType getForwardType(RequestMsg in_msg) {
+    if (in_msg.Type == CoherenceRequestType:GETX || in_msg.Type == CoherenceRequestType:UPGRADE) {
+      return CoherenceRequestType:GETX;
+    } else if (in_msg.Type == CoherenceRequestType:GET_INSTR || in_msg.Type == CoherenceRequestType:GETS) {
+      return CoherenceRequestType:GETS;
+    } else {
+      error("Unknown message type for forwarding to memory");
+    }
+  }
+
   int getPendingAcks(TBE tbe) {
     return tbe.pendingAcks;
   }
@@ -411,7 +421,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(DirRequestL2Network_out, RequestMsg, l2_request_latency) {
         out_msg.addr := address;
-        out_msg.Type := CoherenceRequestType:GETS;
+        out_msg.Type := getForwardType(in_msg);
         out_msg.Requestor := machineID;
         out_msg.Destination.add(mapAddressToMachine(address, MachineType:Directory));
         out_msg.MessageSize := MessageSizeType:Control;
