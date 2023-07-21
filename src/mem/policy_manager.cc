@@ -141,6 +141,19 @@ PolicyManager::findInORB(Addr addr)
     return found;
 }
 
+unsigned
+PolicyManager::findDupInORB(Addr addr)
+{
+    unsigned count=0;
+    for (const auto& e : ORB) {
+        if (e.second->owPkt->getAddr() == addr) {
+
+           count++;
+        }
+    }
+    return count;
+}
+
 void
 PolicyManager::init()
 {
@@ -420,7 +433,6 @@ PolicyManager::processTagCheckEvent()
     auto orbEntry = ORB.at(pktTagCheck.front());
     assert(orbEntry->pol == enums::Rambus);
     assert(orbEntry->validEntry);
-    findInORB(orbEntry->owPkt->getAddr());
     assert(orbEntry->state == tagCheck);
     assert(!orbEntry->issued);
 
@@ -2015,14 +2027,12 @@ PolicyManager::checkConflictInORB(PacketPtr pkt)
             sameIndex.push_back(e->first);
         }
     }
-
     if (sameIndex.size() == assoc) {
         for (int i=0; i<assoc; i++) {
             ORB.at(sameIndex.at(i))->conflict = true;
         }
         return true;
     }
-
     return false;
 }
 
@@ -2964,7 +2974,6 @@ PolicyManager::unserialize(CheckpointIn &cp)
             }
         }
     }
-    //std::cout << "Counters: " << num_entries << " , " << countInvalid << " , " << countValid << "\n";
 }
 
 int

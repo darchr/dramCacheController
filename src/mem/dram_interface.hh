@@ -514,6 +514,7 @@ class DRAMInterface : public MemInterface
     const Tick tRTW_int;
     const Tick tRFBD;
     const Tick tRCD_FAST;
+    const Tick tRC_FAST;
     float flushBufferHighThreshold;
     const Tick clkResyncDelay;
     const bool dataClockSync;
@@ -601,6 +602,14 @@ class DRAMInterface : public MemInterface
         statistics::Scalar totPktsPushedFB;
         statistics::Scalar maxFBLenEnq;
         statistics::Scalar refSchdRFB;
+        statistics::Scalar noCandidBSlot;
+        statistics::Scalar noCandidBSlotRH;
+        statistics::Scalar noCandidBSlotRMC;
+        statistics::Scalar noCandidBSlotRMD;
+        statistics::Scalar foundCandidBSlot;
+        statistics::Scalar foundCandidBSlotRH;
+        statistics::Scalar foundCandidBSlotRMC;
+        statistics::Scalar foundCandidBSlotRMD;
 
         /** DRAM per bank stats */
         statistics::Vector perBankRdBursts;
@@ -860,6 +869,10 @@ class DRAMInterface : public MemInterface
     void chooseRead(MemPacketQueue& queue) override { }
     bool writeRespQueueFull() const override { return false;}
 
+    Tick nextTagActAvailability(unsigned rankNumber, unsigned bankNumber) override { return ranks[rankNumber]->banks[bankNumber].tagActAllowedAt; }
+    Tick getTRCFAST() override { return tRC_FAST;}
+    void updateTagActAllowed(unsigned rankNumber, unsigned bankNumber) override { ranks[rankNumber]->banks[bankNumber].tagActAllowedAt += tRC_FAST;}
+    
     DRAMInterface(const DRAMInterfaceParams &_p);
 };
 

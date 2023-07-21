@@ -97,6 +97,7 @@ class MemInterface : public AbstractMemory
         Tick wrAllowedAt;
         Tick preAllowedAt;
         Tick actAllowedAt;
+        Tick tagActAllowedAt = 0;
 
         uint32_t rowAccesses;
         uint32_t bytesAccessed;
@@ -408,6 +409,16 @@ class MemInterface : public AbstractMemory
         panic("MemInterface writeRespQueueFull (NVM) "
         "should not be executed from here.\n");
     }
+
+    virtual Tick nextTagActAvailability(unsigned rankNumber, unsigned bankNumber)
+        { panic("MemInterface nextTagActAvailability should not be executed from here.\n"); }
+
+    virtual Tick getTRCFAST()
+        { panic("MemInterface getTRCFAST should not be executed from here.\n"); }
+
+    virtual void updateTagActAllowed(unsigned rankNumber, unsigned bankNumber)
+        { panic("MemInterface updateTagActAllowed should not be executed from here.\n"); }
+       
 
     typedef MemInterfaceParams Params;
     MemInterface(const Params &_p);
