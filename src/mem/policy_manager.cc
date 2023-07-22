@@ -20,7 +20,7 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     farReqPort(name() + ".far_req_port", *this),
     locBurstSize(p.loc_burst_size),
     farBurstSize(p.far_burst_size),
-    locMemPolicy(p.loc_mem_policy),
+    // locMemPolicy(p.loc_mem_policy),
     locMem(p.loc_mem),
     replacementPolicy(p.replacement_policy),
     dramCacheSize(p.dram_cache_size),
@@ -51,6 +51,10 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     polManStats(*this)
 {
     panic_if(orbMaxSize<8, "ORB maximum size must be at least 8.\n");
+
+    locMemPolicy = p.loc_mem_policy;
+
+    std::cout << "******************************************************DRAM cache policy is set to: " << locMemPolicy << " " << p.loc_mem_policy << "\n";
 
     locMem->setPolicyManager(this);
 
@@ -139,6 +143,19 @@ PolicyManager::findInORB(Addr addr)
     }
 
     return found;
+}
+
+unsigned
+PolicyManager::findDupInORB(Addr addr)
+{
+    unsigned count=0;
+    for (const auto& e : ORB) {
+        if (e.second->owPkt->getAddr() == addr) {
+
+           count++;
+        }
+    }
+    return count;
 }
 
 void
@@ -420,7 +437,6 @@ PolicyManager::processTagCheckEvent()
     auto orbEntry = ORB.at(pktTagCheck.front());
     assert(orbEntry->pol == enums::Rambus);
     assert(orbEntry->validEntry);
-    findInORB(orbEntry->owPkt->getAddr());
     assert(orbEntry->state == tagCheck);
     assert(!orbEntry->issued);
 
@@ -438,6 +454,7 @@ PolicyManager::processTagCheckEvent()
     }
 
     tagCheckPktPtr->isTagCheck = true;
+    tagCheckPktPtr->isLocMem = true;
     tagCheckPktPtr->owIsRead = orbEntry->owPkt->isRead();
     tagCheckPktPtr->isHit = orbEntry->isHit;
     tagCheckPktPtr->isDirty = orbEntry->prevDirty;
@@ -490,7 +507,7 @@ PolicyManager::processLocMemReadEvent()
     PacketPtr rdLocMemPkt = getPacket(pktLocMemRead.front(),
                                    blockSize,
                                    MemCmd::ReadReq);
-
+    rdLocMemPkt->isLocMem = true;
     if (locReqPort.sendTimingReq(rdLocMemPkt)) {
         DPRINTF(PolicyManager, "loc mem read is sent : %lld--> %d, %d, %d, %d, %d, %d\n", rdLocMemPkt->getAddr(), ORB.size(), pktLocMemRead.size(),
         pktLocMemWrite.size(), pktFarMemRead.size(), pktFarMemWrite.size(), CRB.size());
@@ -525,6 +542,7 @@ PolicyManager::processLocMemWriteEvent()
     PacketPtr wrLocMemPkt = getPacket(pktLocMemWrite.front(),
                                    blockSize,
                                    MemCmd::WriteReq);
+    wrLocMemPkt->isLocMem = true;
     assert(!wrLocMemPkt->isTagCheck);
 
     if (locReqPort.sendTimingReq(wrLocMemPkt)) {
@@ -2015,14 +2033,12 @@ PolicyManager::checkConflictInORB(PacketPtr pkt)
             sameIndex.push_back(e->first);
         }
     }
-
     if (sameIndex.size() == assoc) {
         for (int i=0; i<assoc; i++) {
             ORB.at(sameIndex.at(i))->conflict = true;
         }
         return true;
     }
-
     return false;
 }
 
@@ -2964,7 +2980,6 @@ PolicyManager::unserialize(CheckpointIn &cp)
             }
         }
     }
-    //std::cout << "Counters: " << num_entries << " , " << countInvalid << " , " << countValid << "\n";
 }
 
 int

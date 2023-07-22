@@ -49,15 +49,13 @@ system.generator = PyTrafficGen()
 system.mem_ctrl = PolicyManager(range=AddrRange('3GiB'))
 
 system.mem_ctrl.orb_max_size = 128
-system.mem_ctrl.assoc = 8
+system.mem_ctrl.assoc = 1
 system.mem_ctrl.static_frontend_latency = "10ns"
 system.mem_ctrl.static_backend_latency = "10ns"
 
 system.loc_mem_ctrl = MemCtrl()
 system.loc_mem_ctrl.dram = TDRAM_32(range=AddrRange('3GiB'), in_addr_map=False, null=True)
-system.loc_mem_ctrl.dram.activation_limit = 8
-system.loc_mem_ctrl.dram.addr_mapping = 'RoCoRaBaCh'
-system.mem_ctrl.loc_mem_policy = 'Rambus'
+system.mem_ctrl.loc_mem_policy = 'RambusTagProbOpt'
 
 system.mem_ctrl.loc_mem = system.loc_mem_ctrl.dram
 system.loc_mem_ctrl.static_frontend_latency = "1ns"
@@ -87,7 +85,7 @@ if options.clean_dirty == 1:
 else :
     system.mem_ctrl.always_dirty = False
 
-system.mem_ctrl.dram_cache_size = "32MiB"
+system.mem_ctrl.dram_cache_size = "128MiB"
 
 system.generator.port = system.mem_ctrl.port
 system.loc_mem_ctrl.port = system.mem_ctrl.loc_req_port
@@ -105,7 +103,7 @@ def createRandomTraffic(tgen):
     yield tgen.createExit(0)
 
 def createLinearTraffic(tgen):
-    yield tgen.createLinear(30000000000,            # duration
+    yield tgen.createLinear(10000000000,            # duration
                             0,                      # min_addr
                             AddrRange('3GiB').end,  # max_adr
                             64,                     # block_size

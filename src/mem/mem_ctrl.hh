@@ -163,6 +163,7 @@ class MemPacket
      */
     bool isTagCheck = false;
     Tick tagCheckReady = MaxTick;
+    bool isLocMem = false;
 
 
     /**
@@ -629,6 +630,12 @@ class MemCtrl : public qos::MemCtrl
         statistics::Histogram rdPerTurnAround;
         statistics::Histogram wrPerTurnAround;
 
+        statistics::Scalar noCandidBSlot;
+        statistics::Scalar foundCandidBSlot;
+        statistics::Scalar foundCandidBSlotRH;
+        statistics::Scalar foundCandidBSlotRMC;
+        statistics::Scalar foundCandidBSlotRMD;
+
         statistics::Scalar bytesReadWrQ;
         statistics::Scalar bytesReadSys;
         statistics::Scalar bytesWrittenSys;
@@ -823,6 +830,10 @@ class MemCtrl : public qos::MemCtrl
     void accessAndRespond(PacketPtr pkt, Tick static_latency) { accessAndRespond(pkt, static_latency, dram); }
 
     void updateOldestWriteAge();
+
+    bool findCandidateForBSlot(MemPacket* AslotPkt, Tick BSlotTagAllowedAt);
+
+    MemPacketQueue::iterator searchReadQueueForBSlot(MemPacketQueue& queue, MemPacket* AslotPkt, Tick BSlotTagAllowedAt);
 
     Port &getPort(const std::string &if_name,
                   PortID idx=InvalidPortID) override;

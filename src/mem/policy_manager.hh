@@ -112,7 +112,7 @@ class PolicyManager : public AbstractMemory
     unsigned locBurstSize;
     unsigned farBurstSize;
 
-    enums::Policy locMemPolicy;
+    // enums::Policy locMemPolicy;
 
     /**
      * The following are basic design parameters of the unified
@@ -379,6 +379,7 @@ class PolicyManager : public AbstractMemory
     PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd, Request::FlagsType flags = 0);
     Tick accessLatency();
     bool findInORB(Addr addr);
+    unsigned findDupInORB(Addr addr);
 
     unsigned countTagCheckInORB();
     unsigned countLocRdInORB();

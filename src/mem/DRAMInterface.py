@@ -187,11 +187,12 @@ class DRAMInterface(MemInterface):
     tXSDLL = Param.Latency("0ns", "Self-refresh exit latency DLL")
 
     tTAGBURST = Param.Latency("0ns", "tRL_FAST")
-    tRLFAST   = Param.Latency("0ns", "tRL_FAST")
+    tRL_FAST   = Param.Latency("0ns", "tRL_FAST")
     tHM2DQ    = Param.Latency("0ns", "tHM2DQ")
     tRTW_int  = Param.Latency("0ns", "tRTW_int")
     tRFBD     = Param.Latency("0ns", "tRFBD")
     tRCD_FAST = Param.Latency("0ns", "tRCD_FAST")
+    tRC_FAST  = Param.Latency("0ns", "tRCD_FAST")
     flushBuffer_high_thresh_perc = Param.Percent(0, "Threshold to force writes")
 
     # number of data beats per clock. with DDR, default is 2, one per edge
@@ -1303,11 +1304,12 @@ class TDRAM(DRAMInterface):
 
     # new
     tTAGBURST = "1ns"
-    tRLFAST = "1ns"
+    tRL_FAST = "1ns"
     tHM2DQ = "1ns"
     tRTW_int = "2ns"
     tRFBD = "2ns"
     tRCD_FAST = "7.5ns"
+    tRC_FAST = "10.5ns"
     enable_read_flush_buffer = True
     flushBuffer_high_thresh_perc = 80
 
@@ -1389,7 +1391,7 @@ class TDRAM_32(DRAMInterface):
 
     # new
     tTAGBURST = "0.5ns"
-    tRLFAST = "7.5ns"
+    tRL_FAST = "7.5ns"
     tHM2DQ = "0ns"
     tRTW_int = "1ns"
     tRFBD = "1ns"
