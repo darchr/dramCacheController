@@ -62,6 +62,7 @@ namespace memory
 std::pair<MemPacketQueue::iterator, Tick>
 DRAMInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
 {
+    DPRINTF(DRAM, "in dram->chooseNextFRFCFS func\n");
     std::vector<uint32_t> earliest_banks(ranksPerChannel, 0);
 
     // Has minBankPrep been called to populate earliest_banks?
@@ -618,35 +619,47 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         }
 
     } else {
-        assert(mem_pkt->tagCheckReady == MaxTick);
+        // assert(mem_pkt->tagCheckReady == MaxTick);
         if (mem_pkt->isRead()) {
             mem_pkt->readyTime = cmd_at + tRL + tBURST;
+            if (polMan->locMemPolicy == enums::RambusTagProbOpt &&
+                mem_pkt->isLocMem && mem_pkt->pkt->isDirty) {
+                // a probed Rd Miss Dirty
+                assert(!mem_pkt->pkt->isTagCheck);
+                mem_pkt->pkt->hasDirtyData = true;
+            }
         } else {
             mem_pkt->readyTime = cmd_at + tWL + tBURST;
         }
     }
 
-    // Tag probing B slot comes here
-    // for now we only prob for read requests
+    // Tag probing B slot comes here.
+    // For now we only prob for read requests.
+    // NOTE: both tag check packets and regular packets can reach here. Thus:
+    // some mem_pkt may not have a pkt pointer, like fills!
     if (polMan->locMemPolicy == enums::RambusTagProbOpt && mem_pkt->isLocMem) {
-        Tick BSlotTagAllowedAt = MaxTick;
+        Tick BSlotTagBankBusyAt = MaxTick;
         if (mem_pkt->isTagCheck) {
-            BSlotTagAllowedAt = bank_ref.tagActAllowedAt + tRC_FAST;
+            BSlotTagBankBusyAt = bank_ref.tagActAllowedAt + tRC_FAST;
         } else {
-            BSlotTagAllowedAt = act_at + tRC_FAST;
+            BSlotTagBankBusyAt = act_at + tRC_FAST;
         }
 
-        DPRINTF(DRAM, "Start probing for B slot: end of tag bank busy for B slot: %d", BSlotTagAllowedAt);
-
-        bool found = ctrl->findCandidateForBSlot(mem_pkt, BSlotTagAllowedAt);
-
-        DPRINTF(MemCtrl, "A slot: found: %d, A slot Addr: %d, IsRead: %d, IsHit: %d: IsDirty: %d\n", found,
-        mem_pkt->pkt->getAddr(), mem_pkt->pkt->owIsRead, mem_pkt->pkt->isHit, mem_pkt->pkt->isDirty);
+        DPRINTF(DRAM, "Start probing for B slot: Aslot addr: %d , end of tag bank busy for B slot: %d\n", mem_pkt->getAddr(), BSlotTagBankBusyAt);
+        bool found = ctrl->findCandidateForBSlot(mem_pkt, BSlotTagBankBusyAt);
+        DPRINTF(DRAM, "A slot: found: %d, A slot Addr: %d, IsRead: %d, IsTagCheck: %d\n",
+        found, mem_pkt->getAddr(), mem_pkt->isRead(), mem_pkt->isTagCheck);
+        
+        if (found) {
+            stats.foundCandidBSlot++;
+        } else {
+            stats.noCandidBSlot++;
+        }
     }
 
 
     DPRINTF(DRAMT, "curr pkt, addr: %d, isRd: %d, isTC: %d, bank %d, row %d, act: %d, RdAlw: %d, WrAlw: %d, cmd: %d, rdy: %d\n", 
-    mem_pkt->addr, mem_pkt->pkt->isRead(), mem_pkt->pkt->isTagCheck, (unsigned) mem_pkt->bank, (unsigned) mem_pkt->row,
+    mem_pkt->getAddr(), mem_pkt->isRead(), mem_pkt->isTagCheck, (unsigned) mem_pkt->bank, (unsigned) mem_pkt->row,
     act_at/1000, bank_ref.rdAllowedAt/1000, bank_ref.wrAllowedAt/1000, cmd_at/1000, mem_pkt->readyTime/1000);
 
     rank_ref.lastBurstTick = cmd_at;
@@ -848,12 +861,12 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 }
 
 void
-DRAMInterface::updateTagActAllowed(unsigned rankNumber, unsigned bankNumber, Tick BSlotTagAllowedAt) 
+DRAMInterface::updateTagActAllowed(unsigned rankNumber, unsigned bankNumber, Tick BSlotTagBankBusyAt) 
 {
-    assert(BSlotTagAllowedAt!=MaxTick);
-    ranks[rankNumber]->banks[bankNumber].tagActAllowedAt = BSlotTagAllowedAt;
+    assert(BSlotTagBankBusyAt!=MaxTick);
+    ranks[rankNumber]->banks[bankNumber].tagActAllowedAt = BSlotTagBankBusyAt;
     DPRINTF(DRAM, "updateTagFunc tagActAllowedAt change, rank/bank %d/%d -- tagActAllowedAt: %d\n",
-        rankNumber, bankNumber, BSlotTagAllowedAt);
+        rankNumber, bankNumber, BSlotTagBankBusyAt);
 }
 
 void
@@ -2370,7 +2383,12 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
              "Row buffer hit rate, read and write combined"),
 
     ADD_STAT(hitMissBusUtil, statistics::units::Ratio::get(),
-             "Hit/Miss bus utilization")
+             "Hit/Miss bus utilization"),
+    
+    ADD_STAT(noCandidBSlot, statistics::units::Count::get(),
+             " "),
+    ADD_STAT(foundCandidBSlot, statistics::units::Count::get(),
+             " ")
 {
 }
 

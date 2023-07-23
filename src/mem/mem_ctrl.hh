@@ -831,9 +831,11 @@ class MemCtrl : public qos::MemCtrl
 
     void updateOldestWriteAge();
 
-    bool findCandidateForBSlot(MemPacket* AslotPkt, Tick BSlotTagAllowedAt);
+    bool findCandidateForBSlot(MemPacket* AslotPkt, Tick BSlotTagBankBusyAt);
 
-    MemPacketQueue::iterator searchReadQueueForBSlot(MemPacketQueue& queue, MemPacket* AslotPkt, Tick BSlotTagAllowedAt);
+    void handleTCforBSlotPkt(MemPacketQueue::iterator BslotPktIt, Tick BSlotTagBankBusyAt);
+
+    MemPacketQueue::iterator searchReadQueueForBSlot(MemPacketQueue& queue, MemPacket* AslotPkt, Tick BSlotTagBankBusyAt);
 
     Port &getPort(const std::string &if_name,
                   PortID idx=InvalidPortID) override;

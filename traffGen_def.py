@@ -62,6 +62,8 @@ system.loc_mem_ctrl.static_frontend_latency = "1ns"
 system.loc_mem_ctrl.static_backend_latency = "1ns"
 system.loc_mem_ctrl.static_frontend_latency_tc = "0ns"
 system.loc_mem_ctrl.static_backend_latency_tc = "0ns"
+system.loc_mem_ctrl.consider_oldest_write = True
+system.loc_mem_ctrl.oldest_write_age_threshold = 2500000
 
 system.far_mem_ctrl = MemCtrl()
 system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('3GiB'),in_addr_map=False, null=True)

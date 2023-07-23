@@ -654,6 +654,9 @@ class DRAMInterface : public MemInterface
         statistics::Formula busUtilWrite;
         statistics::Formula pageHitRate;
         statistics::Formula hitMissBusUtil;
+
+        statistics::Scalar noCandidBSlot;
+        statistics::Scalar foundCandidBSlot;
     };
 
     DRAMStats stats;
@@ -866,8 +869,12 @@ class DRAMInterface : public MemInterface
       { return ranks[rankNumber]->banks[bankNumber].tagActAllowedAt; }
     
     Tick getTRCFAST() override { return tRC_FAST;}
+
+    Tick getTRLFAST() override { return tRL_FAST;}
+
+    Tick getTRCDFAST() override { return tRCD_FAST;}
     
-    void updateTagActAllowed(unsigned rankNumber, unsigned bankNumber, Tick BSlotTagAllowedAt) override;
+    void updateTagActAllowed(unsigned rankNumber, unsigned bankNumber, Tick BSlotTagBankBusyAt) override;
     
     DRAMInterface(const DRAMInterfaceParams &_p);
 };
