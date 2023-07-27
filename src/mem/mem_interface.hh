@@ -97,14 +97,14 @@ class MemInterface : public AbstractMemory
         Tick wrAllowedAt;
         Tick preAllowedAt;
         Tick actAllowedAt;
-        Tick tagActAllowedAt;
+        Tick tagActAllowedAt = 0;
 
         uint32_t rowAccesses;
         uint32_t bytesAccessed;
 
         Bank() :
             openRow(NO_ROW), bank(0), bankgr(0),
-            rdAllowedAt(0), wrAllowedAt(0), preAllowedAt(0), actAllowedAt(0), tagActAllowedAt(0),
+            rdAllowedAt(0), wrAllowedAt(0), preAllowedAt(0), actAllowedAt(0),
             rowAccesses(0), bytesAccessed(0)
         { }
     };
@@ -416,7 +416,7 @@ class MemInterface : public AbstractMemory
     virtual Tick getTRCFAST()
         { panic("MemInterface getTRCFAST should not be executed from here.\n"); }
 
-    virtual void updateTagActAllowed(unsigned rankNumber, unsigned bankNumber, Tick BSlotTagAllowedAt)
+    virtual void updateTagActAllowed(unsigned rankNumber, unsigned bankNumber)
         { panic("MemInterface updateTagActAllowed should not be executed from here.\n"); }
        
 

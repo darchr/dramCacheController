@@ -163,7 +163,6 @@ class MemPacket
      */
     bool isTagCheck = false;
     Tick tagCheckReady = MaxTick;
-    bool isLocMem = false;
 
 
     /**
@@ -629,12 +628,6 @@ class MemCtrl : public qos::MemCtrl
         statistics::Vector wrQLenPdf;
         statistics::Histogram rdPerTurnAround;
         statistics::Histogram wrPerTurnAround;
-
-        statistics::Scalar noCandidBSlot;
-        statistics::Scalar foundCandidBSlot;
-        statistics::Scalar foundCandidBSlotRH;
-        statistics::Scalar foundCandidBSlotRMC;
-        statistics::Scalar foundCandidBSlotRMD;
 
         statistics::Scalar bytesReadWrQ;
         statistics::Scalar bytesReadSys;

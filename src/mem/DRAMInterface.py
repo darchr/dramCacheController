@@ -187,7 +187,7 @@ class DRAMInterface(MemInterface):
     tXSDLL = Param.Latency("0ns", "Self-refresh exit latency DLL")
 
     tTAGBURST = Param.Latency("0ns", "tRL_FAST")
-    tRL_FAST   = Param.Latency("0ns", "tRL_FAST")
+    tRLFAST   = Param.Latency("0ns", "tRL_FAST")
     tHM2DQ    = Param.Latency("0ns", "tHM2DQ")
     tRTW_int  = Param.Latency("0ns", "tRTW_int")
     tRFBD     = Param.Latency("0ns", "tRFBD")
@@ -1305,7 +1305,7 @@ class TDRAM(DRAMInterface):
 
     # new
     tTAGBURST = "1ns"
-    tRL_FAST = "1ns"
+    tRLFAST = "1ns"
     tHM2DQ = "1ns"
     tRTW_int = "2ns"
     tRFBD = "2ns"
@@ -1392,7 +1392,7 @@ class TDRAM_32(DRAMInterface):
 
     # new
     tTAGBURST = "0.5ns"
-    tRL_FAST = "7.5ns"
+    tRLFAST = "7.5ns"
     tHM2DQ = "0ns"
     tRTW_int = "1ns"
     tRFBD = "1ns"

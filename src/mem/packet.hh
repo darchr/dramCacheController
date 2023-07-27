@@ -298,7 +298,6 @@ class Packet : public Printable, public Extensible<Packet>
     typedef gem5::Flags<FlagsType> Flags;
 
     bool isTagCheck = false;
-    bool isLocMem = false;
     bool owIsRead = false;
     bool isHit = false;
     bool isDirty = false;

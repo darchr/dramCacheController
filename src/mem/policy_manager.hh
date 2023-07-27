@@ -112,7 +112,7 @@ class PolicyManager : public AbstractMemory
     unsigned locBurstSize;
     unsigned farBurstSize;
 
-    // enums::Policy locMemPolicy;
+    enums::Policy locMemPolicy;
 
     /**
      * The following are basic design parameters of the unified
