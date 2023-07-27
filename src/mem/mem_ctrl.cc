@@ -281,9 +281,13 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
             readQueue[mem_pkt->qosValue()].push_back(mem_pkt);
 
             // log packet
+            DPRINTF(MemCtrl, "logRequest rd: %d %d %x\n",
+            pkt->requestorId(),
+            pkt->qosValue(), mem_pkt->addr);
+
             logRequest(MemCtrl::READ, pkt->requestorId(),
                        pkt->qosValue(), mem_pkt->addr, 1);
-
+            
             mem_intr->readQueueSize++;
 
             // Update stats
@@ -358,9 +362,13 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
             isInWriteQueue.insert(burstAlign(addr, mem_intr));
           
             // log packet
+            DPRINTF(MemCtrl, "logRequest wr: %d %d %x\n",
+            pkt->requestorId(),
+            pkt->qosValue(), mem_pkt->addr);
+
             logRequest(MemCtrl::WRITE, pkt->requestorId(),
                        pkt->qosValue(), mem_pkt->addr, 1);
-
+            
             mem_intr->writeQueueSize++;
 
             //assert(totalWriteQueueSize == isInWriteQueue.size());
@@ -1119,6 +1127,8 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
             auto mem_pkt = *to_read;
 
+            DPRINTF(MemCtrl, "Read pkt chosen before doburst: %x\n", mem_pkt->getAddr());
+
             Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
 
             if (mem_pkt->isTagCheck) {
@@ -1127,17 +1137,22 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             }
 
             DPRINTF(MemCtrl,
-            "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
+            "Command for %x, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
             // sanity check
             assert(pktSizeCheck(mem_pkt, mem_intr));
             assert(mem_pkt->readyTime >= curTick());
 
             // log the response
+            DPRINTF(MemCtrl, "logResponse rd1: %d %d %x %d\n",
+            (*to_read)->requestorId(),
+            mem_pkt->qosValue(), mem_pkt->getAddr(),
+            mem_pkt->readyTime - mem_pkt->entryTime);
+
             logResponse(MemCtrl::READ, (*to_read)->requestorId(),
                         mem_pkt->qosValue(), mem_pkt->getAddr(), 1,
                         mem_pkt->readyTime - mem_pkt->entryTime);
-
+            
             mem_intr->readQueueSize--;
 
             // Insert into response queue. It will be sent back to the
@@ -1165,7 +1180,24 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
             // remove the request from the queue
             // the iterator is no longer valid .
+            std::cout << "a: " << readQueue[mem_pkt->qosValue()].size() << " --> ";
+            for (auto i : readQueue[mem_pkt->qosValue()]) {
+                std::cout << i->pkt->getAddr() << "  " << i->pkt->isRead() <<
+            "  " << mem_pkt->pkt->isHit << "  " << mem_pkt->pkt->isDirty << " / ";
+            }
+            std::cout << "\n";
+            std::cout << "1**: " << (*to_read)->getAddr()  << " // " << mem_pkt->getAddr() << "\n";
+            (*to_read) = mem_pkt;
+            std::cout << "2**: " << (*to_read)->getAddr()  << " // " << mem_pkt->getAddr() << "\n";
+            assert((*to_read)->getAddr() == mem_pkt->getAddr());
             readQueue[mem_pkt->qosValue()].erase(to_read);
+
+            std::cout << "b: " << readQueue[mem_pkt->qosValue()].size() << " --> ";
+            for (auto i : readQueue[mem_pkt->qosValue()]) {
+                std::cout << i->pkt->getAddr() << "  " << i->pkt->isRead() <<
+            "  " << mem_pkt->pkt->isHit << "  " << mem_pkt->pkt->isDirty << " / ";
+            }
+            std::cout << "\n";   
         }
 
         // switching to writes, either because the read queue is empty
@@ -1219,13 +1251,12 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         // sanity check
         assert(pktSizeCheck(mem_pkt, mem_intr));
 
+        DPRINTF(MemCtrl, "Write pkt chosen before doburst: %x\n", mem_pkt->getAddr());
+
         Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
 
         DPRINTF(MemCtrl,
-        "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
-
-        DPRINTF(DRAMT,
-        "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
+        "Command for %x, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
         if (mem_pkt->isTagCheck) {
                 DPRINTF(MemCtrl, "write times: %x, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
@@ -1236,10 +1267,15 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         isInWriteQueue.erase(burstAlign(mem_pkt->addr, mem_intr));
 
         // log the response
+        DPRINTF(MemCtrl, "logResponse wr1: %d %d %x %d\n",
+                mem_pkt->requestorId(),
+                mem_pkt->qosValue(), mem_pkt->getAddr(),
+                mem_pkt->readyTime - mem_pkt->entryTime);
+
         logResponse(MemCtrl::WRITE, mem_pkt->requestorId(),
                     mem_pkt->qosValue(), mem_pkt->getAddr(), 1,
                     mem_pkt->readyTime - mem_pkt->entryTime);
-
+        
         mem_intr->writeQueueSize--;
 
         // remove the request from the queue - the iterator is no longer valid
@@ -1314,7 +1350,7 @@ MemCtrl::pktSizeCheck(MemPacket* mem_pkt, MemInterface* mem_intr) const
 bool
 MemCtrl::findCandidateForBSlot(MemPacket* AslotPkt, Tick BSlotTagBankBusyAt)
 {
-    DPRINTF(MemCtrl, "findCandidateForBSlot: Aslot addr: %d, BSlotTagBankBusyAt: %d, readQ size: %d\n",
+    DPRINTF(MemCtrl, "findCandidateForBSlot: Aslot addr: %x, BSlotTagBankBusyAt: %d, readQ size: %d\n",
     AslotPkt->getAddr(), BSlotTagBankBusyAt, readQueue[AslotPkt->qosValue()].size());
 
     assert(BSlotTagBankBusyAt != MaxTick);
@@ -1329,7 +1365,7 @@ MemCtrl::findCandidateForBSlot(MemPacket* AslotPkt, Tick BSlotTagBankBusyAt)
             // A proper candidate for B slot is found!
             auto BslotPkt = *BslotPktIt;
             dram->updateTagActAllowed(BslotPkt->rank, BslotPkt->bank, BSlotTagBankBusyAt);
-            DPRINTF(MemCtrl, "B slot found: Addr A: %d, isRead: %d/// Addr B: %d, IsRead: %d, IsHit: %d: IsDirty: %d\n",
+            DPRINTF(MemCtrl, "B slot found: Addr A: %x, isRead: %d/// Addr B: %x, IsRead: %d, IsHit: %d: IsDirty: %d\n",
             AslotPkt->getAddr(), AslotPkt->isRead(), BslotPkt->getAddr(), BslotPkt->pkt->owIsRead, BslotPkt->pkt->isHit, BslotPkt->pkt->isDirty);
             
             handleTCforBSlotPkt(BslotPktIt, BSlotTagBankBusyAt);
@@ -1354,7 +1390,7 @@ MemCtrl::findCandidateForBSlot(MemPacket* AslotPkt, Tick BSlotTagBankBusyAt)
 MemPacketQueue::iterator
 MemCtrl::searchReadQueueForBSlot(MemPacketQueue& queue, MemPacket* AslotPkt, Tick BSlotTagBankBusyAt)
 {
-    DPRINTF(MemCtrl, "searchReadQueueForBSlot: Aslot addr: %d, BSlotTagBankBusyAt: %d\n",
+    DPRINTF(MemCtrl, "searchReadQueueForBSlot: Aslot addr: %x, BSlotTagBankBusyAt: %x\n",
     AslotPkt->getAddr(), BSlotTagBankBusyAt);
 
     MemPacketQueue::iterator youngest = queue.end();
@@ -1392,7 +1428,7 @@ MemCtrl::handleTCforBSlotPkt(MemPacketQueue::iterator BslotPktIt, Tick BSlotTagB
         sendTagCheckRespond(BslotPkt);
         BslotPkt->isTagCheck = false;
         BslotPkt->pkt->isTagCheck = false;
-        DPRINTF(MemCtrl, "Done, Rd Hit successfully probed for TC, curTick: %d, adr: %d, tagCheckReady: %d\n", curTick(), BslotPkt->pkt->getAddr(), BslotPkt->tagCheckReady);        
+        DPRINTF(MemCtrl, "Done, Rd Hit successfully probed for TC, curTick: %d, adr: %x, tagCheckReady: %d\n", curTick(), BslotPkt->pkt->getAddr(), BslotPkt->tagCheckReady);        
         
         return;
     }
@@ -1406,15 +1442,21 @@ MemCtrl::handleTCforBSlotPkt(MemPacketQueue::iterator BslotPktIt, Tick BSlotTagB
         BslotPkt->pkt->isTagCheck = false;
 
         // log the response
-        logResponse(MemCtrl::READ, (*BslotPktIt)->requestorId(),
-                    BslotPkt->qosValue(), BslotPkt->getAddr(), 1,
+        DPRINTF(MemCtrl, "logResponse rd2: %d %d %x %d\n",
+        BslotPkt->pkt->requestorId(),
+        BslotPkt->pkt->qosValue(), BslotPkt->addr,
+        BslotPkt->tagCheckReady - BslotPkt->entryTime);
+
+        logResponse(MemCtrl::READ, BslotPkt->pkt->requestorId(),
+                    BslotPkt->pkt->qosValue(), BslotPkt->addr, 1,
                     BslotPkt->tagCheckReady - BslotPkt->entryTime);
+        
         dram->readQueueSize--;
         
         //remove the packet from read queue
         readQueue[BslotPkt->qosValue()].erase(BslotPktIt);
         
-        DPRINTF(MemCtrl, "Done, Rd Miss Clean successfully probed for TC, curTick: %d, adr: %d, tagCheckReady: %d, readQ size:%d\n",
+        DPRINTF(MemCtrl, "Done, Rd Miss Clean successfully probed for TC, curTick: %d, adr: %x, tagCheckReady: %d, readQ size:%d\n",
                           curTick(), BslotPkt->pkt->getAddr(), BslotPkt->tagCheckReady, readQueue[BslotPkt->qosValue()].size());        
         delete BslotPkt->pkt;
         delete BslotPkt;
@@ -1427,7 +1469,7 @@ MemCtrl::handleTCforBSlotPkt(MemPacketQueue::iterator BslotPktIt, Tick BSlotTagB
         sendTagCheckRespond(BslotPkt);
         BslotPkt->isTagCheck = false;
         BslotPkt->pkt->isTagCheck = false;
-        DPRINTF(MemCtrl, "Done, Rd Miss Dirty successfully probed for TC, curTick: %d, adr: %d, tagCheckReady: %d\n",
+        DPRINTF(MemCtrl, "Done, Rd Miss Dirty successfully probed for TC, curTick: %d, adr: %x, tagCheckReady: %d\n",
                 curTick(), BslotPkt->pkt->getAddr(), BslotPkt->tagCheckReady);
         return;
     }

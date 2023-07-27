@@ -373,9 +373,11 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     // a power-up event?
     // if so, wake up from power down to issue RD/WR burst
     if (rank_ref.inLowPowerState) {
+        std::cout<< "here-e\n";
         assert(rank_ref.pwrState != PWR_SREF);
         rank_ref.scheduleWakeUpEvent(tXP);
     }
+    std::cout<< "here-d\n";
 
     // get the bank
     Bank& bank_ref = rank_ref.banks[mem_pkt->bank];
@@ -385,8 +387,10 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
     // Determine the access latency and update the bank state
     if (bank_ref.openRow == mem_pkt->row) {
+        std::cout<< "here-c\n";
         // nothing to do
     } else {
+        std::cout<< "here-b\n";
         row_hit = false;
 
         // If there is a page open, precharge it.
@@ -397,7 +401,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
         // next we need to account for the delay in activating the page
         Tick act_tick;
-        if (polMan->locMemPolicy == enums::RambusTagProbOpt) {
+        if (polMan->locMemPolicy == enums::RambusTagProbOpt && mem_pkt->isLocMem) {
             act_tick = std::max(std::max(bank_ref.tagActAllowedAt, bank_ref.actAllowedAt), curTick());
 
             if (bank_ref.tagActAllowedAt > bank_ref.actAllowedAt && bank_ref.tagActAllowedAt > curTick()) {
@@ -410,6 +414,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         // Record the activation and deal with all the global timing
         // constraints caused be a new activation (tRRD and tXAW)
         act_at = activateBank(rank_ref, bank_ref, act_tick, mem_pkt->row, mem_pkt->isTagCheck);
+        std::cout<< "here-a\n";
     }
 
     // respect any constraints on the command (e.g. tRCD or tCCD)
@@ -447,11 +452,13 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         }
     }
 
-        DPRINTF(DRAM, "Schedule RD/WR burst at tick %d\n", cmd_at);
+    DPRINTF(DRAM, "Schedule RD/WR burst at tick %d\n", cmd_at);
 
     // update the packet ready time
     Tick stall_delay = 0;
     if(mem_pkt->isTagCheck) {
+
+        assert(mem_pkt->isLocMem);
         
         // Calculating the tag check ready time
         if (mem_pkt->pkt->owIsRead) {
@@ -623,9 +630,10 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         if (mem_pkt->isRead()) {
             mem_pkt->readyTime = cmd_at + tRL + tBURST;
             if (polMan->locMemPolicy == enums::RambusTagProbOpt &&
-                mem_pkt->isLocMem && mem_pkt->pkt->isDirty) {
+                mem_pkt->isLocMem &&
+                !mem_pkt->pkt->isHit &&
+                mem_pkt->pkt->isDirty) {
                 // a probed Rd Miss Dirty
-                assert(!mem_pkt->pkt->isTagCheck);
                 mem_pkt->pkt->hasDirtyData = true;
             }
         } else {

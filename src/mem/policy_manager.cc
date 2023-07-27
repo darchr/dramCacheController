@@ -649,16 +649,11 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
         assert(pkt->owIsRead);
         assert(!pkt->isHit);
         handleDirtyCacheLine(pkt->dirtyLineAddr);
-        std::cout << "here-c\n";
         if (pkt->isDirty && locMemPolicy == enums::RambusTagProbOpt) {
-            std::cout << "here-d: " << pkt->getAddr() <<"\n";
             auto orbEntry = ORB.at(pkt->getAddr());
-            std::cout << "here-e\n";
             assert(!orbEntry->rcvdLocRdResp);
             orbEntry->rcvdLocRdResp = true;
-            std::cout << "here-i\n";
             if (orbEntry->rcvdLocRdResp && orbEntry->rcvdFarRdResp) {
-                std::cout << "here-f\n";
                 orbEntry->state = locMemWrite;
                 orbEntry->locWrEntered = curTick();
                 orbEntry->issued = false;
@@ -800,9 +795,7 @@ PolicyManager::farMemRecvTimingResp(PacketPtr pkt)
     DPRINTF(PolicyManager, "farMemRecvTimingResp : %lld , %s \n", pkt->getAddr(), pkt->cmdString());
 
     if (pkt->isRead()) {
-        std::cout << "here-a: " << pkt->getAddr() <<"\n";
         auto orbEntry = ORB.at(pkt->getAddr());
-        std::cout << "here-b\n";
 
         DPRINTF(PolicyManager, "farMemRecvTimingResp : continuing to far read resp: %d\n",
         orbEntry->owPkt->isRead());
@@ -813,7 +806,6 @@ PolicyManager::farMemRecvTimingResp(PacketPtr pkt)
             !orbEntry->isHit && orbEntry->prevDirty) {
             assert(!orbEntry->rcvdFarRdResp);
             orbEntry->rcvdFarRdResp = true;
-            std::cout << "here-h\n";
         }
 
         orbEntry->farRdExit = curTick();
@@ -1513,7 +1505,6 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
 
             accessAndRespond(orbEntry->owPkt,
                              frontendLatency + backendLatency + backendLatency);
-            std::cout << "prev: " << orbEntry->prevDirty << "\n";
             ORB.at(copyOwPkt->getAddr()) = new reqBufferEntry(
                                                 orbEntry->validEntry,
                                                 orbEntry->arrivalTick,
@@ -1546,22 +1537,15 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
             delete orbEntry;
 
             orbEntry = ORB.at(copyOwPkt->getAddr());
-            std::cout << "after: " << orbEntry->prevDirty << "\n";
 
             polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
             polManStats.totPktRespTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
 
             if (orbEntry->prevDirty && orbEntry->rcvdLocRdResp && orbEntry->rcvdFarRdResp) {
                 orbEntry->state = locMemWrite;
-                std::cout << "here-g\n";
                 orbEntry->locWrEntered = curTick();
             } else if (!orbEntry->prevDirty) {
                 orbEntry->state = locMemWrite;
-                std::cout << "here-j: " << 
-                orbEntry->owPkt->getAddr() << ", " <<
-                orbEntry->owPkt->cmdString() << ", "<<
-                orbEntry->prevDirty << "\n";
-                orbEntry->locWrEntered = curTick();
             }
 
             return;
