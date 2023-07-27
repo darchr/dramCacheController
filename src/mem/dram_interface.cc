@@ -394,7 +394,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         }
 
         // next we need to account for the delay in activating the page
-        Tick act_tick = std::max(std::max(bank_ref.tagActAllowedAt, bank_ref.actAllowedAt), curTick());
+        Tick act_tick = std::max(bank_ref.actAllowedAt, curTick());
 
         // Record the activation and deal with all the global timing
         // constraints caused be a new activation (tRRD and tXAW)
@@ -441,7 +441,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     // update the packet ready time
     Tick stall_delay = 0;
     if(mem_pkt->isTagCheck) {
-        
+
         // Calculating the tag check ready time
         if (mem_pkt->pkt->owIsRead) {
             mem_pkt->tagCheckReady = cmd_at - tRCD_RD + tRCD_FAST + tRLFAST;
@@ -449,8 +449,6 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             mem_pkt->tagCheckReady = cmd_at - tRCD_RD - tRTW_int + tRCD_FAST + tRLFAST;
         }
         stats.tagResBursts++;
-
-        bank_ref.tagActAllowedAt = mem_pkt->tagCheckReady - tRLFAST - tRCD_FAST + tRC_FAST;
 
         // tag is sent back only for Rd Miss Cleans, for other cases tag is already known.
         if (!mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
@@ -600,39 +598,6 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             stats.totMemAccLatWrTC += mem_pkt->readyTime - mem_pkt->entryTime;
             stats.totQLatWrTC += cmd_at - mem_pkt->entryTime;
             stats.totBusLatWrTC += tBURST;
-        }
-
-        // Tag probing B slot comes here
-        // for now we only prob for read requests
-        if (mem_pkt->pkt->owIsRead) {
-            Tick BSlotTagAllowedAt = mem_pkt->tagCheckReady - tRLFAST + tRC_FAST;
-            bool found = ctrl->findCandidateForBSlot(mem_pkt, BSlotTagAllowedAt);
-
-            if (found) {
-                stats.foundCandidBSlot++;
-
-                if (mem_pkt->pkt->owIsRead && mem_pkt->pkt->isHit) {
-                    stats.foundCandidBSlotRH++;
-                } else if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && !mem_pkt->pkt->isDirty) {
-                    stats.foundCandidBSlotRMC++;
-                } else if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
-                    stats.foundCandidBSlotRMD++;
-                }
-
-            } else {
-                stats.noCandidBSlot++;
-
-                if (mem_pkt->pkt->owIsRead && mem_pkt->pkt->isHit) {
-                    stats.noCandidBSlotRH++;
-                } else if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && !mem_pkt->pkt->isDirty) {
-                    stats.noCandidBSlotRMC++;
-                } else if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
-                    stats.noCandidBSlotRMD++;
-                }
-            }
-
-            DPRINTF(MemCtrl, "A slot: TC packets only, found: %d, Addr: %d, IsRead: %d, IsHit: %d: IsDirty: %d\n", found,
-            mem_pkt->pkt->getAddr(), mem_pkt->pkt->owIsRead, mem_pkt->pkt->isHit, mem_pkt->pkt->isDirty);
         }
 
     } else {
@@ -878,7 +843,6 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
       tXAW(_p.tXAW), tXP(_p.tXP), tXS(_p.tXS),
       tTAGBURST(_p.tTAGBURST), tRLFAST(_p.tRLFAST), tHM2DQ(_p.tHM2DQ),
       tRTW_int(_p.tRTW_int), tRFBD(_p.tRFBD), tRCD_FAST(_p.tRCD_FAST),
-      tRC_FAST(_p.tRC_FAST),
       flushBufferHighThreshold(_p.flushBuffer_high_thresh_perc / 100.0),
       flushBufferSize(_p.flush_buffer_size),
       clkResyncDelay(_p.tBURST_MAX),
@@ -2263,34 +2227,6 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
              "Maximum flush buffer length when enqueuing"),
     ADD_STAT(refSchdRFB, statistics::units::Count::get(),
              "Maximum flush buffer length when enqueuing"),
-
-    ADD_STAT(noCandidBSlot, statistics::units::Count::get(),
-             " "),
-    ADD_STAT(noCandidBSlotRH, statistics::units::Count::get(),
-             " "),
-    ADD_STAT(noCandidBSlotRMC, statistics::units::Count::get(),
-             " "),
-    ADD_STAT(noCandidBSlotRMD, statistics::units::Count::get(),
-             " "),
-    ADD_STAT(foundCandidBSlot, statistics::units::Count::get(),
-             " "),
-    ADD_STAT(foundCandidBSlotRH, statistics::units::Count::get(),
-             " "),
-    ADD_STAT(foundCandidBSlotRMC, statistics::units::Count::get(),
-             " "),
-    ADD_STAT(foundCandidBSlotRMD, statistics::units::Count::get(),
-             " "),
-
-
-
-
-
-
-
-
-
-
-    
     ADD_STAT(perBankRdBursts, statistics::units::Count::get(),
              "Per bank write bursts"),
     ADD_STAT(perBankWrBursts, statistics::units::Count::get(),

@@ -192,7 +192,6 @@ class DRAMInterface(MemInterface):
     tRTW_int  = Param.Latency("0ns", "tRTW_int")
     tRFBD     = Param.Latency("0ns", "tRFBD")
     tRCD_FAST = Param.Latency("0ns", "tRCD_FAST")
-    tRC_FAST  = Param.Latency("0ns", "tRCD_FAST")
     flushBuffer_high_thresh_perc = Param.Percent(0, "Threshold to force writes")
     flush_buffer_size = Param.Unsigned(0, "flush buffer size")
 
@@ -1310,7 +1309,6 @@ class TDRAM(DRAMInterface):
     tRTW_int = "2ns"
     tRFBD = "2ns"
     tRCD_FAST = "7.5ns"
-    tRC_FAST = "10.5ns"
     enable_read_flush_buffer = True
     flushBuffer_high_thresh_perc = 80
 

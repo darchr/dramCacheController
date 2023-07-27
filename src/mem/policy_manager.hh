@@ -379,7 +379,6 @@ class PolicyManager : public AbstractMemory
     PacketPtr getPacket(Addr addr, unsigned size, const MemCmd& cmd, Request::FlagsType flags = 0);
     Tick accessLatency();
     bool findInORB(Addr addr);
-    unsigned findDupInORB(Addr addr);
 
     unsigned countTagCheckInORB();
     unsigned countLocRdInORB();

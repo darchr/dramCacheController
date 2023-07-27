@@ -1306,51 +1306,6 @@ MemCtrl::pktSizeCheck(MemPacket* mem_pkt, MemInterface* mem_intr) const
     return (mem_pkt->size <= mem_intr->bytesPerBurst());
 }
 
-bool
-MemCtrl::findCandidateForBSlot(MemPacket* AslotPkt, Tick BSlotTagAllowedAt)
-{
-    MemPacketQueue::iterator BslotPktIt;
-    for (auto queue = readQueue.rbegin();
-              queue != readQueue.rend(); ++queue) {
-        BslotPktIt = searchReadQueueForBSlot((*queue), AslotPkt, BSlotTagAllowedAt);
-
-        if (BslotPktIt != queue->end()) {
-            auto BslotPkt = *BslotPktIt;
-            dram->updateTagActAllowed(BslotPkt->rank, BslotPkt->bank);
-            DPRINTF(MemCtrl, "B slot: TC packets only, Addr: %d, IsRead: %d, IsHit: %d: IsDirty: %d\n",
-            BslotPkt->pkt->getAddr(), BslotPkt->pkt->owIsRead, BslotPkt->pkt->isHit, BslotPkt->pkt->isDirty);
-            return true;
-        }
-    }
-
-    return false;
-
-}
-
-MemPacketQueue::iterator
-MemCtrl::searchReadQueueForBSlot(MemPacketQueue& queue, MemPacket* AslotPkt, Tick BSlotTagAllowedAt)
-{
-    MemPacketQueue::iterator youngest = queue.end();
-
-    for (auto i = queue.begin(); i != queue.end() ; ++i) {
-        MemPacket* BslotPkt = *i;
-        if (BslotPkt->isTagCheck && BslotPkt != AslotPkt) {
-            Tick actAllowedAt = dram->nextTagActAvailability(BslotPkt->rank, BslotPkt->bank);
-            if (BSlotTagAllowedAt >= actAllowedAt + dram->getTRCFAST()) {
-                auto prev_mem_pkt = *youngest;
-                if (youngest == queue.end()) {
-                    youngest = i;
-                } else if (BslotPkt->entryTime > prev_mem_pkt->entryTime) {
-                        youngest = i;
-                }
-            }
-        }
-    }
-
-    return youngest;
-
-}
-
 MemCtrl::CtrlStats::CtrlStats(MemCtrl &_ctrl)
     : statistics::Group(&_ctrl),
     ctrl(_ctrl),
