@@ -194,6 +194,7 @@ class DRAMInterface(MemInterface):
     tRCD_FAST = Param.Latency("0ns", "tRCD_FAST")
     tRC_FAST  = Param.Latency("0ns", "tRCD_FAST")
     flushBuffer_high_thresh_perc = Param.Percent(0, "Threshold to force writes")
+    flush_buffer_size = Param.Unsigned(0, "flush buffer size")
 
     # number of data beats per clock. with DDR, default is 2, one per edge
     # used in drampower.cc
@@ -1398,6 +1399,7 @@ class TDRAM_32(DRAMInterface):
     tRCD_FAST = "7.5ns"
     enable_read_flush_buffer = True
     flushBuffer_high_thresh_perc = 80
+    flush_buffer_size = 32
 
     tRP = "14ns"
 

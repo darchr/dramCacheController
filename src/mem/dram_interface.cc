@@ -564,7 +564,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
                 tempFlushBuffer.push_back(std::make_pair(pushBackFBTick, mem_pkt->pkt->dirtyLineAddr));
 
-                if ((tempFlushBuffer.size() + flushBuffer.size()) >= (banksPerRank * flushBufferHighThreshold) &&
+                if ((tempFlushBuffer.size() + flushBuffer.size()) >= (flushBufferSize * flushBufferHighThreshold) &&
                      !readFlushBufferEvent.scheduled() &&
                      !flushBuffer.empty()) {
                     
@@ -890,6 +890,7 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
       tRTW_int(_p.tRTW_int), tRFBD(_p.tRFBD), tRCD_FAST(_p.tRCD_FAST),
       tRC_FAST(_p.tRC_FAST),
       flushBufferHighThreshold(_p.flushBuffer_high_thresh_perc / 100.0),
+      flushBufferSize(_p.flush_buffer_size),
       clkResyncDelay(_p.tBURST_MAX),
       dataClockSync(_p.data_clock_sync),
       burstInterleave(tBURST != tBURST_MIN),

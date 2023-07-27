@@ -516,6 +516,7 @@ class DRAMInterface : public MemInterface
     const Tick tRCD_FAST;
     const Tick tRC_FAST;
     float flushBufferHighThreshold;
+    unsigned flushBufferSize;
     const Tick clkResyncDelay;
     const bool dataClockSync;
     const bool burstInterleave;
