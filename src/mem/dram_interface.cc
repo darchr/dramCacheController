@@ -600,39 +600,6 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             stats.totBusLatWrTC += tBURST;
         }
 
-        // Tag probing B slot comes here
-        // for now we only prob for read requests
-        if (mem_pkt->pkt->owIsRead) {
-            Tick BSlotTagAllowedAt = mem_pkt->tagCheckReady - tRLFAST + tRC_FAST;
-            bool found = ctrl->findCandidateForBSlot(mem_pkt, BSlotTagAllowedAt);
-
-            if (found) {
-                stats.foundCandidBSlot++;
-
-                if (mem_pkt->pkt->owIsRead && mem_pkt->pkt->isHit) {
-                    stats.foundCandidBSlotRH++;
-                } else if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && !mem_pkt->pkt->isDirty) {
-                    stats.foundCandidBSlotRMC++;
-                } else if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
-                    stats.foundCandidBSlotRMD++;
-                }
-
-            } else {
-                stats.noCandidBSlot++;
-
-                if (mem_pkt->pkt->owIsRead && mem_pkt->pkt->isHit) {
-                    stats.noCandidBSlotRH++;
-                } else if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && !mem_pkt->pkt->isDirty) {
-                    stats.noCandidBSlotRMC++;
-                } else if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
-                    stats.noCandidBSlotRMD++;
-                }
-            }
-
-            DPRINTF(MemCtrl, "A slot: TC packets only, found: %d, Addr: %d, IsRead: %d, IsHit: %d: IsDirty: %d\n", found,
-            mem_pkt->pkt->getAddr(), mem_pkt->pkt->owIsRead, mem_pkt->pkt->isHit, mem_pkt->pkt->isDirty);
-        }
-
     } else {
         assert(mem_pkt->tagCheckReady == MaxTick);
         if (mem_pkt->isRead()) {
