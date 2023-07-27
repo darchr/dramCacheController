@@ -164,6 +164,7 @@ class MemPacket
     bool isTagCheck = false;
     Tick tagCheckReady = MaxTick;
     bool isLocMem = false;
+    Tick BSlotTime = MaxTick;
 
 
     /**

@@ -1131,6 +1131,8 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
             Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
 
+            assert((*to_read)->getAddr() == mem_pkt->getAddr());
+
             if (mem_pkt->isTagCheck) {
                 DPRINTF(MemCtrl, "read times: %x, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
                 sendTagCheckRespond(mem_pkt);

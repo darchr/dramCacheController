@@ -366,7 +366,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     Tick act_at = MaxTick;
     // get the rank
     Rank& rank_ref = *ranks[mem_pkt->rank];
-
+    std::cout<< "here-f\n";
     assert(rank_ref.inRefIdleState());
 
     // are we in or transitioning to a low-power state and have not scheduled
@@ -470,15 +470,15 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         }
         stats.tagResBursts++;
 
-        if (polMan->locMemPolicy == enums::RambusTagProbOpt) {
-            assert((mem_pkt->tagCheckReady + tRC_FAST) > (tRL_FAST + tRCD_FAST));
-            bank_ref.tagActAllowedAt = (mem_pkt->tagCheckReady + tRC_FAST) - (tRL_FAST + tRCD_FAST);
-        }
-
         // tag is sent back only for Rd Miss Cleans, for other cases tag is already known.
         if (!mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && mem_pkt->pkt->isDirty) {
             mem_pkt->tagCheckReady += tTAGBURST;
             stats.tagBursts++;
+        }
+
+        if (polMan->locMemPolicy == enums::RambusTagProbOpt) {
+            assert((mem_pkt->tagCheckReady + tRC_FAST) > (tRL_FAST + tRCD_FAST));
+            bank_ref.tagActAllowedAt = (mem_pkt->tagCheckReady + tRC_FAST) - (tRL_FAST + tRCD_FAST);
         }
 
         // Calculating the data ready time
