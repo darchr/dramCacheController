@@ -654,9 +654,6 @@ class DRAMInterface : public MemInterface
         statistics::Formula busUtilWrite;
         statistics::Formula pageHitRate;
         statistics::Formula hitMissBusUtil;
-
-        statistics::Scalar noCandidBSlot;
-        statistics::Scalar foundCandidBSlot;
     };
 
     DRAMStats stats;

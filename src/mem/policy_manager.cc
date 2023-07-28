@@ -692,7 +692,7 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
 
         // Rd Miss Dirty
         if (orbEntry->owPkt->isRead() && !orbEntry->isHit && orbEntry->prevDirty) {
-            if (locMemPolicy==enums::Rambus) {
+            if (locMemPolicy == enums::Rambus || orbEntry->pol == enums::RambusTagProbOpt) {
                 // This assert is true only for Rambus policy.
                 // for RambusTagProbOpt it can be either true or false,
                 // since a Rd MD TC packet may or may not be probed
@@ -754,7 +754,7 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
                 orbEntry->locWrExit = curTick();
             }
 
-            if (orbEntry->pol == enums::Rambus) {
+            if (orbEntry->pol == enums::Rambus || orbEntry->pol == enums::RambusTagProbOpt) {
                 if (orbEntry->state == waitingLocMemWriteResp) {
                     assert(orbEntry->owPkt->isRead());
                     assert(!orbEntry->isHit);
@@ -1546,6 +1546,7 @@ PolicyManager::setNextState(reqBufferEntry* orbEntry)
                 orbEntry->locWrEntered = curTick();
             } else if (!orbEntry->prevDirty) {
                 orbEntry->state = locMemWrite;
+                orbEntry->locWrEntered = curTick();
             }
 
             return;
@@ -2787,7 +2788,7 @@ PolicyManager::handleDirtyCacheLine(Addr dirtyLineAddr)
 void
 PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
 {
-    if (locMemPolicy == enums::Rambus) {
+    if (locMemPolicy == enums::Rambus || locMemPolicy == enums::RambusTagProbOpt) {
         assert(orbEntry->arrivalTick != MaxTick);
         assert(orbEntry->tagCheckEntered != MaxTick);
         assert(orbEntry->tagCheckExit != MaxTick);

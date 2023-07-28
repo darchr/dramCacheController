@@ -366,18 +366,15 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     Tick act_at = MaxTick;
     // get the rank
     Rank& rank_ref = *ranks[mem_pkt->rank];
-    std::cout<< "here-f\n";
     assert(rank_ref.inRefIdleState());
 
     // are we in or transitioning to a low-power state and have not scheduled
     // a power-up event?
     // if so, wake up from power down to issue RD/WR burst
     if (rank_ref.inLowPowerState) {
-        std::cout<< "here-e\n";
         assert(rank_ref.pwrState != PWR_SREF);
         rank_ref.scheduleWakeUpEvent(tXP);
     }
-    std::cout<< "here-d\n";
 
     // get the bank
     Bank& bank_ref = rank_ref.banks[mem_pkt->bank];
@@ -387,10 +384,8 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
     // Determine the access latency and update the bank state
     if (bank_ref.openRow == mem_pkt->row) {
-        std::cout<< "here-c\n";
         // nothing to do
     } else {
-        std::cout<< "here-b\n";
         row_hit = false;
 
         // If there is a page open, precharge it.
@@ -401,11 +396,15 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
         // next we need to account for the delay in activating the page
         Tick act_tick;
-        if (polMan->locMemPolicy == enums::RambusTagProbOpt && mem_pkt->isLocMem) {
-            act_tick = std::max(std::max(bank_ref.tagActAllowedAt, bank_ref.actAllowedAt), curTick());
+        if (mem_pkt->isLocMem) {
+            if (polMan->locMemPolicy == enums::RambusTagProbOpt) {
+                act_tick = std::max(std::max(bank_ref.tagActAllowedAt, bank_ref.actAllowedAt), curTick());
 
-            if (bank_ref.tagActAllowedAt > bank_ref.actAllowedAt && bank_ref.tagActAllowedAt > curTick()) {
-                stats.actDelayedDueToTagAct++;
+                if (bank_ref.tagActAllowedAt > bank_ref.actAllowedAt && bank_ref.tagActAllowedAt > curTick()) {
+                    stats.actDelayedDueToTagAct++;
+                }
+            } else {
+                act_tick = std::max(bank_ref.actAllowedAt, curTick());
             }
         } else {
             act_tick = std::max(bank_ref.actAllowedAt, curTick());
@@ -414,7 +413,6 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         // Record the activation and deal with all the global timing
         // constraints caused be a new activation (tRRD and tXAW)
         act_at = activateBank(rank_ref, bank_ref, act_tick, mem_pkt->row, mem_pkt->isTagCheck);
-        std::cout<< "here-a\n";
     }
 
     // respect any constraints on the command (e.g. tRCD or tCCD)
@@ -629,12 +627,13 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         // assert(mem_pkt->tagCheckReady == MaxTick);
         if (mem_pkt->isRead()) {
             mem_pkt->readyTime = cmd_at + tRL + tBURST;
-            if (polMan->locMemPolicy == enums::RambusTagProbOpt &&
-                mem_pkt->isLocMem &&
-                !mem_pkt->pkt->isHit &&
-                mem_pkt->pkt->isDirty) {
-                // a probed Rd Miss Dirty
-                mem_pkt->pkt->hasDirtyData = true;
+            if (mem_pkt->isLocMem) {
+                if(polMan->locMemPolicy == enums::RambusTagProbOpt &&
+                   !mem_pkt->pkt->isHit &&
+                   mem_pkt->pkt->isDirty) {
+                    // a probed Rd Miss Dirty
+                    mem_pkt->pkt->hasDirtyData = true;
+                }
             }
         } else {
             mem_pkt->readyTime = cmd_at + tWL + tBURST;
@@ -644,24 +643,15 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     // Tag probing B slot comes here.
     // For now we only prob for read requests.
     // NOTE: both tag check packets and regular packets can reach here. Thus:
-    // some mem_pkt may not have a pkt pointer, like fills!
-    if (polMan->locMemPolicy == enums::RambusTagProbOpt && mem_pkt->isLocMem) {
-        Tick BSlotTagBankBusyAt = MaxTick;
-        if (mem_pkt->isTagCheck) {
-            BSlotTagBankBusyAt = bank_ref.tagActAllowedAt + tRC_FAST;
-        } else {
-            BSlotTagBankBusyAt = act_at + tRC_FAST;
-        }
-
-        DPRINTF(DRAM, "Start probing for B slot: Aslot addr: %d , end of tag bank busy for B slot: %d\n", mem_pkt->getAddr(), BSlotTagBankBusyAt);
-        bool found = ctrl->findCandidateForBSlot(mem_pkt, BSlotTagBankBusyAt);
-        DPRINTF(DRAM, "A slot: found: %d, A slot Addr: %d, IsRead: %d, IsTagCheck: %d\n",
-        found, mem_pkt->getAddr(), mem_pkt->isRead(), mem_pkt->isTagCheck);
-        
-        if (found) {
-            stats.foundCandidBSlot++;
-        } else {
-            stats.noCandidBSlot++;
+    // some mem_pkt may not have a ow pkt pointer, like fills!
+    if (mem_pkt->isLocMem) {
+        if (polMan->locMemPolicy == enums::RambusTagProbOpt) {
+            assert(mem_pkt->BSlotBusyUntil==MaxTick);
+            if (mem_pkt->isTagCheck) {
+                mem_pkt->BSlotBusyUntil = bank_ref.tagActAllowedAt - tRL_FAST + tRC_FAST;
+            } else {
+                mem_pkt->BSlotBusyUntil = std::max(act_at,bank_ref.tagActAllowedAt) + tRC_FAST;
+            }
         }
     }
 
@@ -2391,12 +2381,7 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
              "Row buffer hit rate, read and write combined"),
 
     ADD_STAT(hitMissBusUtil, statistics::units::Ratio::get(),
-             "Hit/Miss bus utilization"),
-    
-    ADD_STAT(noCandidBSlot, statistics::units::Count::get(),
-             " "),
-    ADD_STAT(foundCandidBSlot, statistics::units::Count::get(),
-             " ")
+             "Hit/Miss bus utilization")
 {
 }
 

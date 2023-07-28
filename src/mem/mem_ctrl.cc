@@ -1131,6 +1131,11 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
             Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
 
+            if (mem_pkt->isLocMem) {
+                // && polMan->locMemPolicy == RambusTagProb
+                assert(mem_pkt->BSlotBusyUntil!=MaxTick);
+            }
+            
             assert((*to_read)->getAddr() == mem_pkt->getAddr());
 
             if (mem_pkt->isTagCheck) {
@@ -1182,24 +1187,36 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
             // remove the request from the queue
             // the iterator is no longer valid .
-            std::cout << "a: " << readQueue[mem_pkt->qosValue()].size() << " --> ";
+            std::cout << "before erase: " << readQueue[mem_pkt->qosValue()].size() << " --> ";
+            for (auto i : readQueue[mem_pkt->qosValue()]) {
+                std::cout << i->pkt->getAddr() << "  " << i->pkt->isRead() <<
+            "  " << mem_pkt->pkt->isHit << "  " << mem_pkt->pkt->isDirty << " / ";
+            }
+            
+            readQueue[mem_pkt->qosValue()].erase(to_read);
+
+            std::cout << "after erase: " << readQueue[mem_pkt->qosValue()].size() << " --> ";
             for (auto i : readQueue[mem_pkt->qosValue()]) {
                 std::cout << i->pkt->getAddr() << "  " << i->pkt->isRead() <<
             "  " << mem_pkt->pkt->isHit << "  " << mem_pkt->pkt->isDirty << " / ";
             }
             std::cout << "\n";
-            std::cout << "1**: " << (*to_read)->getAddr()  << " // " << mem_pkt->getAddr() << "\n";
-            (*to_read) = mem_pkt;
-            std::cout << "2**: " << (*to_read)->getAddr()  << " // " << mem_pkt->getAddr() << "\n";
-            assert((*to_read)->getAddr() == mem_pkt->getAddr());
-            readQueue[mem_pkt->qosValue()].erase(to_read);
 
-            std::cout << "b: " << readQueue[mem_pkt->qosValue()].size() << " --> ";
-            for (auto i : readQueue[mem_pkt->qosValue()]) {
-                std::cout << i->pkt->getAddr() << "  " << i->pkt->isRead() <<
-            "  " << mem_pkt->pkt->isHit << "  " << mem_pkt->pkt->isDirty << " / ";
+            // Tag probing B slot comes here.
+            if (mem_pkt->isLocMem) {
+                assert(mem_pkt->BSlotBusyUntil != MaxTick);
+
+                DPRINTF(MemCtrl, "Start probing for B slot: Aslot addr: %x , end of tag bank busy for B slot: %d\n",
+                        mem_pkt->getAddr(), mem_pkt->BSlotBusyUntil);
+                bool found = findCandidateForBSlot(mem_pkt);
+                DPRINTF(MemCtrl, "B slot result: found flag: %d\n",found);
+
+                if (found) {
+                    stats.foundCandidBSlot++;
+                } else {
+                    stats.noCandidBSlot++;
+                }
             }
-            std::cout << "\n";   
         }
 
         // switching to writes, either because the read queue is empty
@@ -1283,6 +1300,22 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         // remove the request from the queue - the iterator is no longer valid
         writeQueue[mem_pkt->qosValue()].erase(to_write);
 
+        // Tag probing B slot comes here.
+        if (mem_pkt->isLocMem) {
+            assert(mem_pkt->BSlotBusyUntil != MaxTick);
+
+            DPRINTF(MemCtrl, "WR--> Start probing for B slot: Aslot addr: %x , end of tag bank busy for B slot: %d\n",
+                    mem_pkt->getAddr(), mem_pkt->BSlotBusyUntil);
+            bool found = findCandidateForBSlot(mem_pkt);
+            DPRINTF(MemCtrl, "WR--> B slot result: found flag: %d\n",found);
+
+            if (found) {
+                stats.foundCandidBSlot++;
+            } else {
+                stats.noCandidBSlot++;
+            }
+        }
+
         delete mem_pkt;
 
         // If we emptied the write queue, or got sufficiently below the
@@ -1350,29 +1383,31 @@ MemCtrl::pktSizeCheck(MemPacket* mem_pkt, MemInterface* mem_intr) const
 }
 
 bool
-MemCtrl::findCandidateForBSlot(MemPacket* AslotPkt, Tick BSlotTagBankBusyAt)
+MemCtrl::findCandidateForBSlot(MemPacket* AslotPkt)
 {
-    DPRINTF(MemCtrl, "findCandidateForBSlot: Aslot addr: %x, BSlotTagBankBusyAt: %d, readQ size: %d\n",
-    AslotPkt->getAddr(), BSlotTagBankBusyAt, readQueue[AslotPkt->qosValue()].size());
+    DPRINTF(MemCtrl, "findCandidateForBSlot: Aslot addr: %x, BSlotTagBankBusyUntil: %d, readQ size: %d\n",
+    AslotPkt->getAddr(), AslotPkt->BSlotBusyUntil, readQueue[AslotPkt->qosValue()].size());
 
-    assert(BSlotTagBankBusyAt != MaxTick);
+    assert(AslotPkt->BSlotBusyUntil != MaxTick);
 
     MemPacketQueue::iterator BslotPktIt;
 
     for (auto queue = readQueue.rbegin();
               queue != readQueue.rend(); ++queue) {
-        BslotPktIt = searchReadQueueForBSlot((*queue), AslotPkt, BSlotTagBankBusyAt);
+        BslotPktIt = searchReadQueueForBSlot((*queue), AslotPkt);
 
         if (BslotPktIt != queue->end()) {
             // A proper candidate for B slot is found!
             auto BslotPkt = *BslotPktIt;
-            dram->updateTagActAllowed(BslotPkt->rank, BslotPkt->bank, BSlotTagBankBusyAt);
-            DPRINTF(MemCtrl, "B slot found: Addr A: %x, isRead: %d/// Addr B: %x, IsRead: %d, IsHit: %d: IsDirty: %d\n",
-            AslotPkt->getAddr(), AslotPkt->isRead(), BslotPkt->getAddr(), BslotPkt->pkt->owIsRead, BslotPkt->pkt->isHit, BslotPkt->pkt->isDirty);
+            assert(BslotPkt != AslotPkt);
+            dram->updateTagActAllowed(BslotPkt->rank, BslotPkt->bank, AslotPkt->BSlotBusyUntil);
             
-            handleTCforBSlotPkt(BslotPktIt, BSlotTagBankBusyAt);
+            DPRINTF(MemCtrl, "B slot found: Addr A: %x, isRead: %d /// Addr B: %x, IsRead: %d, IsHit: %d: IsDirty: %d\n",
+            AslotPkt->getAddr(), AslotPkt->isRead(), BslotPkt->getAddr(),
+            BslotPkt->pkt->owIsRead, BslotPkt->pkt->isHit, BslotPkt->pkt->isDirty);
+            
+            handleTCforBSlotPkt(BslotPktIt, AslotPkt->BSlotBusyUntil);
 
-            stats.foundCandidBSlot++;
             if (BslotPkt->pkt->owIsRead && BslotPkt->pkt->isHit) {
                 stats.foundCandidBSlotRH++;
             } else if (BslotPkt->pkt->owIsRead && !BslotPkt->pkt->isHit && !BslotPkt->pkt->isDirty) {
@@ -1383,17 +1418,15 @@ MemCtrl::findCandidateForBSlot(MemPacket* AslotPkt, Tick BSlotTagBankBusyAt)
             return true;
         }
     }
-
-    stats.noCandidBSlot++;
     return false;
 
 }
 
 MemPacketQueue::iterator
-MemCtrl::searchReadQueueForBSlot(MemPacketQueue& queue, MemPacket* AslotPkt, Tick BSlotTagBankBusyAt)
+MemCtrl::searchReadQueueForBSlot(MemPacketQueue& queue, MemPacket* AslotPkt)
 {
-    DPRINTF(MemCtrl, "searchReadQueueForBSlot: Aslot addr: %x, BSlotTagBankBusyAt: %x\n",
-    AslotPkt->getAddr(), BSlotTagBankBusyAt);
+    DPRINTF(MemCtrl, "searchReadQueueForBSlot: Aslot addr: %x, BSlotTagBankBusyUntil: %d\n",
+    AslotPkt->getAddr(), AslotPkt->BSlotBusyUntil);
 
     MemPacketQueue::iterator youngest = queue.end();
 
@@ -1401,8 +1434,7 @@ MemCtrl::searchReadQueueForBSlot(MemPacketQueue& queue, MemPacket* AslotPkt, Tic
         MemPacket* BslotPkt = *i;
         if (BslotPkt->isTagCheck && BslotPkt != AslotPkt) {
             Tick tagActAllowedAt = dram->nextTagActAvailability(BslotPkt->rank, BslotPkt->bank);
-            // assert(tagActAllowedAt =! MaxTick);
-            if (BSlotTagBankBusyAt >= tagActAllowedAt + dram->getTRCFAST()) {
+            if (AslotPkt->BSlotBusyUntil >= tagActAllowedAt + dram->getTRCFAST()) {
                 auto prev_mem_pkt = *youngest;
                 if (youngest == queue.end()) {
                     youngest = i;
@@ -1414,30 +1446,29 @@ MemCtrl::searchReadQueueForBSlot(MemPacketQueue& queue, MemPacket* AslotPkt, Tic
     }
 
     return youngest;
-
 }
 
 void
-MemCtrl::handleTCforBSlotPkt(MemPacketQueue::iterator BslotPktIt, Tick BSlotTagBankBusyAt)
+MemCtrl::handleTCforBSlotPkt(MemPacketQueue::iterator BslotPktIt, Tick BSlotTagBankBusyUntil)
 {
     // assert(policy == rambustagprob);
     auto BslotPkt = *BslotPktIt;
 
     // read hits
     if (BslotPkt->pkt->isRead() && BslotPkt->pkt->isHit) {
-        BslotPkt->tagCheckReady = BSlotTagBankBusyAt + dram->getTRCDFAST() +
+        BslotPkt->tagCheckReady = BSlotTagBankBusyUntil + dram->getTRCDFAST() +
                                   dram->getTRLFAST() - dram->getTRCFAST();
         sendTagCheckRespond(BslotPkt);
         BslotPkt->isTagCheck = false;
         BslotPkt->pkt->isTagCheck = false;
-        DPRINTF(MemCtrl, "Done, Rd Hit successfully probed for TC, curTick: %d, adr: %x, tagCheckReady: %d\n", curTick(), BslotPkt->pkt->getAddr(), BslotPkt->tagCheckReady);        
+        DPRINTF(MemCtrl, "Rd Hit successfully probed for TC, curTick: %d, adr: %x, tagCheckReady: %d\n", curTick(), BslotPkt->pkt->getAddr(), BslotPkt->tagCheckReady);        
         
         return;
     }
 
     // read miss cleans
     else if (BslotPkt->pkt->isRead() && !BslotPkt->pkt->isHit && !BslotPkt->pkt->isDirty) {
-        BslotPkt->tagCheckReady = BSlotTagBankBusyAt + dram->getTRCDFAST() +
+        BslotPkt->tagCheckReady = BSlotTagBankBusyUntil + dram->getTRCDFAST() +
                                   dram->getTRLFAST() - dram->getTRCFAST();
         sendTagCheckRespond(BslotPkt);
         BslotPkt->isTagCheck = false;
@@ -1458,7 +1489,7 @@ MemCtrl::handleTCforBSlotPkt(MemPacketQueue::iterator BslotPktIt, Tick BSlotTagB
         //remove the packet from read queue
         readQueue[BslotPkt->qosValue()].erase(BslotPktIt);
         
-        DPRINTF(MemCtrl, "Done, Rd Miss Clean successfully probed for TC, curTick: %d, adr: %x, tagCheckReady: %d, readQ size:%d\n",
+        DPRINTF(MemCtrl, "Rd Miss Clean successfully probed for TC, curTick: %d, adr: %x, tagCheckReady: %d, readQ size:%d\n",
                           curTick(), BslotPkt->pkt->getAddr(), BslotPkt->tagCheckReady, readQueue[BslotPkt->qosValue()].size());        
         delete BslotPkt->pkt;
         delete BslotPkt;
@@ -1466,12 +1497,12 @@ MemCtrl::handleTCforBSlotPkt(MemPacketQueue::iterator BslotPktIt, Tick BSlotTagB
     }
     // read miss dirty
     else if (BslotPkt->pkt->isRead() && !BslotPkt->pkt->isHit && BslotPkt->pkt->isDirty) {
-        BslotPkt->tagCheckReady = BSlotTagBankBusyAt + dram->getTRCDFAST() +
+        BslotPkt->tagCheckReady = BSlotTagBankBusyUntil + dram->getTRCDFAST() +
                                   dram->getTRLFAST() - dram->getTRCFAST();
         sendTagCheckRespond(BslotPkt);
         BslotPkt->isTagCheck = false;
         BslotPkt->pkt->isTagCheck = false;
-        DPRINTF(MemCtrl, "Done, Rd Miss Dirty successfully probed for TC, curTick: %d, adr: %x, tagCheckReady: %d\n",
+        DPRINTF(MemCtrl, "Rd Miss Dirty successfully probed for TC, curTick: %d, adr: %x, tagCheckReady: %d\n",
                 curTick(), BslotPkt->pkt->getAddr(), BslotPkt->tagCheckReady);
         return;
     }

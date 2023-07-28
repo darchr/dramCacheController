@@ -164,7 +164,7 @@ class MemPacket
     bool isTagCheck = false;
     Tick tagCheckReady = MaxTick;
     bool isLocMem = false;
-    Tick BSlotTime = MaxTick;
+    Tick BSlotBusyUntil = MaxTick;
 
 
     /**
@@ -832,11 +832,11 @@ class MemCtrl : public qos::MemCtrl
 
     void updateOldestWriteAge();
 
-    bool findCandidateForBSlot(MemPacket* AslotPkt, Tick BSlotTagBankBusyAt);
+    bool findCandidateForBSlot(MemPacket* AslotPkt);
 
-    void handleTCforBSlotPkt(MemPacketQueue::iterator BslotPktIt, Tick BSlotTagBankBusyAt);
+    void handleTCforBSlotPkt(MemPacketQueue::iterator BslotPktIt, Tick BSlotTagBankBusyUntil);
 
-    MemPacketQueue::iterator searchReadQueueForBSlot(MemPacketQueue& queue, MemPacket* AslotPkt, Tick BSlotTagBankBusyAt);
+    MemPacketQueue::iterator searchReadQueueForBSlot(MemPacketQueue& queue, MemPacket* AslotPkt);
 
     Port &getPort(const std::string &if_name,
                   PortID idx=InvalidPortID) override;
