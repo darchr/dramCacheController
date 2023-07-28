@@ -692,11 +692,12 @@ PolicyManager::locMemRecvTimingResp(PacketPtr pkt)
 
         // Rd Miss Dirty
         if (orbEntry->owPkt->isRead() && !orbEntry->isHit && orbEntry->prevDirty) {
-            if (locMemPolicy == enums::Rambus || orbEntry->pol == enums::RambusTagProbOpt) {
+            if (locMemPolicy == enums::Rambus) {
                 // This assert is true only for Rambus policy.
                 // for RambusTagProbOpt it can be either true or false,
                 // since a Rd MD TC packet may or may not be probed
-                // and will carry a dirty flag or not.
+                // and will carry a dirty flag or not. If it is probed,
+                // this flag will be set later! not when TC is sent!
                 assert(pkt->hasDirtyData);
             }
             assert(orbEntry->handleDirtyLine);

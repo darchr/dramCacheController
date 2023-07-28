@@ -1186,21 +1186,8 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             }
 
             // remove the request from the queue
-            // the iterator is no longer valid .
-            std::cout << "before erase: " << readQueue[mem_pkt->qosValue()].size() << " --> ";
-            for (auto i : readQueue[mem_pkt->qosValue()]) {
-                std::cout << i->pkt->getAddr() << "  " << i->pkt->isRead() <<
-            "  " << mem_pkt->pkt->isHit << "  " << mem_pkt->pkt->isDirty << " / ";
-            }
-            
+            // the iterator is no longer valid .          
             readQueue[mem_pkt->qosValue()].erase(to_read);
-
-            std::cout << "after erase: " << readQueue[mem_pkt->qosValue()].size() << " --> ";
-            for (auto i : readQueue[mem_pkt->qosValue()]) {
-                std::cout << i->pkt->getAddr() << "  " << i->pkt->isRead() <<
-            "  " << mem_pkt->pkt->isHit << "  " << mem_pkt->pkt->isDirty << " / ";
-            }
-            std::cout << "\n";
 
             // Tag probing B slot comes here.
             if (mem_pkt->isLocMem) {
