@@ -1193,10 +1193,10 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             if (mem_pkt->isLocMem) {
                 assert(mem_pkt->BSlotBusyUntil != MaxTick);
 
-                DPRINTF(MemCtrl, "Start probing for B slot: Aslot addr: %x , end of tag bank busy for B slot: %d\n",
+                DPRINTF(MemCtrl, "Rd--> Start probing for B slot: Aslot addr: %x , end of tag bank busy for B slot: %d\n",
                         mem_pkt->getAddr(), mem_pkt->BSlotBusyUntil);
                 bool found = findCandidateForBSlot(mem_pkt);
-                DPRINTF(MemCtrl, "B slot result: found flag: %d\n",found);
+                DPRINTF(MemCtrl, "Rd--> B slot result: found flag: %d\n",found);
 
                 if (found) {
                     stats.foundCandidBSlot++;
