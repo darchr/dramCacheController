@@ -482,6 +482,9 @@ class PolicyManager : public AbstractMemory
       statistics::Scalar totTimeTagCheckRes;
       statistics::Scalar totTimeTagCheckResRd;
       statistics::Scalar totTimeTagCheckResWr;
+      statistics::Scalar totTimeTagCheckResRdH;
+      statistics::Scalar totTimeTagCheckResRdMC;
+      statistics::Scalar totTimeTagCheckResRdMD;
       statistics::Scalar totTimeInLocRead;
       statistics::Scalar totTimeInLocWrite;
       statistics::Scalar totTimeInFarRead;
@@ -501,6 +504,9 @@ class PolicyManager : public AbstractMemory
       statistics::Formula avgTimeTagCheckRes;
       statistics::Formula avgTimeTagCheckResRd;
       statistics::Formula avgTimeTagCheckResWr;
+      statistics::Formula avgTimeTagCheckResRdH;
+      statistics::Formula avgTimeTagCheckResRdMC;
+      statistics::Formula avgTimeTagCheckResRdMD;
       statistics::Formula avgTimeInLocRead;
       statistics::Formula avgTimeInLocWrite;
       statistics::Formula avgTimeInFarRead;
