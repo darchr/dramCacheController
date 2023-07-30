@@ -1134,8 +1134,28 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             if (mem_pkt->isLocMem) {
                 // && polMan->locMemPolicy == RambusTagProb
                 assert(mem_pkt->BSlotBusyUntil!=MaxTick);
+                assert(!mem_pkt->probedRdMC);
+
+                if (mem_pkt->probedRdH) {
+                    assert(mem_pkt->tagCheckReady != MaxTick);
+                    assert(!mem_pkt->probedRdMD);
+                    assert (mem_pkt->tagCheckReady > (dram->getTRCDFAST() + dram->getTRLFAST()));
+                    assert(cmd_at > (mem_pkt->tagCheckReady - dram->getTRCDFAST() - dram->getTRLFAST()));
+                    
+                    stats.deltaAbSlotRdH += 
+                    (cmd_at - (mem_pkt->tagCheckReady - dram->getTRCDFAST() - dram->getTRLFAST()));
+                
+                } else if (mem_pkt->probedRdMD) {
+                    assert(mem_pkt->tagCheckReady != MaxTick);
+                    assert(!mem_pkt->probedRdH);
+                    assert (mem_pkt->tagCheckReady > (dram->getTRCDFAST() + dram->getTRLFAST()));
+                    assert(cmd_at > (mem_pkt->tagCheckReady - dram->getTRCDFAST() - dram->getTRLFAST()));
+                    
+                    stats.deltaAbSlotRdMD +=
+                    (cmd_at - (mem_pkt->tagCheckReady - dram->getTRCDFAST() - dram->getTRLFAST()));
+                }
             }
-            
+
             assert((*to_read)->getAddr() == mem_pkt->getAddr());
 
             if (mem_pkt->isTagCheck) {
@@ -1450,6 +1470,9 @@ MemCtrl::handleTCforBSlotPkt(MemPacketQueue::iterator BslotPktIt, Tick BSlotTagB
         BslotPkt->pkt->isTagCheck = false;
         DPRINTF(MemCtrl, "Rd Hit successfully probed for TC, curTick: %d, adr: %x, tagCheckReady: %d\n", curTick(), BslotPkt->pkt->getAddr(), BslotPkt->tagCheckReady);        
         
+        assert(!BslotPkt->probedRdH);
+        BslotPkt->probedRdH = true;
+
         return;
     }
 
@@ -1477,7 +1500,11 @@ MemCtrl::handleTCforBSlotPkt(MemPacketQueue::iterator BslotPktIt, Tick BSlotTagB
         readQueue[BslotPkt->qosValue()].erase(BslotPktIt);
         
         DPRINTF(MemCtrl, "Rd Miss Clean successfully probed for TC, curTick: %d, adr: %x, tagCheckReady: %d, readQ size:%d\n",
-                          curTick(), BslotPkt->pkt->getAddr(), BslotPkt->tagCheckReady, readQueue[BslotPkt->qosValue()].size());        
+                          curTick(), BslotPkt->pkt->getAddr(), BslotPkt->tagCheckReady, readQueue[BslotPkt->qosValue()].size());
+
+        assert(!BslotPkt->probedRdMC);
+        BslotPkt->probedRdMC = true;
+
         delete BslotPkt->pkt;
         delete BslotPkt;
         return;
@@ -1491,6 +1518,10 @@ MemCtrl::handleTCforBSlotPkt(MemPacketQueue::iterator BslotPktIt, Tick BSlotTagB
         BslotPkt->pkt->isTagCheck = false;
         DPRINTF(MemCtrl, "Rd Miss Dirty successfully probed for TC, curTick: %d, adr: %x, tagCheckReady: %d\n",
                 curTick(), BslotPkt->pkt->getAddr(), BslotPkt->tagCheckReady);
+
+        assert(!BslotPkt->probedRdMD);
+        BslotPkt->probedRdMD = true;
+
         return;
     }
 
@@ -1598,7 +1629,15 @@ MemCtrl::CtrlStats::CtrlStats(MemCtrl &_ctrl)
              "Per-requestor read average memory access latency"),
     ADD_STAT(requestorWriteAvgLat, statistics::units::Rate<
                 statistics::units::Tick, statistics::units::Count>::get(),
-             "Per-requestor write average memory access latency")
+             "Per-requestor write average memory access latency"),
+
+    ADD_STAT(deltaAbSlotRdH,  statistics::units::Tick::get(), "stat"),
+    ADD_STAT(deltaAbSlotRdMD,  statistics::units::Tick::get(), "stat"),
+
+    ADD_STAT(avgDeltaAbSlotRdH,  statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgDeltaAbSlotRdMD,  statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat")
 {
 }
 
@@ -1629,6 +1668,9 @@ MemCtrl::CtrlStats::regStats()
     avgRdBWSys.precision(8);
     avgWrBWSys.precision(8);
     avgGap.precision(2);
+
+    avgDeltaAbSlotRdH.precision(2);
+    avgDeltaAbSlotRdMD.precision(2);
 
     // per-requestor bytes read and written to memory
     requestorReadBytes
@@ -1696,6 +1738,11 @@ MemCtrl::CtrlStats::regStats()
     requestorWriteRate = requestorWriteBytes / simSeconds;
     requestorReadAvgLat = requestorReadTotalLat / requestorReadAccesses;
     requestorWriteAvgLat = requestorWriteTotalLat / requestorWriteAccesses;
+
+    avgDeltaAbSlotRdH = (deltaAbSlotRdH/foundCandidBSlotRH)/1000;
+    avgDeltaAbSlotRdMD = (deltaAbSlotRdMD/foundCandidBSlotRMD)/1000;
+
+
 }
 
 void

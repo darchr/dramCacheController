@@ -2802,6 +2802,15 @@ PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
             polManStats.totPktLifeTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
             polManStats.totPktORBTimeRd += ((curTick() - orbEntry->tagCheckEntered)/1000);
             polManStats.totTimeTagCheckResRd += ((orbEntry->tagCheckExit - orbEntry->tagCheckEntered)/1000);
+            
+            if (orbEntry->isHit) {
+                polManStats.totTimeTagCheckResRdH += ((orbEntry->tagCheckExit - orbEntry->tagCheckEntered)/1000);
+            } else if (!orbEntry->isHit && !orbEntry->prevDirty) {
+                polManStats.totTimeTagCheckResRdMC += ((orbEntry->tagCheckExit - orbEntry->tagCheckEntered)/1000);
+            } else if (!orbEntry->isHit && orbEntry->prevDirty) {
+                polManStats.totTimeTagCheckResRdMD += ((orbEntry->tagCheckExit - orbEntry->tagCheckEntered)/1000);
+            }
+        
         } else {
             polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
             polManStats.totPktRespTimeWr += ((curTick() - orbEntry->arrivalTick)/1000);
@@ -3049,6 +3058,9 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
     ADD_STAT(totTimeTagCheckRes,  statistics::units::Tick::get(), "stat"),
     ADD_STAT(totTimeTagCheckResRd,  statistics::units::Tick::get(), "stat"),
     ADD_STAT(totTimeTagCheckResWr,  statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totTimeTagCheckResRdH,  statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totTimeTagCheckResRdMC,  statistics::units::Tick::get(), "stat"),
+    ADD_STAT(totTimeTagCheckResRdMD,  statistics::units::Tick::get(), "stat"),
     ADD_STAT(totTimeInLocRead,  statistics::units::Tick::get(), "stat"),
     ADD_STAT(totTimeInLocWrite,  statistics::units::Tick::get(), "stat"),
     ADD_STAT(totTimeInFarRead,  statistics::units::Tick::get(), "stat"),
@@ -3079,6 +3091,12 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
     ADD_STAT(avgTimeTagCheckResRd,  statistics::units::Rate<
                 statistics::units::Tick, statistics::units::Count>::get(), "stat"),
     ADD_STAT(avgTimeTagCheckResWr,  statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgTimeTagCheckResRdH,  statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgTimeTagCheckResRdMC,  statistics::units::Rate<
+                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
+    ADD_STAT(avgTimeTagCheckResRdMD,  statistics::units::Rate<
                 statistics::units::Tick, statistics::units::Count>::get(), "stat"),
     ADD_STAT(avgTimeInLocRead,  statistics::units::Rate<
                 statistics::units::Tick, statistics::units::Count>::get(), "stat"),
@@ -3145,6 +3163,9 @@ PolicyManager::PolicyManagerStats::regStats()
     avgTimeTagCheckRes.precision(2);
     avgTimeTagCheckResRd.precision(2);
     avgTimeTagCheckResWr.precision(2);
+    avgTimeTagCheckResRdH.precision(2);
+    avgTimeTagCheckResRdMC.precision(2);
+    avgTimeTagCheckResRdMD.precision(2);
     avgTimeInLocRead.precision(2);
     avgTimeInLocWrite.precision(2);
     avgTimeInFarRead.precision(2);
@@ -3178,7 +3199,7 @@ PolicyManager::PolicyManagerStats::regStats()
     avgPktRespTimeRd = (totPktRespTimeRd) / (readReqs);
     avgPktRespTimeWr = (totPktRespTimeWr) / (writeReqs);
 
-    if (polMan.locMemPolicy == enums::Rambus) {
+    if (polMan.locMemPolicy == enums::Rambus || polMan.locMemPolicy == enums::RambusTagProbOpt) {
         avgTimeTagCheckRes = (totTimeTagCheckRes) / (readReqs + writeReqs);
         avgTimeInLocRead = (totTimeInLocRead) / (numRdHit);
     } else {
@@ -3188,6 +3209,10 @@ PolicyManager::PolicyManagerStats::regStats()
 
     avgTimeTagCheckResRd = (totTimeTagCheckResRd) / (readReqs);
     avgTimeTagCheckResWr = (totTimeTagCheckResWr) / (writeReqs);
+
+    avgTimeTagCheckResRdH = (totTimeTagCheckResRdH) / (numRdHit);
+    avgTimeTagCheckResRdMC = (totTimeTagCheckResRdMC) / (numRdMissClean);
+    avgTimeTagCheckResRdMD = (totTimeTagCheckResRdMD) / (numRdMissDirty);
 
 
     avgTimeInLocWrite = (totTimeInLocWrite) / (numRdMissClean + numRdMissDirty + writeReqs);

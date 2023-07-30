@@ -185,7 +185,7 @@ def run():
     for interval_number in range(100):
         print("Interval number: {}".format(interval_number))
         exit_event = m5.simulate(10_000_000_000)  # 10 ms
-        m5.stats.dump()
+        # m5.stats.dump()
 
         if exit_event.getCause() != "simulate() limit reached":
             if (
