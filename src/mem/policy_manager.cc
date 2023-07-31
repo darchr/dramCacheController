@@ -2534,11 +2534,11 @@ PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
                 polManStats.totTimeTagCheckResRd += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
 
                 if (orbEntry->isHit) {
-                    polManStats.totTimeTagCheckResRdH += ((orbEntry->tagCheckExit - orbEntry->tagCheckEntered)/1000);
+                    polManStats.totTimeTagCheckResRdH += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
                 } else if (!orbEntry->isHit && !orbEntry->prevDirty) {
-                    polManStats.totTimeTagCheckResRdMC += ((orbEntry->tagCheckExit - orbEntry->tagCheckEntered)/1000);
+                    polManStats.totTimeTagCheckResRdMC += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
                 } else if (!orbEntry->isHit && orbEntry->prevDirty) {
-                    polManStats.totTimeTagCheckResRdMD += ((orbEntry->tagCheckExit - orbEntry->tagCheckEntered)/1000);
+                    polManStats.totTimeTagCheckResRdMD += ((orbEntry->locRdExit - orbEntry->locRdEntered)/1000);
                 }
 
             } else {
