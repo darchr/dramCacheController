@@ -146,11 +146,6 @@ def parse_options():
         type=int,
         help="bypass DRAM cache",
     )
-    parser.add_argument(
-        "flushBufferSize",
-        type=int,
-        help="flush buffer size",
-    )
     parser.add_argument("--do_analysis", action="store_true", default=False)
     return parser.parse_args()
 
@@ -267,7 +262,6 @@ if __name__ == "__m5_main__":
         args.is_link,
         args.link_lat,
         args.bypass,
-        args.flushBufferSize,
         args,
         restore=True,
     )
