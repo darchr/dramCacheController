@@ -170,7 +170,6 @@ class MemPacket
     bool probedRdMD = false;
 
 
-
     /**
      * Set the packet QoS value
      * (interface compatibility with Packet)
@@ -634,12 +633,6 @@ class MemCtrl : public qos::MemCtrl
         statistics::Vector wrQLenPdf;
         statistics::Histogram rdPerTurnAround;
         statistics::Histogram wrPerTurnAround;
-
-        statistics::Scalar noCandidBSlot;
-        statistics::Scalar foundCandidBSlot;
-        statistics::Scalar foundCandidBSlotRH;
-        statistics::Scalar foundCandidBSlotRMC;
-        statistics::Scalar foundCandidBSlotRMD;
 
         statistics::Scalar bytesReadWrQ;
         statistics::Scalar bytesReadSys;

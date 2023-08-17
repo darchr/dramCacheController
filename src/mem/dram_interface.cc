@@ -48,7 +48,6 @@
 #include "debug/DRAMPower.hh"
 #include "debug/DRAMState.hh"
 #include "debug/MemCtrl.hh"
-#include "enums/Policy.hh"
 #include "sim/system.hh"
 
 namespace gem5
@@ -455,16 +454,13 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
     // update the packet ready time
     Tick stall_delay = 0;
     if(mem_pkt->isTagCheck) {
-
         assert(mem_pkt->isLocMem);
-        
+
         // Calculating the tag check ready time
         if (mem_pkt->pkt->owIsRead) {
-            assert((cmd_at + tRCD_FAST + tRL_FAST) > tRCD_RD);
-            mem_pkt->tagCheckReady = (cmd_at + tRCD_FAST + tRL_FAST) - tRCD_RD;
+            mem_pkt->tagCheckReady = cmd_at - tRCD_RD + tRCD_FAST + tRLFAST;
         } else {
-            assert((cmd_at + tRCD_FAST + tRL_FAST) > (tRCD_RD + tRTW_int));
-            mem_pkt->tagCheckReady = (cmd_at + tRCD_FAST + tRL_FAST) - (tRCD_RD + tRTW_int);
+            mem_pkt->tagCheckReady = cmd_at - tRCD_RD - tRTW_int + tRCD_FAST + tRLFAST;
         }
         stats.tagResBursts++;
 
@@ -482,7 +478,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
         // Calculating the data ready time
         if (mem_pkt->pkt->owIsRead) {
 
-            mem_pkt->readyTime = cmd_at + std::max(tRL,  tRL_FAST + tHM2DQ) + tBURST;
+            mem_pkt->readyTime = cmd_at + std::max(tRL, tRLFAST + tHM2DQ) + tBURST;
 
             // Rd Miss Clean
             if (mem_pkt->pkt->owIsRead && !mem_pkt->pkt->isHit && !mem_pkt->pkt->isDirty) {
@@ -570,7 +566,7 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
 
                 tempFlushBuffer.push_back(std::make_pair(pushBackFBTick, mem_pkt->pkt->dirtyLineAddr));
 
-                if ((tempFlushBuffer.size() + flushBuffer.size()) >= (banksPerRank * flushBufferHighThreshold) &&
+                if ((tempFlushBuffer.size() + flushBuffer.size()) >= (flushBufferSize * flushBufferHighThreshold) &&
                      !readFlushBufferEvent.scheduled() &&
                      !flushBuffer.empty()) {
                     
@@ -654,7 +650,6 @@ DRAMInterface::doBurstAccess(MemPacket* mem_pkt, Tick next_burst_at,
             }
         }
     }
-
 
     DPRINTF(DRAMT, "curr pkt, addr: %d, isRd: %d, isTC: %d, bank %d, row %d, act: %d, RdAlw: %d, WrAlw: %d, cmd: %d, rdy: %d\n", 
     mem_pkt->getAddr(), mem_pkt->isRead(), mem_pkt->isTagCheck, (unsigned) mem_pkt->bank, (unsigned) mem_pkt->row,
@@ -897,10 +892,10 @@ DRAMInterface::DRAMInterface(const DRAMInterfaceParams &_p)
       tRFC(_p.tRFC), tREFI(_p.tREFI), tRRD(_p.tRRD), tRRD_L(_p.tRRD_L),
       tPPD(_p.tPPD), tAAD(_p.tAAD),
       tXAW(_p.tXAW), tXP(_p.tXP), tXS(_p.tXS),
-      tTAGBURST(_p.tTAGBURST),  tRL_FAST(_p. tRL_FAST), tHM2DQ(_p.tHM2DQ),
+      tTAGBURST(_p.tTAGBURST), tRLFAST(_p.tRLFAST), tHM2DQ(_p.tHM2DQ),
       tRTW_int(_p.tRTW_int), tRFBD(_p.tRFBD), tRCD_FAST(_p.tRCD_FAST),
-      tRC_FAST(_p.tRC_FAST),
       flushBufferHighThreshold(_p.flushBuffer_high_thresh_perc / 100.0),
+      flushBufferSize(_p.flush_buffer_size),
       clkResyncDelay(_p.tBURST_MAX),
       dataClockSync(_p.data_clock_sync),
       burstInterleave(tBURST != tBURST_MIN),
@@ -2283,8 +2278,6 @@ DRAMInterface::DRAMStats::DRAMStats(DRAMInterface &_dram)
              "Maximum flush buffer length when enqueuing"),
     ADD_STAT(refSchdRFB, statistics::units::Count::get(),
              "Maximum flush buffer length when enqueuing"),
-    ADD_STAT( actDelayedDueToTagAct, statistics::units::Count::get(),
-             " "),
     ADD_STAT(perBankRdBursts, statistics::units::Count::get(),
              "Per bank write bursts"),
     ADD_STAT(perBankWrBursts, statistics::units::Count::get(),

@@ -264,7 +264,6 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
             mem_pkt = mem_intr->decodePacket(pkt, addr, size, true,
                                                     mem_intr->pseudoChannel);
             mem_pkt->isTagCheck = pkt->isTagCheck;
-            mem_pkt->isLocMem = pkt->isLocMem;
 
             // Increment read entries of the rank (dram)
             // Increment count to trigger issue of non-deterministic read (nvm)
@@ -345,7 +344,6 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
             mem_pkt = mem_intr->decodePacket(pkt, addr, size, false,
                                                     mem_intr->pseudoChannel);
             mem_pkt->isTagCheck = pkt->isTagCheck;
-            mem_pkt->isLocMem = pkt->isLocMem;
 
             // Default readyTime to Max if nvm interface;
             //will be reset once read is issued
@@ -715,7 +713,6 @@ MemCtrl::sendTagCheckRespond(MemPacket* mem_pkt)
     PacketPtr tagCheckResPkt = getPacket(mem_pkt->addr, 8, MemCmd::ReadReq);
 
     tagCheckResPkt->isTagCheck = mem_pkt->pkt->isTagCheck;
-    tagCheckResPkt->isLocMem = mem_pkt->pkt->isLocMem;
     tagCheckResPkt->owIsRead = mem_pkt->pkt->owIsRead;
     tagCheckResPkt->isHit = mem_pkt->pkt->isHit;
     tagCheckResPkt->isDirty = mem_pkt->pkt->isDirty;
@@ -937,7 +934,6 @@ MemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
     // conservative estimate of when we have to schedule the next
     // request to not introduce any unecessary bubbles. In most cases
     // we will wake up sooner than we have to.
-    assert(mem_intr->nextBurstAt > mem_intr->commandOffset());
     mem_intr->nextReqTime = mem_intr->nextBurstAt - mem_intr->commandOffset();
 
     // Update the common bus stats
@@ -1524,8 +1520,6 @@ MemCtrl::handleTCforBSlotPkt(MemPacketQueue::iterator BslotPktIt, Tick BSlotTagB
 
         return;
     }
-
-
 }
 
 MemCtrl::CtrlStats::CtrlStats(MemCtrl &_ctrl)
@@ -1574,17 +1568,6 @@ MemCtrl::CtrlStats::CtrlStats(MemCtrl &_ctrl)
              "Reads before turning the bus around for writes"),
     ADD_STAT(wrPerTurnAround, statistics::units::Count::get(),
              "Writes before turning the bus around for reads"),
-    
-    ADD_STAT(noCandidBSlot, statistics::units::Count::get(),
-             " "),
-    ADD_STAT(foundCandidBSlot, statistics::units::Count::get(),
-             " "),
-    ADD_STAT(foundCandidBSlotRH, statistics::units::Count::get(),
-             " "),
-    ADD_STAT(foundCandidBSlotRMC, statistics::units::Count::get(),
-             " "),
-    ADD_STAT(foundCandidBSlotRMD, statistics::units::Count::get(),
-             " "),
 
     ADD_STAT(bytesReadWrQ, statistics::units::Byte::get(),
              "Total number of bytes read from write queue"),
