@@ -409,6 +409,21 @@ class MemInterface : public AbstractMemory
         "should not be executed from here.\n");
     }
 
+    virtual Tick nextTagActAvailability(unsigned rankNumber, unsigned bankNumber)
+        { panic("MemInterface nextTagActAvailability should not be executed from here.\n"); }
+
+    virtual Tick getTRCFAST()
+        { panic("MemInterface getTRCFAST should not be executed from here.\n"); }
+    
+    virtual Tick getTRLFAST()
+        { panic("MemInterface getTRLFAST should not be executed from here.\n"); }
+    
+    virtual Tick getTRCDFAST()
+        { panic("MemInterface getTRCDFAST should not be executed from here.\n"); }
+
+    virtual void updateTagActAllowed(unsigned rankNumber, unsigned bankNumber, Tick BSlotTagAllowedAt)
+        { panic("MemInterface updateTagActAllowed should not be executed from here.\n"); }
+
     typedef MemInterfaceParams Params;
     MemInterface(const Params &_p);
 };
