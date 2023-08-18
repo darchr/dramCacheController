@@ -281,13 +281,9 @@ MemCtrl::addToReadQueue(PacketPtr pkt,
             readQueue[mem_pkt->qosValue()].push_back(mem_pkt);
 
             // log packet
-            DPRINTF(MemCtrl, "logRequest rd: %d %d %x\n",
-            pkt->requestorId(),
-            pkt->qosValue(), mem_pkt->addr);
-
             logRequest(MemCtrl::READ, pkt->requestorId(),
                        pkt->qosValue(), mem_pkt->addr, 1);
-            
+
             mem_intr->readQueueSize++;
 
             // Update stats
@@ -362,13 +358,9 @@ MemCtrl::addToWriteQueue(PacketPtr pkt, unsigned int pkt_count,
             isInWriteQueue.insert(burstAlign(addr, mem_intr));
           
             // log packet
-            DPRINTF(MemCtrl, "logRequest wr: %d %d %x\n",
-            pkt->requestorId(),
-            pkt->qosValue(), mem_pkt->addr);
-
             logRequest(MemCtrl::WRITE, pkt->requestorId(),
                        pkt->qosValue(), mem_pkt->addr, 1);
-            
+
             mem_intr->writeQueueSize++;
 
             //assert(totalWriteQueueSize == isInWriteQueue.size());
@@ -463,7 +455,7 @@ MemCtrl::recvTimingReq(PacketPtr pkt)
     if (pkt->isWrite()) {
         assert(size != 0);
         if (writeQueueFull(pkt_count)) {
-            DPRINTF(MemCtrl, "Write queue full, not accepting, readQ size: %d, writeQ size: %d\n", readQueue[pkt->qosValue()].size(), writeQueue[pkt->qosValue()].size());
+            DPRINTF(MemCtrl, "Write queue full, not accepting\n");
             // remember that we have to retry this port
             retryWrReq = true;
             stats.numWrRetry++;
@@ -483,7 +475,7 @@ MemCtrl::recvTimingReq(PacketPtr pkt)
         assert(pkt->isRead());
         assert(size != 0);
         if (readQueueFull(pkt_count)) {
-            DPRINTF(MemCtrl, "Read queue full, not accepting, readQ size: %d, writeQ size: %d\n", readQueue[pkt->qosValue()].size(), writeQueue[pkt->qosValue()].size());
+            DPRINTF(MemCtrl, "Read queue full, not accepting\n");
             // remember that we have to retry this port
             retryRdReq = true;
             stats.numRdRetry++;
@@ -579,7 +571,7 @@ MemCtrl::chooseNext(MemPacketQueue& queue, Tick extra_col_delay,
                                                 MemInterface* mem_intr)
 {
     // This method does the arbitration between requests.
-    DPRINTF(MemCtrl, "in chooseNext func\n");
+
     MemPacketQueue::iterator ret = queue.end();
 
     if (!queue.empty()) {
@@ -622,7 +614,6 @@ std::pair<MemPacketQueue::iterator, Tick>
 MemCtrl::chooseNextFRFCFS(MemPacketQueue& queue, Tick extra_col_delay,
                                 MemInterface* mem_intr)
 {
-    DPRINTF(MemCtrl, "in chooseNextFRFCFS func\n");
     auto selected_pkt_it = queue.end();
     Tick col_allowed_at = MaxTick;
 
@@ -1006,9 +997,6 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
                         EventFunctionWrapper& resp_event,
                         EventFunctionWrapper& next_req_event,
                         bool& retry_wr_req) {
-    DPRINTF(MemCtrl, "processNextReqEvent: readQueueSize: %d, writeQueueSize:%d, readQ: %d, writeQ: %d, respQ: %d\n",
-                     mem_intr->readQueueSize, mem_intr->writeQueueSize, readQueue[0].size(), writeQueue[0].size(),
-                     respQueue.size());
     if (considerOldestWrite) {
         updateOldestWriteAge();
     }
@@ -1098,7 +1086,7 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
                 prio--;
 
-                DPRINTF(MemCtrl,
+                DPRINTF(QOS,
                         "Checking READ queue [%d] priority [%d elements]\n",
                         prio, queue->size());
 
@@ -1127,36 +1115,7 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
 
             auto mem_pkt = *to_read;
 
-            DPRINTF(MemCtrl, "Read pkt chosen before doburst: %x\n", mem_pkt->getAddr());
-
             Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
-
-            if (mem_pkt->isLocMem) {
-                // && polMan->locMemPolicy == RambusTagProb
-                assert(mem_pkt->BSlotBusyUntil!=MaxTick);
-                assert(!mem_pkt->probedRdMC);
-
-                if (mem_pkt->probedRdH) {
-                    assert(mem_pkt->tagCheckReady != MaxTick);
-                    assert(!mem_pkt->probedRdMD);
-                    assert (mem_pkt->tagCheckReady > (dram->getTRCDFAST() + dram->getTRLFAST()));
-                    assert(cmd_at > (mem_pkt->tagCheckReady - dram->getTRCDFAST() - dram->getTRLFAST()));
-                    
-                    stats.deltaAbSlotRdH += 
-                    (cmd_at - (mem_pkt->tagCheckReady - dram->getTRCDFAST() - dram->getTRLFAST()));
-                
-                } else if (mem_pkt->probedRdMD) {
-                    assert(mem_pkt->tagCheckReady != MaxTick);
-                    assert(!mem_pkt->probedRdH);
-                    assert (mem_pkt->tagCheckReady > (dram->getTRCDFAST() + dram->getTRLFAST()));
-                    assert(cmd_at > (mem_pkt->tagCheckReady - dram->getTRCDFAST() - dram->getTRLFAST()));
-                    
-                    stats.deltaAbSlotRdMD +=
-                    (cmd_at - (mem_pkt->tagCheckReady - dram->getTRCDFAST() - dram->getTRLFAST()));
-                }
-            }
-
-            assert((*to_read)->getAddr() == mem_pkt->getAddr());
 
             if (mem_pkt->isTagCheck) {
                 DPRINTF(MemCtrl, "read times: %x, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
@@ -1164,22 +1123,17 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             }
 
             DPRINTF(MemCtrl,
-            "Command for %x, issued at %lld.\n", mem_pkt->addr, cmd_at);
+            "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
             // sanity check
             assert(pktSizeCheck(mem_pkt, mem_intr));
             assert(mem_pkt->readyTime >= curTick());
 
             // log the response
-            DPRINTF(MemCtrl, "logResponse rd1: %d %d %x %d\n",
-            (*to_read)->requestorId(),
-            mem_pkt->qosValue(), mem_pkt->getAddr(),
-            mem_pkt->readyTime - mem_pkt->entryTime);
-
             logResponse(MemCtrl::READ, (*to_read)->requestorId(),
                         mem_pkt->qosValue(), mem_pkt->getAddr(), 1,
                         mem_pkt->readyTime - mem_pkt->entryTime);
-            
+
             mem_intr->readQueueSize--;
 
             // Insert into response queue. It will be sent back to the
@@ -1206,24 +1160,8 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             }
 
             // remove the request from the queue
-            // the iterator is no longer valid .          
+            // the iterator is no longer valid .
             readQueue[mem_pkt->qosValue()].erase(to_read);
-
-            // Tag probing B slot comes here.
-            if (mem_pkt->isLocMem) {
-                assert(mem_pkt->BSlotBusyUntil != MaxTick);
-
-                DPRINTF(MemCtrl, "Rd--> Start probing for B slot: Aslot addr: %x , end of tag bank busy for B slot: %d\n",
-                        mem_pkt->getAddr(), mem_pkt->BSlotBusyUntil);
-                bool found = findCandidateForBSlot(mem_pkt);
-                DPRINTF(MemCtrl, "Rd--> B slot result: found flag: %d\n",found);
-
-                if (found) {
-                    stats.foundCandidBSlot++;
-                } else {
-                    stats.noCandidBSlot++;
-                }
-            }
         }
 
         // switching to writes, either because the read queue is empty
@@ -1270,6 +1208,9 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         if (!write_found) {
             DPRINTF(MemCtrl, "No Writes Found - exiting\n");
             return;
+
+            DPRINTF(DRAMT, "No Writes Found - exiting\n");
+            return;
         }
 
         auto mem_pkt = *to_write;
@@ -1277,12 +1218,13 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         // sanity check
         assert(pktSizeCheck(mem_pkt, mem_intr));
 
-        DPRINTF(MemCtrl, "Write pkt chosen before doburst: %x\n", mem_pkt->getAddr());
-
         Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
 
         DPRINTF(MemCtrl,
-        "Command for %x, issued at %lld.\n", mem_pkt->addr, cmd_at);
+        "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
+
+        DPRINTF(DRAMT,
+        "Command for %d, issued at %lld.\n", mem_pkt->addr, cmd_at);
 
         if (mem_pkt->isTagCheck) {
                 DPRINTF(MemCtrl, "write times: %x, %s: tag: %d  data: %d \n", mem_pkt->addr, mem_pkt->pkt->cmdString(), mem_pkt->tagCheckReady, mem_pkt->readyTime);
@@ -1293,35 +1235,14 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         isInWriteQueue.erase(burstAlign(mem_pkt->addr, mem_intr));
 
         // log the response
-        DPRINTF(MemCtrl, "logResponse wr1: %d %d %x %d\n",
-                mem_pkt->requestorId(),
-                mem_pkt->qosValue(), mem_pkt->getAddr(),
-                mem_pkt->readyTime - mem_pkt->entryTime);
-
         logResponse(MemCtrl::WRITE, mem_pkt->requestorId(),
                     mem_pkt->qosValue(), mem_pkt->getAddr(), 1,
                     mem_pkt->readyTime - mem_pkt->entryTime);
-        
+
         mem_intr->writeQueueSize--;
 
         // remove the request from the queue - the iterator is no longer valid
         writeQueue[mem_pkt->qosValue()].erase(to_write);
-
-        // Tag probing B slot comes here.
-        if (mem_pkt->isLocMem) {
-            assert(mem_pkt->BSlotBusyUntil != MaxTick);
-
-            DPRINTF(MemCtrl, "WR--> Start probing for B slot: Aslot addr: %x , end of tag bank busy for B slot: %d\n",
-                    mem_pkt->getAddr(), mem_pkt->BSlotBusyUntil);
-            bool found = findCandidateForBSlot(mem_pkt);
-            DPRINTF(MemCtrl, "WR--> B slot result: found flag: %d\n",found);
-
-            if (found) {
-                stats.foundCandidBSlot++;
-            } else {
-                stats.noCandidBSlot++;
-            }
-        }
 
         delete mem_pkt;
 
@@ -1629,15 +1550,7 @@ MemCtrl::CtrlStats::CtrlStats(MemCtrl &_ctrl)
              "Per-requestor read average memory access latency"),
     ADD_STAT(requestorWriteAvgLat, statistics::units::Rate<
                 statistics::units::Tick, statistics::units::Count>::get(),
-             "Per-requestor write average memory access latency"),
-
-    ADD_STAT(deltaAbSlotRdH,  statistics::units::Tick::get(), "stat"),
-    ADD_STAT(deltaAbSlotRdMD,  statistics::units::Tick::get(), "stat"),
-
-    ADD_STAT(avgDeltaAbSlotRdH,  statistics::units::Rate<
-                statistics::units::Tick, statistics::units::Count>::get(), "stat"),
-    ADD_STAT(avgDeltaAbSlotRdMD,  statistics::units::Rate<
-                statistics::units::Tick, statistics::units::Count>::get(), "stat")
+             "Per-requestor write average memory access latency")
 {
 }
 
@@ -1668,9 +1581,6 @@ MemCtrl::CtrlStats::regStats()
     avgRdBWSys.precision(8);
     avgWrBWSys.precision(8);
     avgGap.precision(2);
-
-    avgDeltaAbSlotRdH.precision(2);
-    avgDeltaAbSlotRdMD.precision(2);
 
     // per-requestor bytes read and written to memory
     requestorReadBytes
@@ -1738,11 +1648,6 @@ MemCtrl::CtrlStats::regStats()
     requestorWriteRate = requestorWriteBytes / simSeconds;
     requestorReadAvgLat = requestorReadTotalLat / requestorReadAccesses;
     requestorWriteAvgLat = requestorWriteTotalLat / requestorWriteAccesses;
-
-    avgDeltaAbSlotRdH = (deltaAbSlotRdH/foundCandidBSlotRH)/1000;
-    avgDeltaAbSlotRdMD = (deltaAbSlotRdMD/foundCandidBSlotRMD)/1000;
-
-
 }
 
 void
