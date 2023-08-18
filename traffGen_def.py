@@ -55,7 +55,7 @@ system.mem_ctrl.static_backend_latency = "10ns"
 
 system.loc_mem_ctrl = MemCtrl()
 system.loc_mem_ctrl.dram = TDRAM_32(range=AddrRange('3GiB'), in_addr_map=False, null=True)
-system.mem_ctrl.loc_mem_policy = 'Rambus'
+system.mem_ctrl.loc_mem_policy = 'RambusTagProbOpt'
 
 system.mem_ctrl.loc_mem = system.loc_mem_ctrl.dram
 system.loc_mem_ctrl.static_frontend_latency = "1ns"

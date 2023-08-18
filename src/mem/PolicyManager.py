@@ -5,7 +5,7 @@ from m5.objects.ReplacementPolicies import *
 from m5.objects.AbstractMemory import AbstractMemory
 from m5.objects.DRAMInterface import *
 
-class Policy(Enum): vals = ['CascadeLakeNoPartWrs', 'Oracle', 'BearWriteOpt', 'Rambus']
+class Policy(Enum): vals = ['CascadeLakeNoPartWrs', 'Oracle', 'BearWriteOpt', 'Rambus', 'RambusTagProbOpt']
 class ReplPolicySetAssoc(Enum): vals = ['bip_rp', 'brrip_rp', 'dueling_rp', 'fifo_rp', 'lfu_rp', 'lru_rp', 'mru_rp', 'random_rp', 'second_chance_rp', 'ship_rp', 'tree_plru_rp', 'weighted_lru_rp']
 
 class PolicyManager(AbstractMemory):

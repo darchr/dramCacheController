@@ -76,8 +76,6 @@ class ExitEvent(Enum):
             return ExitEvent.EXIT
         elif exit_string == "exiting with last active thread context":
             return ExitEvent.EXIT
-        elif exit_string == "End of DRTrace":
-            return ExitEvent.EXIT
         elif exit_string == "simulate() limit reached":
             return ExitEvent.MAX_TICK
         elif exit_string == "Tick exit reached":
