@@ -146,6 +146,11 @@ def parse_options():
         type=int,
         help="bypass DRAM cache",
     )
+    parser.add_argument(
+        "tRL",
+        type=str,
+        help="tRL",
+    )
     parser.add_argument("--do_analysis", action="store_true", default=False)
     return parser.parse_args()
 
@@ -201,9 +206,9 @@ def run():
 if __name__ == "__m5_main__":
     args = parse_options()
 
-    kernel = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83"
-    disk = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb"
-    ckpt_base = "/home/babaie/projects/rambusDesign/1gigDRAMCache/dramCacheController/chkpt1GigDC/"
+    kernel = "/scr/babaie/archive/fullSystemDisksKernel/x86-linux-kernel-4.19.83"
+    disk = "/scr/babaie/archive/fullSystemDisksKernel/x86-npb"
+    ckpt_base = "/scr/babaie/copied1GBdramCacheChkpt/"
 
     num_cpus = 8
     cpu_type = "Timing"
@@ -262,6 +267,7 @@ if __name__ == "__m5_main__":
         args.is_link,
         args.link_lat,
         args.bypass,
+        args.tRL,
         args,
         restore=True,
     )
