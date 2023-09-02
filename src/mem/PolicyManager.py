@@ -21,19 +21,21 @@ class PolicyManager(AbstractMemory):
     far_burst_size = Param.Unsigned(64, "Far memory burst size")
 
     loc_mem_policy = Param.Policy('CascadeLakeNoPartWrs', "DRAM Cache Policy")
-
     loc_mem = Param.AbstractMemory("local memory device")
+
+    assoc = Param.Unsigned(1, "Number of ways per each set in DRAM cache, if it is set-associative")
+    replPol = Param.ReplPolicySetAssoc('lru_rp', "Replacement policy, if it is set-associative")
+    replacement_policy = Param.BaseReplacementPolicy(LRURP(), "Replacement policy")
     
     dram_cache_size = Param.MemorySize('128MiB', "DRAM cache block size in bytes")
     block_size = Param.Unsigned(64, "DRAM cache block size in bytes")
-    assoc = Param.Unsigned(1, "Number of ways per each set in DRAM cache, if it is set-associative")
-    replPol = Param.ReplPolicySetAssoc('lru_rp', "Replacement policy, if it is set-associative")
     addr_size = Param.Unsigned(64,"Addr size of the request from outside world")
     orb_max_size = Param.Unsigned(256, "Outstanding Requests Buffer size")
     crb_max_size = Param.Unsigned(32, "Conflicting Requests Buffer size")
     extreme = Param.Bool(False, "Control flag for enforcing hit/miss & dirty/clean")
     always_hit = Param.Bool(True, "Control flag for enforcing hit/miss")
     always_dirty = Param.Bool(False, "Control flag for enforcing clean/dirty")
+
     static_frontend_latency = Param.Latency("10ns", "Static frontend latency")
     static_backend_latency = Param.Latency("10ns", "Static backend latency")
 
@@ -41,4 +43,4 @@ class PolicyManager(AbstractMemory):
 
     bypass_dcache = Param.Bool(False, "if the DRAM cache needs to be bypassed")
 
-    replacement_policy = Param.BaseReplacementPolicy(LRURP(), "Replacement policy")
+    

@@ -166,37 +166,13 @@ class PolicyManager : public AbstractMemory
 
     std::unordered_set<Addr> isInWriteQueue;
 
-    // class tagMetaStoreEntry : public ReplaceableEntry
-    // {
-    //   // DRAM cache related metadata
-    //   public:
-    //     Addr tagDC;
-    //     Addr indexDC;
-    //     // constant to indicate that the cache line is valid
-    //     bool validLine;
-    //     // constant to indicate that the cache line is dirty
-    //     bool dirtyLine;
-    //     Addr farMemAddr;
-    //     tagMetaStoreEntry(Addr _tagDC, Addr _indexDC, bool _validLine, bool _dirtyLine, Addr _farMemAddr) : 
-    //     tagDC(_tagDC),
-    //     indexDC(_indexDC),
-    //     validLine(_validLine),
-    //     dirtyLine(_dirtyLine),
-    //     farMemAddr(_farMemAddr)
-    //     { }
-    // };
-
     /** A storage to keep the tag and metadata for the
      * DRAM Cache entries.
      */
     std::vector<std::vector<ReplaceableEntry*>> tagMetadataStore;
 
     /** Different states a packet can transition from one
-     * to the other while it's process in the DRAM Cache223223
-
-
-
-     * Controller.
+     * to the other while it's process in the DRAM Cache Controller.
      */
     enum reqState
     {
@@ -400,9 +376,6 @@ class PolicyManager : public AbstractMemory
     void locMemRecvReqRetry();
     void farMemRecvReqRetry();
 
-    //void locMemRetryReq() {}
-    //void farMemRetryReq() {}
-
     bool locMemRecvTimingResp(PacketPtr pkt);
     bool farMemRecvTimingResp(PacketPtr pkt);
     struct PolicyManagerStats : public statistics::Group
@@ -467,7 +440,6 @@ class PolicyManager : public AbstractMemory
       statistics::Scalar sentLocWrPort;
       statistics::Scalar failedLocRdPort;
       statistics::Scalar failedLocWrPort;
-      //statistics::Scalar recvdRdPort;
       statistics::Scalar sentFarRdPort;
       statistics::Scalar sentFarWrPort;
       statistics::Scalar failedFarRdPort;

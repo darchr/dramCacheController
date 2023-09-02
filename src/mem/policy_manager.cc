@@ -20,7 +20,6 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     farReqPort(name() + ".far_req_port", *this),
     locBurstSize(p.loc_burst_size),
     farBurstSize(p.far_burst_size),
-    // locMemPolicy(p.loc_mem_policy),
     locMem(p.loc_mem),
     replacementPolicy(p.replacement_policy),
     dramCacheSize(p.dram_cache_size),
