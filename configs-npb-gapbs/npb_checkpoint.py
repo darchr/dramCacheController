@@ -43,57 +43,110 @@ from m5.objects import *
 
 from system import *
 
+
 def writeBenchScript(dir, bench):
     """
     This method creates a script in dir which will be eventually
     passed to the simulated system (to run a specific benchmark
     at bootup).
     """
-    file_name = '{}/run_{}'.format(dir, bench)
-    bench_file = open(file_name,"w+")
-    bench_file.write('/home/gem5/NPB3.3-OMP/bin/{} \n'.format(bench))
+    file_name = "{}/run_{}".format(dir, bench)
+    bench_file = open(file_name, "w+")
+    bench_file.write("/home/gem5/NPB3.3-OMP/bin/{} \n".format(bench))
 
     # sleeping for sometime (5 seconds here) makes sure
     # that the benchmark's output has been
     # printed to the console
-    bench_file.write('sleep 5 \n')
-    bench_file.write('m5 exit \n')
+    bench_file.write("sleep 5 \n")
+    bench_file.write("m5 exit \n")
     bench_file.close()
     return file_name
 
-supported_protocols = ["classic", "MI_example", "MESI_Two_Level",
-                        "MOESI_CMP_directory"]
-supported_cpu_types = ['kvm', 'atomic', 'timing']
-benchmark_choices = ['bt.A.x', 'cg.A.x', 'ep.A.x', 'ft.A.x',
-                     'is.A.x', 'lu.A.x', 'mg.A.x', 'sp.A.x',
-                     'bt.B.x', 'cg.B.x', 'ep.B.x', 'ft.B.x',
-                     'is.B.x', 'lu.B.x', 'mg.B.x', 'sp.B.x',
-                     'bt.C.x', 'cg.C.x', 'ep.C.x', 'ft.C.x',
-                     'is.C.x', 'lu.C.x', 'mg.C.x', 'sp.C.x',
-                     'bt.D.x', 'cg.D.x', 'ep.D.x', 'ft.D.x',
-                     'is.D.x', 'lu.D.x', 'mg.D.x', 'sp.D.x',
-                     'bt.F.x', 'cg.F.x', 'ep.F.x', 'ft.F.x',
-                     'is.F.x', 'lu.F.x', 'mg.F.x', 'sp.F.x',
-                     'ua.C.x', 'ua.D.x']
+
+supported_protocols = [
+    "classic",
+    "MI_example",
+    "MESI_Two_Level",
+    "MOESI_CMP_directory",
+]
+supported_cpu_types = ["kvm", "atomic", "timing"]
+benchmark_choices = [
+    "bt.A.x",
+    "cg.A.x",
+    "ep.A.x",
+    "ft.A.x",
+    "is.A.x",
+    "lu.A.x",
+    "mg.A.x",
+    "sp.A.x",
+    "bt.B.x",
+    "cg.B.x",
+    "ep.B.x",
+    "ft.B.x",
+    "is.B.x",
+    "lu.B.x",
+    "mg.B.x",
+    "sp.B.x",
+    "bt.C.x",
+    "cg.C.x",
+    "ep.C.x",
+    "ft.C.x",
+    "is.C.x",
+    "lu.C.x",
+    "mg.C.x",
+    "sp.C.x",
+    "bt.D.x",
+    "cg.D.x",
+    "ep.D.x",
+    "ft.D.x",
+    "is.D.x",
+    "lu.D.x",
+    "mg.D.x",
+    "sp.D.x",
+    "bt.F.x",
+    "cg.F.x",
+    "ep.F.x",
+    "ft.F.x",
+    "is.F.x",
+    "lu.F.x",
+    "mg.F.x",
+    "sp.F.x",
+    "ua.C.x",
+    "ua.D.x",
+]
+
 
 def parse_options():
 
-    parser = argparse.ArgumentParser(description='For use with gem5. This '
-                'runs a NAS Parallel Benchmark application. This only works '
-                'with x86 ISA.')
+    parser = argparse.ArgumentParser(
+        description="For use with gem5. This "
+        "runs a NAS Parallel Benchmark application. This only works "
+        "with x86 ISA."
+    )
 
     # The manditry position arguments.
-    parser.add_argument("benchmark", type=str, #choices=benchmark_choices,
-                        help="The NPB application to run")
-    parser.add_argument("class_size", type=str,
-                        help="The NPB application class to run")
-    parser.add_argument("dcache_policy", type=str,
-                        help="The architecture of DRAM cache: "
-                        "CascadeLakeNoPartWrs, Oracle, BearWriteOpt, Rambus")
-    parser.add_argument("is_link", type=int,
-                        help="whether to use a link for backing store or not")
-    parser.add_argument("link_lat", type=str,
-                        help="latency of the link to backing store")
+    parser.add_argument(
+        "benchmark",
+        type=str,  # choices=benchmark_choices,
+        help="The NPB application to run",
+    )
+    parser.add_argument(
+        "class_size", type=str, help="The NPB application class to run"
+    )
+    parser.add_argument(
+        "dcache_policy",
+        type=str,
+        help="The architecture of DRAM cache: "
+        "CascadeLakeNoPartWrs, Oracle, BearWriteOpt, Rambus, RambusTagProbOpt",
+    )
+    parser.add_argument(
+        "is_link",
+        type=int,
+        help="whether to use a link for backing store or not",
+    )
+    parser.add_argument(
+        "link_lat", type=str, help="latency of the link to backing store"
+    )
 
     return parser.parse_args()
 
@@ -101,8 +154,8 @@ def parse_options():
 if __name__ == "__m5_main__":
     args = parse_options()
 
-    kernel = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83"
-    disk = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb"
+    kernel = "/home/mbabaie/code-review/dramCacheController/fs-resources/x86-linux-kernel-4.19.83"
+    disk = "/home/mbabaie/code-review/dramCacheController/fs-resources/x86-npb"
     num_cpus = 8
     cpu_type = "Timing"
     mem_sys = "MESI_Two_Level"
@@ -119,10 +172,22 @@ if __name__ == "__m5_main__":
     benchmark = args.benchmark
 
     # create the system we are going to simulate
-    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, assoc, dcache_size, mem_size, 
-                            args.dcache_policy, args.is_link, args.link_lat, args)
+    system = MyRubySystem(
+        kernel,
+        disk,
+        mem_sys,
+        num_cpus,
+        assoc,
+        dcache_size,
+        mem_size,
+        args.dcache_policy,
+        args.is_link,
+        args.link_lat,
+        0,
+        args,
+    )
 
-    system.m5ops_base = 0xffff0000
+    system.m5ops_base = 0xFFFF0000
 
     # Exit from guest on workbegin/workend
     system.exit_on_work_items = True
@@ -132,15 +197,15 @@ if __name__ == "__m5_main__":
     system.readfile = writeBenchScript(m5.options.outdir, benchmark)
 
     # set up the root SimObject and start the simulation
-    root = Root(full_system = True, system = system)
+    root = Root(full_system=True, system=system)
 
     if system.getHostParallel():
         # Required for running kvm on multiple host cores.
         # Uses gem5's parallel event queue feature
         # Note: The simulator is quite picky about this number!
-        root.sim_quantum = int(1e9) # 1 ms
+        root.sim_quantum = int(1e9)  # 1 ms
 
-    #needed for long running jobs
+    # needed for long running jobs
     # m5.disableAllListeners()
 
     # instantiate all of the objects we've created above
@@ -169,16 +234,22 @@ if __name__ == "__m5_main__":
         exit()
 
     m5.stats.reset()
-    print("After reset ************************************************ statring smiulation:\n")
+    print(
+        "After reset ************************************************ statring smiulation:\n"
+    )
     for interval_number in range(105):
         print("Interval number: {} \n".format(interval_number))
         exit_event = m5.simulate(10000000000)
-        if (exit_event.getCause() == "cacheIsWarmedup") :
+        if exit_event.getCause() == "cacheIsWarmedup":
             print("Caught cacheIsWarmedup exit event!")
             break
-        print("-------------------------------------------------------------------")
+        print(
+            "-------------------------------------------------------------------"
+        )
 
-    print("After sim ************************************************ End of warm-up \n")
+    print(
+        "After sim ************************************************ End of warm-up \n"
+    )
     m5.stats.dump()
     system.switchCpus(system.timingCpu, system.o3Cpu)
-    m5.checkpoint(m5.options.outdir + '/cpt')
+    m5.checkpoint(m5.options.outdir + "/cpt")

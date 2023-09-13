@@ -38,7 +38,8 @@ from m5.objects import *
 from system import *
 
 supported_protocols = ["MESI_Two_Level"]
-supported_cpu_types = ['kvm', 'atomic', 'timing']
+supported_cpu_types = ["kvm", "atomic", "timing"]
+
 
 def writeBenchScript(dir, benchmark_name, size, synthetic):
     """
@@ -46,47 +47,59 @@ def writeBenchScript(dir, benchmark_name, size, synthetic):
     passed to the simulated system (to run a specific benchmark
     at bootup).
     """
-    input_file_name = '{}/run_{}_{}'.format(dir, benchmark_name, size)
-    if (synthetic):
-        with open(input_file_name,"w") as f:
-            f.write('./{} -g {}\n'.format(benchmark_name, size))
-    elif(synthetic==0):
-        with open(input_file_name,"w") as f:
+    input_file_name = "{}/run_{}_{}".format(dir, benchmark_name, size)
+    if synthetic:
+        with open(input_file_name, "w") as f:
+            f.write("./{} -g {}\n".format(benchmark_name, size))
+    elif synthetic == 0:
+        with open(input_file_name, "w") as f:
             # The workloads that are copied to the disk image using Packer
             # should be located in /home/gem5/.
             # Since the command running the workload will be executed with
             # pwd = /home/gem5/gapbs, the path to the copied workload is
             # ../{workload-name}
-            f.write('./{} -sf ../{}'.format(benchmark_name, size))
+            f.write("./{} -sf ../{}".format(benchmark_name, size))
 
     return input_file_name
 
+
 def parse_options():
 
-    parser = argparse.ArgumentParser(description='For use with gem5. This '
-                'runs a GAPBS applications. This only works '
-                'with x86 ISA.')
+    parser = argparse.ArgumentParser(
+        description="For use with gem5. This "
+        "runs a GAPBS applications. This only works "
+        "with x86 ISA."
+    )
 
     # The manditry position arguments.
-    parser.add_argument("benchmark", type=str,
-                        help="The GAPBS application to run")
-    parser.add_argument("graph", type=str,
-                        help="The GAPBS application to run")
-    parser.add_argument("dcache_policy", type=str,
-                        help="The architecture of DRAM cache: "
-                        "CascadeLakeNoPartWrs, Oracle, BearWriteOpt, Rambus")
-    parser.add_argument("is_link", type=int,
-                        help="whether to use a link for backing store or not")
-    parser.add_argument("link_lat", type=str,
-                        help="latency of the link to backing store")
+    parser.add_argument(
+        "benchmark", type=str, help="The GAPBS application to run"
+    )
+    parser.add_argument("graph", type=str, help="The GAPBS application to run")
+    parser.add_argument(
+        "dcache_policy",
+        type=str,
+        help="The architecture of DRAM cache: "
+        "CascadeLakeNoPartWrs, Oracle, BearWriteOpt, Rambus",
+    )
+    parser.add_argument(
+        "is_link",
+        type=int,
+        help="whether to use a link for backing store or not",
+    )
+    parser.add_argument(
+        "link_lat", type=str, help="latency of the link to backing store"
+    )
     return parser.parse_args()
 
 
 if __name__ == "__m5_main__":
     args = parse_options()
 
-    kernel = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83"
-    disk = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-gapbs"
+    kernel = "/home/mbabaie/code-review/dramCacheController/fs-resources/x86-linux-kernel-4.19.83"
+    disk = (
+        "/home/mbabaie/code-review/dramCacheController/fs-resources/x86-gapbs"
+    )
     num_cpus = 8
     cpu_type = "Timing"
     mem_sys = "MESI_Two_Level"
@@ -102,26 +115,40 @@ if __name__ == "__m5_main__":
         mem_size = "85GiB"
     assoc = 1
     # create the system we are going to simulate
-    system = MyRubySystem(kernel, disk, mem_sys, num_cpus, assoc, dcache_size, mem_size, args.dcache_policy,
-                            args.is_link, args.link_lat, args)
+    system = MyRubySystem(
+        kernel,
+        disk,
+        mem_sys,
+        num_cpus,
+        assoc,
+        dcache_size,
+        mem_size,
+        args.dcache_policy,
+        args.is_link,
+        args.link_lat,
+        0,
+        args,
+    )
 
-    system.m5ops_base = 0xffff0000
+    system.m5ops_base = 0xFFFF0000
 
     # Exit from guest on workbegin/workend
     system.exit_on_work_items = True
 
     # Create and pass a script to the simulated system to run the reuired
     # benchmark
-    system.readfile = writeBenchScript(m5.options.outdir, args.benchmark, args.graph, synthetic)
+    system.readfile = writeBenchScript(
+        m5.options.outdir, args.benchmark, args.graph, synthetic
+    )
 
     # set up the root SimObject and start the simulation
-    root = Root(full_system = True, system = system)
+    root = Root(full_system=True, system=system)
 
     if system.getHostParallel():
         # Required for running kvm on multiple host cores.
         # Uses gem5's parallel event queue feature
         # Note: The simulator is quite picky about this number!
-        root.sim_quantum = int(1e9) # 1 ms
+        root.sim_quantum = int(1e9)  # 1 ms
 
     # needed for long running jobs
     # m5.disableAllListeners()
@@ -151,16 +178,22 @@ if __name__ == "__m5_main__":
         exit()
 
     m5.stats.reset()
-    print("After reset ************************************************ statring smiulation:\n")
+    print(
+        "After reset ************************************************ statring smiulation:\n"
+    )
     for interval_number in range(150):
         print("Interval number: {} \n".format(interval_number))
         exit_event = m5.simulate(10000000000)
-        if (exit_event.getCause() == "cacheIsWarmedup") :
+        if exit_event.getCause() == "cacheIsWarmedup":
             print("Caught cacheIsWarmedup exit event!")
             break
-        print("-------------------------------------------------------------------")
+        print(
+            "-------------------------------------------------------------------"
+        )
 
-    print("After sim ************************************************ End of warm-up \n")
+    print(
+        "After sim ************************************************ End of warm-up \n"
+    )
     m5.stats.dump()
     system.switchCpus(system.timingCpu, system.o3Cpu)
-    m5.checkpoint(m5.options.outdir + '/cpt')
+    m5.checkpoint(m5.options.outdir + "/cpt")

@@ -321,6 +321,9 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         }
 
         if (locMem->checkFwdMrgeInFB(pkt->getAddr())) {
+            // This is not faithful to the real hardware
+            // for transferring the FB data to the policy manager
+            // since the case is very rare.
             foundInLocMemFB = true;
 
             polManStats.servicedByFB++;
@@ -802,7 +805,7 @@ PolicyManager::farMemRecvTimingResp(PacketPtr pkt)
 
         assert(orbEntry->state == waitingFarMemReadResp);
 
-        if (locMemPolicy == enums::RambusTagProbOpt && 
+        if (locMemPolicy == enums::RambusTagProbOpt &&
             !orbEntry->isHit && orbEntry->prevDirty) {
             assert(!orbEntry->rcvdFarRdResp);
             orbEntry->rcvdFarRdResp = true;
@@ -2349,7 +2352,7 @@ PolicyManager::checkConflictInORB(PacketPtr pkt)
     //Addr tagDC   = returnTagDC(pkt->getAddr(), pkt->getSize());
 
     std::vector<Addr> sameIndex;
-    
+
     for (auto e = ORB.begin(); e != ORB.end(); ++e) {
         if (e->second->validEntry && indexDC == e->second->indexDC /*&& tagDC != e->second->tagDC*/) {
             sameIndex.push_back(e->first);
@@ -2460,7 +2463,7 @@ PolicyManager::checkDirty(Addr index, int way)
     if (extreme) {
         return alwaysDirty;
     } else {
-        return (tagMetadataStore.at(index).at(way)->validLine && 
+        return (tagMetadataStore.at(index).at(way)->validLine &&
                 tagMetadataStore.at(index).at(way)->dirtyLine);
     }
 }
@@ -2801,7 +2804,7 @@ PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
             polManStats.totPktLifeTimeRd += ((curTick() - orbEntry->arrivalTick)/1000);
             polManStats.totPktORBTimeRd += ((curTick() - orbEntry->tagCheckEntered)/1000);
             polManStats.totTimeTagCheckResRd += ((orbEntry->tagCheckExit - orbEntry->tagCheckEntered)/1000);
-            
+
             if (orbEntry->isHit) {
                 polManStats.totTimeTagCheckResRdH += ((orbEntry->tagCheckExit - orbEntry->tagCheckEntered)/1000);
             } else if (!orbEntry->isHit && !orbEntry->prevDirty) {
@@ -2809,7 +2812,7 @@ PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
             } else if (!orbEntry->isHit && orbEntry->prevDirty) {
                 polManStats.totTimeTagCheckResRdMD += ((orbEntry->tagCheckExit - orbEntry->tagCheckEntered)/1000);
             }
-        
+
         } else {
             polManStats.totPktRespTime += ((curTick() - orbEntry->arrivalTick)/1000);
             polManStats.totPktRespTimeWr += ((curTick() - orbEntry->arrivalTick)/1000);
@@ -2835,12 +2838,12 @@ PolicyManager::logStatsPolMan(reqBufferEntry* orbEntry)
             polManStats.totTimeFarRdtoSend += ((orbEntry->farRdIssued - orbEntry->farRdEntered)/1000);
             polManStats.totTimeFarRdtoRecv += ((orbEntry->farRdExit - orbEntry->farRdIssued)/1000);
             polManStats.totTimeInLocWrite += ((orbEntry->locWrExit - orbEntry->locWrEntered)/1000);
-        }  
+        }
     }
     else {
         // MUST be updated since they are average, they should be per case
         if (locMemPolicy == enums::Oracle ) {
-            if ((orbEntry->owPkt->isRead() && orbEntry->isHit) || 
+            if ((orbEntry->owPkt->isRead() && orbEntry->isHit) ||
              (orbEntry->owPkt->isRead() && !orbEntry->isHit && orbEntry->prevDirty) ||
              (!orbEntry->owPkt->isRead() && !orbEntry->isHit && orbEntry->prevDirty)) {
                 polManStats.totPktORBTime += ((curTick() - orbEntry->locRdEntered)/1000);
@@ -3351,5 +3354,5 @@ PolicyManager::recvReadFlushBuffer(Addr addr)
     return false;
 }
 
-} // namespace memory 
+} // namespace memory
 } // namespace gem5

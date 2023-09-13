@@ -146,17 +146,14 @@ def parse_options():
         type=int,
         help="bypass DRAM cache",
     )
-    parser.add_argument(
-        "tRL",
-        type=str,
-        help="tRL",
-    )
     parser.add_argument("--do_analysis", action="store_true", default=False)
     return parser.parse_args()
 
 
 def do_analysis():
-    print("**************** Doing analysis! Simulating 100 intervals of 10ms each! ********************\n")
+    print(
+        "**************** Doing analysis! Simulating 100 intervals of 10ms each! ********************\n"
+    )
     start = time.time()
 
     for interval_number in range(100):
@@ -206,9 +203,9 @@ def run():
 if __name__ == "__m5_main__":
     args = parse_options()
 
-    kernel = "/scr/babaie/archive/fullSystemDisksKernel/x86-linux-kernel-4.19.83"
-    disk = "/scr/babaie/archive/fullSystemDisksKernel/x86-npb"
-    ckpt_base = "/scr/babaie/copied1GBdramCacheChkpt/"
+    kernel = "/home/mbabaie/code-review/dramCacheController/fs-resources/x86-linux-kernel-4.19.83"
+    disk = "/home/mbabaie/code-review/dramCacheController/fs-resources/x86-npb"
+    ckpt_base = ""
 
     num_cpus = 8
     cpu_type = "Timing"
@@ -267,7 +264,6 @@ if __name__ == "__m5_main__":
         args.is_link,
         args.link_lat,
         args.bypass,
-        args.tRL,
         args,
         restore=True,
     )
