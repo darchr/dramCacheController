@@ -168,6 +168,8 @@ class MemInterface : public AbstractMemory
 
   public:
 
+  AbstractMemory* polMan;
+
     /**
       * Buffer sizes for read and write queues in the controller
       * These are passed to the controller on instantiation

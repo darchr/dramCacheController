@@ -692,7 +692,7 @@ class DRAMInterface : public MemInterface
 
   public:
 
-    AbstractMemory* polMan;
+    //AbstractMemory* polMan;
 
     Tick get_tRP() override { return tRP;}
     Tick get_tRCD_RD() override { return tRCD_RD;}

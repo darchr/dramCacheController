@@ -203,9 +203,9 @@ def run():
 if __name__ == "__m5_main__":
     args = parse_options()
 
-    kernel = "/home/mbabaie/code-review/dramCacheController/fs-resources/x86-linux-kernel-4.19.83"
-    disk = "/home/mbabaie/code-review/dramCacheController/fs-resources/x86-npb"
-    ckpt_base = ""
+    kernel = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-linux-kernel-4.19.83"
+    disk = "/home/babaie/projects/ispass2023/runs/hbmCtrlrTest/dramCacheController/fullSystemDisksKernel/x86-npb"
+    ckpt_base = "/home/babaie/projects/rambusDesign/1gigDRAMCache/dramCacheController/chkpt1GigDC/"
 
     num_cpus = 8
     cpu_type = "Timing"

@@ -1132,9 +1132,10 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             Tick cmd_at = doBurstAccess(mem_pkt, mem_intr);
 
             if (mem_pkt->isLocMem) {
-                // && polMan->locMemPolicy == RambusTagProb
-                assert(mem_pkt->BSlotBusyUntil!=MaxTick);
-                assert(!mem_pkt->probedRdMC);
+                if (dram->polMan->locMemPolicy == enums::RambusTagProbOpt) {
+                    assert(mem_pkt->BSlotBusyUntil!=MaxTick);
+                    assert(!mem_pkt->probedRdMC);
+                }
 
                 if (mem_pkt->probedRdH) {
                     assert(mem_pkt->tagCheckReady != MaxTick);
@@ -1210,7 +1211,7 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
             readQueue[mem_pkt->qosValue()].erase(to_read);
 
             // Tag probing B slot comes here.
-            if (mem_pkt->isLocMem) {
+            if (mem_pkt->isLocMem && dram->polMan->locMemPolicy == enums::RambusTagProbOpt) {
                 assert(mem_pkt->BSlotBusyUntil != MaxTick);
 
                 DPRINTF(MemCtrl, "Rd--> Start probing for B slot: Aslot addr: %x , end of tag bank busy for B slot: %d\n",
@@ -1308,7 +1309,7 @@ MemCtrl::processNextReqEvent(MemInterface* mem_intr,
         writeQueue[mem_pkt->qosValue()].erase(to_write);
 
         // Tag probing B slot comes here.
-        if (mem_pkt->isLocMem) {
+        if (mem_pkt->isLocMem && dram->polMan->locMemPolicy == enums::RambusTagProbOpt) {
             assert(mem_pkt->BSlotBusyUntil != MaxTick);
 
             DPRINTF(MemCtrl, "WR--> Start probing for B slot: Aslot addr: %x , end of tag bank busy for B slot: %d\n",
