@@ -43,6 +43,7 @@ class ExitEvent(Enum):
     FAIL = "fail"  # An exit because the simulation has failed.
     CHECKPOINT = "checkpoint"  # An exit to load a checkpoint.
     SCHEDULED_TICK = "scheduled tick exit"
+    SCHEDULED_TICK_PROGRESS = "progress update"
     MAX_TICK = "max tick"  # An exit due to a maximum tick value being met.
     USER_INTERRUPT = (  # An exit due to a user interrupt (e.g., cntr + c)
         "user interupt"
@@ -53,6 +54,7 @@ class ExitEvent(Enum):
     PERF_COUNTER_DISABLE = "performance counter disabled"
     PERF_COUNTER_RESET = "performance counter reset"
     PERF_COUNTER_INTERRUPT = "performance counter interrupt"
+    CACHE_WARMUP = "dram cache is warmed up"
 
     @classmethod
     def translate_exit_status(cls, exit_string: str) -> "ExitEvent":
@@ -82,6 +84,8 @@ class ExitEvent(Enum):
             return ExitEvent.MAX_TICK
         elif exit_string == "Tick exit reached":
             return ExitEvent.SCHEDULED_TICK
+        elif exit_string == "progress_update":
+            return ExitEvent.SCHEDULED_TICK_PROGRESS
         elif exit_string == "switchcpu":
             return ExitEvent.SWITCHCPU
         elif exit_string == "m5_fail instruction encountered":
@@ -102,6 +106,9 @@ class ExitEvent(Enum):
             return ExitEvent.PERF_COUNTER_RESET
         elif exit_string == "performance counter interrupt":
             return ExitEvent.PERF_COUNTER_INTERRUPT
+        elif exit_string == "cacheIsWarmedup":
+            # This is for the DRAM cache warmup
+            return ExitEvent.CACHE_WARMUP
         elif exit_string.endswith("will terminate the simulation.\n"):
             # This is for the traffic generator exit event
             return ExitEvent.EXIT

@@ -41,7 +41,7 @@ import math
 import m5
 from m5.objects import *
 from m5.defines import buildEnv
-from m5.util import addToPath, fatal
+from m5.util import addToPath, fatal, warn
 from gem5.isas import ISA
 from gem5.runtime import get_runtime_isa
 
@@ -293,9 +293,13 @@ def create_system(
     # Create a backing copy of physical memory in case required
     if options.access_backing_store:
         ruby.access_backing_store = True
-        ruby.phys_mem = SimpleMemory(
-            range=system.mem_ranges[0], in_addr_map=False
-        )
+        if len(system.mem_ranges) > 1:
+            warn("Backing store not supported for multiple memory ranges")
+        # Note: to make this support multiple memory ranges you need to create
+        # one SimpleMemory for each physical memory range
+        ruby.phys_mem = [
+            SimpleMemory(range=system.mem_ranges[0], in_addr_map=False)
+        ]
 
 
 def create_directories(options, bootmem, ruby_system, system):
