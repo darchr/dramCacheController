@@ -41,6 +41,9 @@ from .single_channel import (
     SingleChannelHBM,
     SingleChannelLPDDR3_1600,
 )
+from .dcache import CascadeLakeCache
+from .dcache import OracleCache
+from .dcache import RambusCache
 
 try:
     from .dramsys import (
