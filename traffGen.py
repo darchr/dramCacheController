@@ -52,20 +52,19 @@ system.mem_ctrl.orb_max_size = 128
 system.mem_ctrl.assoc = 4
 system.mem_ctrl.static_frontend_latency = "10ns"
 system.mem_ctrl.static_backend_latency = "10ns"
+system.mem_ctrl.loc_mem_policy = 'RambusTagProbOpt'
 
 system.loc_mem_ctrl = MemCtrl()
 system.loc_mem_ctrl.dram = TDRAM(range=AddrRange('3GiB'), in_addr_map=False, null=True)
-system.mem_ctrl.loc_mem_policy = 'RambusTagProbOpt'
-
-system.mem_ctrl.loc_mem = system.loc_mem_ctrl.dram
+system.loc_mem_ctrl.dram.read_buffer_size = 64
+system.loc_mem_ctrl.dram.write_buffer_size = 64
+system.loc_mem_ctrl.dram = system.mem_ctrl.loc_mem
 system.loc_mem_ctrl.static_frontend_latency = "1ns"
 system.loc_mem_ctrl.static_backend_latency = "1ns"
 system.loc_mem_ctrl.static_frontend_latency_tc = "0ns"
 system.loc_mem_ctrl.static_backend_latency_tc = "0ns"
 system.loc_mem_ctrl.consider_oldest_write = True
 system.loc_mem_ctrl.oldest_write_age_threshold = 2500000
-# system.loc_mem_ctrl.dram.tRLFAST = "32ns"
-# system.loc_mem_ctrl.dram.tRCD_FAST = "32ns"
 
 system.far_mem_ctrl = MemCtrl()
 system.far_mem_ctrl.dram = DDR4_2400_16x4(range=AddrRange('3GiB'),in_addr_map=False, null=True)
