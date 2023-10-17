@@ -38,7 +38,7 @@ PolicyManager::PolicyManager(const PolicyManagerParams &p):
     infoCacheWarmupRatio(0.05),
     resetStatsWarmup(false),
     prevArrival(0),
-    retryLLC(false), retryLLCFarMemWr(false),
+    retryLLC(false), retryLLCRepetitive(false), retryLLCFarMemWr(false),
     retryTagCheck(false), retryLocMemRead(false), retryFarMemRead(false),
     retryLocMemWrite(false), retryFarMemWrite(false),
     maxConf(0),
@@ -413,6 +413,13 @@ PolicyManager::recvTimingReq(PacketPtr pkt)
         return false;
     }
 
+    // This should only happen in traffic generator tests.
+    if (findInORB(pkt->getAddr())) {
+        ORB.at(pkt->getAddr())->repetitiveReqRcvd = true;
+        retryLLCRepetitive = true;
+        return false;
+    }
+
     // if none of the above cases happens,
     // add it to the ORB
     handleRequestorPkt(pkt);
@@ -434,6 +441,7 @@ void
 PolicyManager::processTagCheckEvent()
 {
     // sanity check for the chosen packet
+
     auto orbEntry = ORB.at(pktTagCheck.front());
     assert(orbEntry->pol == enums::Rambus || orbEntry->pol == enums::RambusTagProbOpt);
     assert(orbEntry->validEntry);
@@ -2339,8 +2347,26 @@ PolicyManager::handleRequestorPkt(PacketPtr pkt)
                         orbEntry->owPkt->getAddr();
     }
 
+    if (orbEntry->isHit) {
+        tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->counter++;
+    } else {
+        tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->counter = 1;
+    }
+
+    polManStats.avgReusedBlk = tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->counter;
+
+    polManStats.reusedBlkCountPdf[tagMetadataStore.at(orbEntry->indexDC).at(orbEntry->wayNum)->counter]++;
+    
     // tagMetadataStore.at(orbEntry->indexDC).farMemAddr =
     //                     orbEntry->owPkt->getAddr();
+
+    unsigned validBlocks = 0;
+    for (int i = 0; i < assoc; i++) {
+        if (tagMetadataStore.at(orbEntry->indexDC).at(i)->validLine) {
+            validBlocks++;
+        }
+    }
+    polManStats.avgOccWays = validBlocks;
 
     DPRINTF(PolicyManager, "ORB+: adr= %d, index= %d, tag= %d, cmd= %s, isHit= %d, wasDirty= %d, dirtyAddr= %d\n", orbEntry->owPkt->getAddr(), orbEntry->indexDC, orbEntry->tagDC, orbEntry->owPkt->cmdString(), orbEntry->isHit, orbEntry->prevDirty, orbEntry->dirtyLineAddr);
 }
@@ -2622,6 +2648,12 @@ PolicyManager::resumeConflictingReq(reqBufferEntry* orbEntry)
                 signalDrainDone();
             }
         }
+    }
+
+    if (retryLLCRepetitive) {
+            DPRINTF(PolicyManager, "retryLLCRepetitive: sent\n");
+            retryLLCRepetitive = false;
+            port.sendRetryReq();
     }
 
     return conflictFound;
@@ -2977,6 +3009,14 @@ PolicyManager::PolicyManagerStats::PolicyManagerStats(PolicyManager &_polMan)
                 statistics::units::Tick, statistics::units::Count>::get(),
              "Average gap between requests"),
 
+    ADD_STAT(reusedBlkCountPdf, statistics::units::Count::get(),
+             "How many times a blk is used before eviction"),
+    ADD_STAT(avgReusedBlk, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average number of times a blk is reused"),
+    ADD_STAT(avgOccWays, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Tick>::get(),
+             "Average number of ways occupied in a set"),
     ADD_STAT(avgORBLen, statistics::units::Rate<
                 statistics::units::Count, statistics::units::Tick>::get(),
              "Average ORB length"),
@@ -3142,6 +3182,8 @@ PolicyManager::PolicyManagerStats::regStats()
 {
     using namespace statistics;
 
+    avgReusedBlk.precision(4);
+    avgOccWays.precision(4);
     avgORBLen.precision(4);
     avgLocRdQLenStrt.precision(2);
     avgLocWrQLenStrt.precision(2);
@@ -3177,6 +3219,7 @@ PolicyManager::PolicyManagerStats::regStats()
 
     readPktSize.init(ceilLog2(polMan.blockSize) + 1);
     writePktSize.init(ceilLog2(polMan.blockSize) + 1);
+    reusedBlkCountPdf.init(512);
 
     avgRdBWSys.precision(8);
     avgWrBWSys.precision(8);
