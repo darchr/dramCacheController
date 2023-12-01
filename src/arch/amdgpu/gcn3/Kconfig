@@ -1,4 +1,4 @@
-# Copyright 2020 Google, Inc.
+# Copyright 2022 Google LLC
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -23,11 +23,11 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-Import('*')
+config TARGET_GPU_ISA
+    default "gcn3" if GCN3_GPU_ISA
 
-def add_isa_lists():
-    sticky_vars.AddVariables(
-        EnumVariable('TARGET_GPU_ISA', 'Target GPU ISA', 'gcn3',
-            sorted(set(main.Split('${ALL_GPU_ISAS}')))),
-        )
-AfterSConsopts(add_isa_lists)
+cont_choice "TARGET_GPU_ISA"
+    config GCN3_GPU_ISA
+        depends on BUILD_GPU
+        bool "GCN3"
+endchoice

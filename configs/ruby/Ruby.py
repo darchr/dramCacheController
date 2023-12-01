@@ -38,21 +38,22 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import math
+
 import m5
-from m5.objects import *
 from m5.defines import buildEnv
-from m5.util import addToPath, fatal, warn
+from m5.util import addToPath, fatal
 from gem5.isas import ISA
 from gem5.runtime import get_runtime_isa
 
 addToPath("../")
 
-from common import ObjectList
-from common import MemConfig
-from common import FileSystemConfig
-
-from topologies import *
+from common import (
+    FileSystemConfig,
+    MemConfig,
+    ObjectList,
+)
 from network import Network
+from topologies import *
 
 
 def define_options(parser):
@@ -221,7 +222,6 @@ def create_system(
     bootmem=None,
     cpus=None,
 ):
-
     system.ruby = RubySystem()
     ruby = system.ruby
 

@@ -24,27 +24,26 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import importlib
+import platform
 from typing import Optional
+
+from ...isas import ISA
+from ...runtime import get_runtime_isa
 from ...utils.requires import requires
 from .base_cpu_core import BaseCPUCore
 from .cpu_types import CPUTypes
-from ...isas import ISA
-from ...utils.requires import requires
-from ...runtime import get_runtime_isa
-import importlib
-import platform
 
 
 class SimpleCore(BaseCPUCore):
     """
-    A SimpleCore instantiates a core based on the CPUType enum pass. The
-    SimpleCore creates a single SimObject of that type.
+    A `SimpleCore` instantiates a core based on the CPUType enum pass. The
+    `SimpleCore` creates a single `SimObject` of that type.
     """
 
     def __init__(
         self, cpu_type: CPUTypes, core_id: int, isa: Optional[ISA] = None
     ):
-
         # If the ISA is not specified, we infer it via the `get_runtime_isa`
         # function.
         if isa:

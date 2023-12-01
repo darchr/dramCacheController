@@ -26,41 +26,28 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-
 from typing import List
 
-from ...utils.override import overrides
-from .abstract_system_board import AbstractSystemBoard
-from .kernel_disk_workload import KernelDiskWorkload
-from ..processors.abstract_processor import AbstractProcessor
-from ..memory.abstract_memory_system import AbstractMemorySystem
-from ..cachehierarchies.abstract_cache_hierarchy import AbstractCacheHierarchy
-from ...resources.resource import AbstractResource
-
-from ...isas import ISA
-
 import m5
-
 from m5.objects import (
+    AddrRange,
     BadAddr,
     Bridge,
-    PMAChecker,
-    RiscvLinux,
-    AddrRange,
-    IOXBar,
-    RiscvRTC,
-    HiFive,
-    GenericRiscvPciHost,
-    IGbE_e1000,
     CowDiskImage,
+    Frequency,
+    GenericRiscvPciHost,
+    HiFive,
+    IGbE_e1000,
+    IOXBar,
+    PMAChecker,
+    Port,
     RawDiskImage,
+    RiscvLinux,
     RiscvMmioVirtIO,
+    RiscvRTC,
     VirtIOBlock,
     VirtIORng,
-    Frequency,
-    Port,
 )
-
 from m5.util.fdthelper import (
     Fdt,
     FdtNode,
@@ -70,10 +57,19 @@ from m5.util.fdthelper import (
     FdtState,
 )
 
+from ...isas import ISA
+from ...resources.resource import AbstractResource
+from ...utils.override import overrides
+from ..cachehierarchies.abstract_cache_hierarchy import AbstractCacheHierarchy
+from ..memory.abstract_memory_system import AbstractMemorySystem
+from ..processors.abstract_processor import AbstractProcessor
+from .abstract_system_board import AbstractSystemBoard
+from .kernel_disk_workload import KernelDiskWorkload
+
 
 class RiscvBoard(AbstractSystemBoard, KernelDiskWorkload):
     """
-    A board capable of full system simulation for RISC-V
+    A board capable of full system simulation for RISC-V.
 
     At a high-level, this is based on the HiFive Unmatched board from SiFive.
 
@@ -142,7 +138,7 @@ class RiscvBoard(AbstractSystemBoard, KernelDiskWorkload):
         self._off_chip_devices = [self.platform.uart, self.disk, self.rng]
 
     def _setup_io_devices(self) -> None:
-        """Connect the I/O devices to the I/O bus"""
+        """Connect the I/O devices to the I/O bus."""
         # Add PCI
         self.platform.pci_host.pio = self.iobus.mem_side_ports
 
@@ -181,7 +177,7 @@ class RiscvBoard(AbstractSystemBoard, KernelDiskWorkload):
             self.bridge.ranges.append(AddrRange(0x40000000, size="512MB"))
 
     def _setup_pma(self) -> None:
-        """Set the PMA devices on each core"""
+        """Set the PMA devices on each core."""
 
         uncacheable_range = [
             AddrRange(dev.pio_addr, size=dev.pio_size)
@@ -234,11 +230,11 @@ class RiscvBoard(AbstractSystemBoard, KernelDiskWorkload):
         memory.set_memory_range(self.mem_ranges)
 
     def generate_device_tree(self, outdir: str) -> None:
-        """Creates the dtb and dts files.
+        """Creates the ``dtb`` and ``dts`` files.
 
-        Creates two files in the outdir: 'device.dtb' and 'device.dts'
+        Creates two files in the outdir: ``device.dtb`` and ``device.dts``.
 
-        :param outdir: Directory to output the files
+        :param outdir: Directory to output the files.
         """
 
         state = FdtState(addr_cells=2, size_cells=2, cpu_cells=1)
@@ -259,6 +255,12 @@ class RiscvBoard(AbstractSystemBoard, KernelDiskWorkload):
             )
             root.append(node)
 
+        node = FdtNode(f"chosen")
+        bootargs = " ".join(self.get_default_kernel_args())
+        node.append(FdtPropertyStrings("bootargs", [bootargs]))
+        node.append(FdtPropertyStrings("stdout-path", ["/uart@10000000"]))
+        root.append(node)
+
         # See Documentation/devicetree/bindings/riscv/cpus.txt for details.
         cpus_node = FdtNode("cpus")
         cpus_state = FdtState(addr_cells=1, size_cells=0)
@@ -273,8 +275,24 @@ class RiscvBoard(AbstractSystemBoard, KernelDiskWorkload):
             node.append(FdtPropertyStrings("device_type", "cpu"))
             node.append(FdtPropertyWords("reg", state.CPUAddrCells(i)))
             node.append(FdtPropertyStrings("mmu-type", "riscv,sv48"))
+            if core.core.isa[0].enable_Zicbom_fs.value:
+                node.append(
+                    FdtPropertyWords(
+                        "riscv,cbom-block-size", self.get_cache_line_size()
+                    )
+                )
+            if core.core.isa[0].enable_Zicboz_fs.value:
+                node.append(
+                    FdtPropertyWords(
+                        "riscv,cboz-block-size", self.get_cache_line_size()
+                    )
+                )
             node.append(FdtPropertyStrings("status", "okay"))
-            node.append(FdtPropertyStrings("riscv,isa", "rv64imafdc"))
+            node.append(
+                FdtPropertyStrings(
+                    "riscv,isa", core.core.isa[0].get_isa_string()
+                )
+            )
             # TODO: Should probably get this from the core.
             freq = self.clk_domain.clock[0].frequency
             node.append(FdtPropertyWords("clock-frequency", freq))
@@ -432,7 +450,7 @@ class RiscvBoard(AbstractSystemBoard, KernelDiskWorkload):
         uart_node.append(
             FdtPropertyWords("interrupt-parent", soc_state.phandle(plic))
         )
-        uart_node.appendCompatible(["ns8250"])
+        uart_node.appendCompatible(["ns8250", "ns16550a"])
         soc_node.append(uart_node)
 
         # VirtIO MMIO disk node
@@ -494,4 +512,9 @@ class RiscvBoard(AbstractSystemBoard, KernelDiskWorkload):
 
     @overrides(KernelDiskWorkload)
     def get_default_kernel_args(self) -> List[str]:
-        return ["console=ttyS0", "root={root_value}", "rw"]
+        return [
+            "console=ttyS0",
+            "root={root_value}",
+            "disk_device={disk_device}",
+            "rw",
+        ]

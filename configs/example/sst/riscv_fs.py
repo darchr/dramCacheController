@@ -1,4 +1,4 @@
-# Copyright (c) 2021 The Regents of the University of California
+# Copyright (c) 2021-2023 The Regents of the University of California
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -24,14 +24,14 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import argparse
+from os import path
+
 import m5
 from m5.objects import *
-from os import path
 
 # For downloading the disk image
 from gem5.resources.resource import obtain_resource
-
-import argparse
 
 
 def generateMemNode(state, mem_range):
@@ -104,15 +104,8 @@ def createHiFivePlatform(system):
 
     system.platform.pci_host.pio = system.membus.mem_side_ports
 
-    system.platform.rtc = RiscvRTC(frequency=Frequency("100MHz"))
+    system.platform.rtc = RiscvRTC(frequency=Frequency("10MHz"))
     system.platform.clint.int_pin = system.platform.rtc.int_pin
-
-    system.pma_checker = PMAChecker(
-        uncacheable=[
-            *system.platform._on_chip_ranges(),
-            *system.platform._off_chip_ranges(),
-        ]
-    )
 
     system.iobus = IOXBar()
     system.bridge = Bridge(delay="50ns")
@@ -121,6 +114,15 @@ def createHiFivePlatform(system):
     system.bridge.ranges = system.platform._off_chip_ranges()
 
     system.platform.setNumCores(1)
+
+    for cpu in system.cpu:
+        # pma_checker has to be added for each of the system cpus.
+        cpu.mmu.pma_checker = PMAChecker(
+            uncacheable=[
+                *system.platform._on_chip_ranges(),
+                *system.platform._off_chip_ranges(),
+            ]
+        )
 
     system.platform.attachOnChipIO(system.membus)
     system.platform.attachOffChipIO(system.iobus)
@@ -173,3 +175,4 @@ for cpu in system.cpu:
     cpu.createInterruptController()
 
 root = Root(full_system=True, system=system)
+m5.instantiate()

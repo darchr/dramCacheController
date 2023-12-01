@@ -29,8 +29,8 @@
 
 # System includes
 import argparse
-import math
 import hashlib
+import math
 
 # gem5 related
 import m5
@@ -39,13 +39,15 @@ from m5.util import addToPath
 
 # gem5 options and objects
 addToPath("../../")
-from ruby import Ruby
-from common import Simulation
-from common import ObjectList
-from common import Options
-from common import GPUTLBOptions
-from common import GPUTLBConfig
 from amd import AmdGPUOptions
+from common import (
+    GPUTLBConfig,
+    GPUTLBOptions,
+    ObjectList,
+    Options,
+    Simulation,
+)
+from ruby import Ruby
 
 # GPU FS related
 from system.system import makeGpuFSSystem
@@ -156,6 +158,23 @@ def addRunFSOptions(parser):
         type=str,
         default="/dev/sda1",
         help="Root partition of disk image",
+    )
+
+    parser.add_argument(
+        "--disable-avx",
+        action="store_true",
+        default=False,
+        help="Disables AVX. AVX is used in some ROCm libraries but "
+        "does not have checkpointing support yet. If simulation either "
+        "creates a checkpoint or restores from one, then AVX needs to "
+        "be disabled for correct functionality ",
+    )
+
+    parser.add_argument(
+        "--no-kvm-perf",
+        default=False,
+        action="store_true",
+        help="Disable KVM perf counters (use this with LSF / ETX)",
     )
 
 

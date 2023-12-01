@@ -26,13 +26,13 @@
 #
 # Authors: Sean Wilson
 
-import os
 import itertools
+import os
 
 import testlib.configuration as configuration
 
 
-class UID(object):
+class UID:
     sep = ":"
     type_idx, path_idx = range(2)
 

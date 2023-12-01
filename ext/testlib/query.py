@@ -26,12 +26,13 @@
 #
 # Authors: Sean Wilson
 
-import testlib.terminal as terminal
 import testlib.log as log
+import testlib.terminal as terminal
+
 
 # TODO Refactor print logic out of this so the objects
 # created are separate from print logic.
-class QueryRunner(object):
+class QueryRunner:
     def __init__(self, test_schedule):
         self.schedule = test_schedule
 

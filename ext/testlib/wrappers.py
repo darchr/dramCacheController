@@ -45,7 +45,10 @@ loaded by the testlib :class:`testlib.loader.Loader`.
 import itertools
 
 import testlib.uid as uid
-from testlib.state import Status, Result
+from testlib.state import (
+    Result,
+    Status,
+)
 
 
 class TestCaseMetadata:
@@ -75,7 +78,7 @@ class LibraryMetadata:
         self.status = status
 
 
-class LoadedTestable(object):
+class LoadedTestable:
     """
     Base class for loaded test items.
 

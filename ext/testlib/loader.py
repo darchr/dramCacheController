@@ -70,12 +70,12 @@ import re
 import sys
 import traceback
 
+import testlib.fixture as fixture_mod
 import testlib.log as log
 import testlib.suite as suite_mod
 import testlib.test_util as test_mod
-import testlib.fixture as fixture_mod
-import testlib.wrappers as wrappers
 import testlib.uid as uid
+import testlib.wrappers as wrappers
 
 
 class DuplicateTestItemException(Exception):
@@ -110,7 +110,7 @@ def path_as_modulename(filepath):
 
 
 def path_as_suitename(filepath):
-    return os.path.split(os.path.dirname(os.path.abspath((filepath))))[-1]
+    return os.path.split(os.path.dirname(os.path.abspath(filepath)))[-1]
 
 
 def _assert_files_in_same_dir(files):
@@ -121,7 +121,7 @@ def _assert_files_in_same_dir(files):
                 assert os.path.dirname(f) == directory
 
 
-class Loader(object):
+class Loader:
     """
     Class for discovering tests.
 

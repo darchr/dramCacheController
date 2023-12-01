@@ -25,13 +25,11 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from m5.citations import add_citation
-
-from m5.SimObject import *
+from m5.objects.AbstractMemory import *
+from m5.objects.Tlm import TlmTargetSocket
 from m5.params import *
 from m5.proxy import *
-
-from m5.objects.Tlm import TlmTargetSocket
-from m5.objects.AbstractMemory import *
+from m5.SimObject import *
 
 
 class DRAMSys(AbstractMemory):
@@ -47,7 +45,7 @@ class DRAMSys(AbstractMemory):
 
 add_citation(
     DRAMSys,
-    """@inproceedings{Steiner:2020:dramsys4,
+    r"""@inproceedings{Steiner:2020:dramsys4,
   author       = {Lukas Steiner and
                   Matthias Jung and
                   Felipe S. Prado and

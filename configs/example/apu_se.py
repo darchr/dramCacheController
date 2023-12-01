@@ -27,28 +27,32 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-import argparse, os, re, getpass
-import math
+import argparse
+import getpass
 import glob
 import inspect
+import math
+import os
+import re
 
 import m5
 from m5.objects import *
 from m5.util import addToPath
+
 from gem5.isas import ISA
 from gem5.runtime import get_runtime_isa
 
 addToPath("../")
 
-from ruby import Ruby
-
-from common import Options
-from common import Simulation
-from common import GPUTLBOptions, GPUTLBConfig
-
 import hsaTopology
-from common import FileSystemConfig
-
+from common import (
+    FileSystemConfig,
+    GPUTLBConfig,
+    GPUTLBOptions,
+    Options,
+    Simulation,
+)
+from ruby import Ruby
 
 # Adding script options
 parser = argparse.ArgumentParser()
@@ -673,6 +677,7 @@ gpu_driver.device = gpu_cmd_proc
 shader.dispatcher = dispatcher
 shader.gpu_cmd_proc = gpu_cmd_proc
 
+
 # Create and assign the workload Check for rel_path in elements of
 # base_list using test, returning the first full path that satisfies test
 def find_path(base_list, rel_path, test):
@@ -698,7 +703,7 @@ if os.path.isdir(executable):
     executable = find_file(benchmark_path, args.cmd)
 
 if args.env:
-    with open(args.env, "r") as f:
+    with open(args.env) as f:
         env = [line.rstrip() for line in f]
 else:
     env = [
@@ -756,7 +761,7 @@ if fast_forward:
     ]
 
 # Other CPU strings cause bad addresses in ROCm. Revert back to M5 Simulator.
-for (i, cpu) in enumerate(cpu_list):
+for i, cpu in enumerate(cpu_list):
     for j in range(len(cpu)):
         cpu.isa[j].vendor_string = "M5 Simulator"
 

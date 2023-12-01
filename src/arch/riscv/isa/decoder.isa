@@ -90,6 +90,9 @@ decode QUADRANT default Unknown::unknown() {
                         return std::make_shared<IllegalInstFault>("FPU is off",
                                                                    machInst);
 
+                    status.fs = FPUStatus::DIRTY;
+                    xc->setMiscReg(MISCREG_STATUS, status);
+
                     freg_t fd = freg(f32(Mem_uw));
                     Fp2_bits = fd.v;
                 }}, {{
@@ -101,6 +104,49 @@ decode QUADRANT default Unknown::unknown() {
                     Rp2_sd = Mem_sd;
                 }}, {{
                     EA = Rp1 + offset;
+                }});
+            }
+        }
+        0x4: decode CFUNCT6LOW3 {
+            format CompressedLoad {
+                0x0: c_lbu({{
+                    offset = (CIMM2<0:0> << 1) | CIMM2<1:1>;
+                }}, {{
+                    Rp2 = Mem_ub;
+                }}, {{
+                    EA = rvZext(Rp1 + offset);
+                }});
+                0x1: decode CFUNCT1BIT6 {
+                    0x0: c_lhu({{
+                        offset = CIMM2<0:0> << 1;
+                    }}, {{
+                        Rp2 = Mem_uh;
+                    }}, {{
+                        EA = rvZext(Rp1 + offset);
+                    }});
+                    0x1: c_lh({{
+                        offset = CIMM2<0:0> << 1;
+                    }}, {{
+                        Rp2_sd = Mem_sh;
+                    }}, {{
+                        EA = rvZext(Rp1 + offset);
+                    }});
+                }
+            }
+            format CompressedStore {
+                0x2: c_sb({{
+                    offset = (CIMM2<0:0> << 1) | CIMM2<1:1>;
+                }}, {{
+                    Mem_ub = Rp2_ub;
+                }}, ea_code={{
+                    EA = rvZext(Rp1 + offset);
+                }});
+                0x3: c_sh({{
+                    offset = (CIMM2<0:0> << 1);
+                }}, {{
+                    Mem_uh = Rp2_uh;
+                }}, ea_code={{
+                    EA = rvZext(Rp1 + offset);
                 }});
             }
         }
@@ -261,13 +307,40 @@ decode QUADRANT default Unknown::unknown() {
                             Rp1 = rvSext(Rp1 & Rp2);
                         }});
                     }
-                    0x1: decode RVTYPE {
-                        0x1: decode CFUNCT2LOW {
-                            0x0: c_subw({{
+                    0x1: decode CFUNCT2LOW {
+                        0x0: decode RVTYPE {
+                            0x1: c_subw({{
                                 Rp1_sd = (int32_t)Rp1_sd - Rp2_sw;
                             }});
+                        }
+                        0x1: decode RVTYPE {
                             0x1: c_addw({{
                                 Rp1_sd = (int32_t)Rp1_sd + Rp2_sw;
+                            }});
+                        }
+                        0x2: c_mul({{
+                            Rp1_sd = rvSext(Rp1_sd * Rp2_sd);
+                        }}, IntMultOp);
+                        0x3: decode RP2 {
+                            0x0: c_zext_b({{
+                                Rp1 = Rp1 & 0xFFULL;
+                            }});
+                            0x1: c_sext_b({{
+                                Rp1 = sext<8>(Rp1 & 0xFFULL);
+                            }});
+                            0x2: c_zext_h({{
+                                Rp1 = Rp1 & 0xFFFFULL;
+                            }});
+                            0x3: c_sext_h({{
+                                Rp1 = sext<16>(Rp1 & 0xFFFFULL);
+                            }});
+                            0x4: decode RVTYPE {
+                                0x1: c_zext_w({{
+                                    Rp1 = bits(Rp1, 31, 0);
+                                }});
+                            }
+                            0x5: c_not({{
+                                Rp1 = ~Rp1;
                             }});
                         }
                     }
@@ -317,8 +390,6 @@ decode QUADRANT default Unknown::unknown() {
                     return std::make_shared<IllegalInstFault>("FPU is off",
                                                                machInst);
 
-                // Mutating any floating point register changes the FS bit
-                // of the STATUS CSR.
                 status.fs = FPUStatus::DIRTY;
                 xc->setMiscReg(MISCREG_STATUS, status);
 
@@ -349,6 +420,9 @@ decode QUADRANT default Unknown::unknown() {
                     if (status.fs == FPUStatus::OFF)
                         return std::make_shared<IllegalInstFault>("FPU is off",
                                                                    machInst);
+
+                    status.fs = FPUStatus::DIRTY;
+                    xc->setMiscReg(MISCREG_STATUS, status);
 
                     freg_t fd;
                     fd = freg(f32(Mem_uw));
@@ -487,6 +561,10 @@ decode QUADRANT default Unknown::unknown() {
                     if (status.fs == FPUStatus::OFF)
                         return std::make_shared<IllegalInstFault>(
                                     "FPU is off", machInst);
+
+                    status.fs = FPUStatus::DIRTY;
+                    xc->setMiscReg(MISCREG_STATUS, status);
+
                     freg_t fd;
                     fd = freg(f16(Mem_uh));
                     Fd_bits = fd.v;
@@ -496,6 +574,10 @@ decode QUADRANT default Unknown::unknown() {
                     if (status.fs == FPUStatus::OFF)
                         return std::make_shared<IllegalInstFault>(
                                     "FPU is off", machInst);
+
+                    status.fs = FPUStatus::DIRTY;
+                    xc->setMiscReg(MISCREG_STATUS, status);
+
                     freg_t fd;
                     fd = freg(f32(Mem_uw));
                     Fd_bits = fd.v;
@@ -506,8 +588,6 @@ decode QUADRANT default Unknown::unknown() {
                         return std::make_shared<IllegalInstFault>(
                                     "FPU is off", machInst);
 
-                    // Mutating any floating point register changes the FS bit
-                    // of the STATUS CSR.
                     status.fs = FPUStatus::DIRTY;
                     xc->setMiscReg(MISCREG_STATUS, status);
 
@@ -2366,7 +2446,7 @@ decode QUADRANT default Unknown::unknown() {
                     for (uint32_t i = 0; i < microVl; i++) {
                         uint32_t ei = i + vs1_idx * vs1_elems + vs1_bias;
                         if (this->vm || elem_mask(v0, ei)) {
-                            const uint16_t idx = Vs1_uh[i + vs1_bias]
+                            const uint32_t idx = Vs1_uh[i + vs1_bias]
                                 - vs2_elems * vs2_idx;
                             auto res = (Vs1_uh[i + vs1_bias] >= vlmax) ? 0
                                 : (idx < vs2_elems) ? Vs2_vu[idx]
@@ -3030,21 +3110,33 @@ decode QUADRANT default Unknown::unknown() {
                 0x12: decode VS1 {
                     format VectorIntExtFormat {
                         0x02: vzext_vf8({{
+                            auto offset = (vlen / SEW) * index;
+
                             Vd_vu[i] = Vs2_vextu[i + offset];
                         }}, OPMVV, VectorIntegerExtensionOp);
                         0x03: vsext_vf8({{
+                            auto offset = (vlen / SEW) * index;
+
                             Vd_vi[i] = Vs2_vext[i + offset];
                         }}, OPMVV, VectorIntegerExtensionOp);
                         0x04: vzext_vf4({{
+                            auto offset = (vlen / SEW) * index;
+
                             Vd_vu[i] = Vs2_vextu[i + offset];
                         }}, OPMVV, VectorIntegerExtensionOp);
                         0x05: vsext_vf4({{
+                            auto offset = (vlen / SEW) * index;
+
                             Vd_vi[i] = Vs2_vext[i + offset];
                         }}, OPMVV, VectorIntegerExtensionOp);
                         0x06: vzext_vf2({{
+                            auto offset = (vlen / SEW) * index;
+
                             Vd_vu[i] = Vs2_vextu[i + offset];
                         }}, OPMVV, VectorIntegerExtensionOp);
                         0x07: vsext_vf2({{
+                            auto offset = (vlen / SEW) * index;
+
                             Vd_vi[i] = Vs2_vext[i + offset];
                         }}, OPMVV, VectorIntegerExtensionOp);
                     }
@@ -3105,7 +3197,8 @@ decode QUADRANT default Unknown::unknown() {
                         auto Vs2bit = tmp_s2.as<vu>();
                         for (uint32_t i = 0; i < this->microVl; i++) {
                             uint32_t ei = i +
-                                vtype_VLMAX(vtype, true) * this->microIdx;
+                                vtype_VLMAX(vtype, vlen, true) *
+                                this->microIdx;
                             bool vs2_lsb = elem_mask(Vs2bit, ei);
                             bool do_mask = elem_mask(v0, ei);
                             bool has_one = false;
@@ -3326,7 +3419,8 @@ decode QUADRANT default Unknown::unknown() {
                 }}, OPIVI, VectorMiscOp);
                 0x0e: VectorSlideUpFormat::vslideup_vi({{
                     const int offset = (int)(uint64_t)(SIMM5);
-                    const int microVlmax = vtype_VLMAX(machInst.vtype8, true);
+                    const int microVlmax = vtype_VLMAX(machInst.vtype8,
+                        vlen, true);
                     const int vregOffset = vdIdx - vs2Idx;
                     const int offsetInVreg = offset - vregOffset * microVlmax;
                     if (std::abs(offsetInVreg) < uint32_t(microVlmax)) {
@@ -3351,7 +3445,8 @@ decode QUADRANT default Unknown::unknown() {
                 }}, OPIVI, VectorMiscOp);
                 0x0f: VectorSlideDownFormat::vslidedown_vi({{
                     const int offset = (int)(uint64_t)(SIMM5);
-                    const int microVlmax = vtype_VLMAX(machInst.vtype8, true);
+                    const int microVlmax = vtype_VLMAX(machInst.vtype8,
+                        vlen, true);
                     const int vregOffset = vs2Idx - vdIdx;
                     const int offsetInVreg = offset - vregOffset * microVlmax;
                     const int numVs2s = vtype_regs_per_group(vtype);
@@ -3582,7 +3677,8 @@ decode QUADRANT default Unknown::unknown() {
                 }
                 0x0e: VectorSlideUpFormat::vslideup_vx({{
                     const int offset = (int)Rs1_vu;
-                    const int microVlmax = vtype_VLMAX(machInst.vtype8, true);
+                    const int microVlmax = vtype_VLMAX(machInst.vtype8,
+                        vlen, true);
                     const int vregOffset = vdIdx - vs2Idx;
                     const int offsetInVreg = offset - vregOffset * microVlmax;
                     if (std::abs(offsetInVreg) < uint32_t(microVlmax)) {
@@ -3607,7 +3703,8 @@ decode QUADRANT default Unknown::unknown() {
                 }}, OPIVX, VectorMiscOp);
                 0x0f: VectorSlideDownFormat::vslidedown_vx({{
                     const int offset = (int)Rs1_vu;
-                    const int microVlmax = vtype_VLMAX(machInst.vtype8, true);
+                    const int microVlmax = vtype_VLMAX(machInst.vtype8,
+                        vlen, true);
                     const int vregOffset = vs2Idx - vdIdx;
                     const int offsetInVreg = offset - vregOffset * microVlmax;
                     const int numVs2s = vtype_regs_per_group(vtype);
@@ -3884,7 +3981,8 @@ decode QUADRANT default Unknown::unknown() {
                 }
                 0x0e: VectorFloatSlideUpFormat::vfslide1up_vf({{
                     const int offset = 1;
-                    const int microVlmax = vtype_VLMAX(machInst.vtype8, true);
+                    const int microVlmax = vtype_VLMAX(machInst.vtype8,
+                        vlen, true);
                     const int vregOffset = vdIdx - vs2Idx;
                     const int offsetInVreg = offset - vregOffset * microVlmax;
                     if (std::abs(offsetInVreg) < uint32_t(microVlmax)) {
@@ -3914,7 +4012,8 @@ decode QUADRANT default Unknown::unknown() {
                 }}, OPFVF, VectorMiscOp);
                 0x0f: VectorFloatSlideDownFormat::vfslide1down_vf({{
                     const int offset = 1;
-                    const int microVlmax = vtype_VLMAX(machInst.vtype8, true);
+                    const int microVlmax = vtype_VLMAX(machInst.vtype8,
+                        vlen, true);
                     const int vregOffset = vs2Idx - vdIdx;
                     const int offsetInVreg = offset - vregOffset * microVlmax;
                     const int numVs2s = vtype_regs_per_group(vtype);
@@ -4159,7 +4258,8 @@ decode QUADRANT default Unknown::unknown() {
                 }
                 0x0e: VectorSlideUpFormat::vslide1up_vx({{
                     const int offset = 1;
-                    const int microVlmax = vtype_VLMAX(machInst.vtype8, true);
+                    const int microVlmax = vtype_VLMAX(machInst.vtype8,
+                        vlen, true);
                     const int vregOffset = vdIdx - vs2Idx;
                     const int offsetInVreg = offset - vregOffset * microVlmax;
                     if (std::abs(offsetInVreg) < uint32_t(microVlmax)) {
@@ -4189,7 +4289,8 @@ decode QUADRANT default Unknown::unknown() {
                 }}, OPIVX, VectorMiscOp);
                 0x0f: VectorSlideDownFormat::vslide1down_vx({{
                     const int offset = 1;
-                    const int microVlmax = vtype_VLMAX(machInst.vtype8, true);
+                    const int microVlmax = vtype_VLMAX(machInst.vtype8,
+                        vlen, true);
                     const int vregOffset = vs2Idx - vdIdx;
                     const int offsetInVreg = offset - vregOffset * microVlmax;
                     const int numVs2s = vtype_regs_per_group(vtype);
@@ -4494,6 +4595,12 @@ decode QUADRANT default Unknown::unknown() {
                                 xc->pcState());
                         }}, IsSerializeAfter, IsNonSpeculative, No_OpClass);
                         0x2: uret({{
+                           MISA misa = xc->readMiscReg(MISCREG_ISA);
+                            if (!misa.rvn) {
+                                return std::make_shared<IllegalInstFault>(
+                                    "sret can't execute without N systems",
+                                    machInst);
+                            }
                             STATUS status = xc->readMiscReg(MISCREG_STATUS);
                             status.uie = status.upie;
                             status.upie = 1;
@@ -4503,6 +4610,12 @@ decode QUADRANT default Unknown::unknown() {
                     }
                     0x8: decode RS2 {
                         0x2: sret({{
+                            MISA misa = xc->readMiscReg(MISCREG_ISA);
+                            if (!misa.rvs) {
+                                return std::make_shared<IllegalInstFault>(
+                                            "sret can't execute without RVS",
+                                            machInst);
+                            }
                             STATUS status = xc->readMiscReg(MISCREG_STATUS);
                             auto pm = (PrivilegeMode)xc->readMiscReg(
                                 MISCREG_PRV);
@@ -4522,11 +4635,12 @@ decode QUADRANT default Unknown::unknown() {
                             }
                         }}, IsSerializeAfter, IsNonSpeculative, IsReturn);
                         0x5: wfi({{
+                            MISA misa = xc->readMiscReg(MISCREG_ISA);
                             STATUS status = xc->readMiscReg(MISCREG_STATUS);
                             auto pm = (PrivilegeMode)xc->readMiscReg(
                                 MISCREG_PRV);
-                            if (pm == PRV_U ||
-                                (pm == PRV_S && status.tw == 1)) {
+                            if (misa.rvs && (pm == PRV_U ||
+                                (pm == PRV_S && status.tw == 1))) {
                                 return std::make_shared<IllegalInstFault>(
                                             "wfi in user mode or TW enabled",
                                             machInst);
@@ -4546,6 +4660,12 @@ decode QUADRANT default Unknown::unknown() {
                             IsSerializeAfter, No_OpClass);
                     }
                     0x9: sfence_vma({{
+                        MISA misa = xc->readMiscReg(MISCREG_ISA);
+                        if (!misa.rvs) {
+                            return std::make_shared<IllegalInstFault>(
+                                "sfence_vma can't execute without RVS",
+                                machInst);
+                        }
                         STATUS status = xc->readMiscReg(MISCREG_STATUS);
                         auto pm = (PrivilegeMode)xc->readMiscReg(MISCREG_PRV);
                         if (pm == PRV_U || (pm == PRV_S && status.tvm == 1)) {

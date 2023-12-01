@@ -33,19 +33,24 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from abc import ABCMeta, abstractmethod
+from abc import (
+    ABCMeta,
+    abstractmethod,
+)
+
 import m5
 from m5.objects import *
 from m5.proxy import *
 
 m5.util.addToPath("../configs/")
-from common import FSConfig
 from base_caches import *
 from base_config import *
-from common.cores.arm.O3_ARM_v7a import *
+from common import (
+    FSConfig,
+    SysPaths,
+)
 from common.Benchmarks import SysConfig
-
-from common import SysPaths
+from common.cores.arm.O3_ARM_v7a import *
 
 
 class ArmSESystemUniprocessor(BaseSESystemUniprocessor):
@@ -56,7 +61,7 @@ class ArmSESystemUniprocessor(BaseSESystemUniprocessor):
     """
 
     def __init__(self, **kwargs):
-        super(ArmSESystemUniprocessor, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def create_caches_private(self, cpu):
         # The atomic SE configurations do not use caches
@@ -67,7 +72,7 @@ class ArmSESystemUniprocessor(BaseSESystemUniprocessor):
             )
 
 
-class LinuxArmSystemBuilder(object):
+class LinuxArmSystemBuilder:
     """Mix-in that implements create_system.
 
     This mix-in is intended as a convenient way of adding an

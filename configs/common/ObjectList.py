@@ -34,15 +34,17 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from gem5.runtime import get_supported_isas
-import m5.objects
-import m5.internal.params
 import inspect
 import sys
 from textwrap import TextWrapper
 
+import m5.internal.params
+import m5.objects
 
-class ObjectList(object):
+from gem5.runtime import get_supported_isas
+
+
+class ObjectList:
     """Creates a list of objects that are sub-classes of a given class."""
 
     def _is_obj_class(self, cls):
@@ -86,7 +88,7 @@ class ObjectList(object):
                     print(line)
 
         if self._aliases:
-            print("\Aliases:")
+            print(r"\Aliases:")
             for alias, target in list(self._aliases.items()):
                 print(f"\t{alias} => {target}")
 
@@ -127,14 +129,14 @@ class CPUList(ObjectList):
         # We can't use the normal inspect.isclass because the ParamFactory
         # and ProxyFactory classes have a tendency to confuse it.
         try:
-            return super(CPUList, self)._is_obj_class(cls) and not issubclass(
+            return super()._is_obj_class(cls) and not issubclass(
                 cls, m5.objects.CheckerCPU
             )
         except (TypeError, AttributeError):
             return False
 
     def _add_objects(self):
-        super(CPUList, self)._add_objects()
+        super()._add_objects()
 
         from importlib import import_module
 
@@ -164,7 +166,7 @@ class EnumList(ObjectList):
     def _add_objects(self):
         """Add all enum values to the ObjectList"""
         self._sub_classes = {}
-        for (key, value) in list(self.base_cls.__members__.items()):
+        for key, value in list(self.base_cls.__members__.items()):
             # All Enums have a value Num_NAME at the end which we
             # do not want to include
             if not key.startswith("Num_"):

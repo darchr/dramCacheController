@@ -44,45 +44,15 @@ scons build/RISCV/gem5.opt
 """
 
 import argparse
-from gem5.isas import ISA
-from gem5.utils.requires import requires
-from gem5.resources.resource import obtain_resource
-from gem5.components.memory import SingleChannelDDR3_1600
-from gem5.components.processors.cpu_types import CPUTypes
+
 from gem5.components.boards.simple_board import SimpleBoard
 from gem5.components.cachehierarchies.classic.no_cache import NoCache
+from gem5.components.memory import SingleChannelDDR3_1600
+from gem5.components.processors.cpu_types import CPUTypes
 from gem5.components.processors.simple_processor import SimpleProcessor
+from gem5.isas import ISA
+from gem5.resources.resource import obtain_resource
 from gem5.simulate.simulator import Simulator
-from gem5.components.cachehierarchies.ruby.mesi_two_level_cache_hierarchy import (
-    MESITwoLevelCacheHierarchy,
-)
-#from gem5.components.cachehierarchies.ruby.mesi_three_level_cache_hierarchy import (
-#    MESIThreeLevelCacheHierarchy,
-#)
-
-"""
-cache_hierarchy = MESIThreeLevelCacheHierarchy(
-    l1i_size  = "32KiB",
-    l1i_assoc = 8,
-    l1d_size  = "32KiB",
-    l1d_assoc = 8,
-    l2_size  = "512KiB",
-    l2_assoc = 8,
-    l3_size = "32MiB",
-    l3_assoc = 32,
-    num_l3_banks=1,
-    )
-"""
-
-cache_hierarchy = MESITwoLevelCacheHierarchy(
-    l1d_size="32kB",
-    l1d_assoc=8,
-    l1i_size="32kB",
-    l1i_assoc=8,
-    l2_size="256kB",
-    l2_assoc=16,
-    num_l2_banks=2,
-)
 
 parser = argparse.ArgumentParser()
 

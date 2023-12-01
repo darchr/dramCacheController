@@ -24,8 +24,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from typing import Optional
 import re
+from typing import Optional
 
 from testlib import *
 
@@ -44,7 +44,6 @@ def test_boot(
     boot_type: str = "init",
     to_tick: Optional[int] = None,
 ):
-
     name = "{}-cpu_{}-cores_{}_{}_{}_x86-boot-test".format(
         cpu, str(num_cpus), mem_system, memory_class, boot_type
     )

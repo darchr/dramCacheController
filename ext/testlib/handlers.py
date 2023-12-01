@@ -37,18 +37,20 @@ import sys
 import threading
 import time
 import traceback
+from queue import (
+    Empty,
+    Queue,
+)
 
 import testlib.helper as helper
 import testlib.log as log
 import testlib.result as result
 import testlib.state as state
 import testlib.terminal as terminal
-
-from queue import Queue, Empty
 from testlib.configuration import constants
 
 
-class _TestStreamManager(object):
+class _TestStreamManager:
     def __init__(self):
         self._writers = {}
 
@@ -75,7 +77,7 @@ class _TestStreamManager(object):
         self._writers.clear()
 
 
-class _TestStreams(object):
+class _TestStreams:
     def __init__(self, stdout, stderr):
         helper.mkdir_p(os.path.dirname(stdout))
         helper.mkdir_p(os.path.dirname(stderr))
@@ -87,7 +89,7 @@ class _TestStreams(object):
         self.stderr.close()
 
 
-class ResultHandler(object):
+class ResultHandler:
     """
     Log handler which listens for test results and output saving data as
     it is reported.
@@ -184,7 +186,7 @@ class ResultHandler(object):
 
 # TODO Change from a handler to an internal post processor so it can be used
 # to reprint results
-class SummaryHandler(object):
+class SummaryHandler:
     """
     A log handler which listens to the log for test results
     and reports the aggregate results when closed.
@@ -255,7 +257,7 @@ class SummaryHandler(object):
             string = (
                 " Results:"
                 + string
-                + " in {:.2} seconds ".format(self._timer.active_time())
+                + f" in {self._timer.active_time():.2} seconds "
             )
         string += " "
         return terminal.insert_separator(
@@ -263,7 +265,7 @@ class SummaryHandler(object):
         )
 
 
-class TerminalHandler(object):
+class TerminalHandler:
     color = terminal.get_termcap()
     verbosity_mapping = {
         log.LogLevel.Warn: color.Yellow,
@@ -339,7 +341,7 @@ class TerminalHandler(object):
             )
 
     def _colorize(self, message, level, bold=False):
-        return "%s%s%s%s" % (
+        return "{}{}{}{}".format(
             self.color.Bold if bold else "",
             self.verbosity_mapping.get(level, ""),
             message,
@@ -355,7 +357,7 @@ class TerminalHandler(object):
         pass
 
 
-class MultiprocessingHandlerWrapper(object):
+class MultiprocessingHandlerWrapper:
     """
     A handler class which forwards log records to subhandlers, enabling
     logging across multiprocessing python processes.

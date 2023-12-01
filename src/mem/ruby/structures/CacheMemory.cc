@@ -74,6 +74,8 @@ CacheMemory::CacheMemory(const Params &p)
               p.start_index_bit, p.ruby_system),
     tagArray(p.tagArrayBanks, p.tagAccessLatency,
              p.start_index_bit, p.ruby_system),
+    atomicALUArray(p.atomicALUs, p.atomicLatency *
+             p.ruby_system->clockPeriod()),
     cacheMemoryStats(this)
 {
     m_cache_size = p.size;
@@ -289,7 +291,7 @@ CacheMemory::allocate(Addr address, AbstractCacheEntry *entry)
             set[i] = entry;  // Init entry
             set[i]->m_Address = address;
             set[i]->m_Permission = AccessPermission_Invalid;
-            DPRINTF(RubyCache, "Allocate clearing lock for addr: %x\n",
+            DPRINTF(RubyCache, "Allocate clearing lock for addr: 0x%x\n",
                     address);
             set[i]->m_locked = -1;
             m_tag_index[address] = i;
@@ -541,6 +543,8 @@ CacheMemoryStats::CacheMemoryStats(statistics::Group *parent)
       ADD_STAT(numTagArrayWrites, "Number of tag array writes"),
       ADD_STAT(numTagArrayStalls, "Number of stalls caused by tag array"),
       ADD_STAT(numDataArrayStalls, "Number of stalls caused by data array"),
+      ADD_STAT(numAtomicALUOperations, "Number of atomic ALU operations"),
+      ADD_STAT(numAtomicALUArrayStalls, "Number of stalls caused by atomic ALU array"),
       ADD_STAT(htmTransCommitReadSet, "Read set size of a committed "
                                       "transaction"),
       ADD_STAT(htmTransCommitWriteSet, "Write set size of a committed "
@@ -574,6 +578,12 @@ CacheMemoryStats::CacheMemoryStats(statistics::Group *parent)
         .flags(statistics::nozero);
 
     numDataArrayStalls
+        .flags(statistics::nozero);
+
+    numAtomicALUOperations
+        .flags(statistics::nozero);
+
+    numAtomicALUArrayStalls
         .flags(statistics::nozero);
 
     htmTransCommitReadSet
@@ -645,6 +655,11 @@ CacheMemory::recordRequestType(CacheRequestType requestType, Addr addr)
             tagArray.reserve(addressToCacheSet(addr));
         cacheMemoryStats.numTagArrayWrites++;
         return;
+    case CacheRequestType_AtomicALUOperation:
+        if (m_resource_stalls)
+            atomicALUArray.reserve(addr);
+        cacheMemoryStats.numAtomicALUOperations++;
+        return;
     default:
         warn("CacheMemory access_type not found: %s",
              CacheRequestType_to_string(requestType));
@@ -674,6 +689,15 @@ CacheMemory::checkResourceAvailable(CacheResourceType res, Addr addr)
                     "Data array stall on addr %#x in set %d\n",
                     addr, addressToCacheSet(addr));
             cacheMemoryStats.numDataArrayStalls++;
+            return false;
+        }
+    } else if (res == CacheResourceType_AtomicALUArray) {
+        if (atomicALUArray.tryAccess(addr)) return true;
+        else {
+            DPRINTF(RubyResourceStalls,
+                    "Atomic ALU array stall on addr %#x in line address %#x\n",
+                    addr, makeLineAddress(addr));
+            cacheMemoryStats.numAtomicALUArrayStalls++;
             return false;
         }
     } else {

@@ -25,7 +25,6 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import re
-
 from typing import Optional
 
 from testlib import *
@@ -44,7 +43,6 @@ def test_boot(
     length: str,
     to_tick: Optional[int] = None,
 ):
-
     name = f"{cpu}-cpu_{num_cpus}-cores_{mem_system}_{memory_class}_\
 arm_boot_test"
 

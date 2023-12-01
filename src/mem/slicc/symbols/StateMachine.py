@@ -38,12 +38,12 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import re
 from collections import OrderedDict
 
+import slicc.generate.html as html
 from slicc.symbols.Symbol import Symbol
 from slicc.symbols.Var import Var
-import slicc.generate.html as html
-import re
 
 python_class_map = {
     "int": "Int",
@@ -63,6 +63,7 @@ python_class_map = {
     "MessageBuffer": "MessageBuffer",
     "DMASequencer": "DMASequencer",
     "RubyPrefetcher": "RubyPrefetcher",
+    "prefetch::Base": "BasePrefetcher",
     "Cycles": "Cycles",
     "Addr": "Addr",
 }
@@ -973,8 +974,7 @@ $c_ident::regStats()
         # check if Events/States have profiling qualifiers flags for
         # inTransLatHist and outTransLatHist stats.
         ev_ident_list = [
-            "%s_Event_%s" % (ident, ev.ident)
-            for ev in self.event_stats_out_trans
+            f"{ident}_Event_{ev.ident}" for ev in self.event_stats_out_trans
         ]
         ev_ident_str = "{" + ",".join(ev_ident_list) + "}"
         code(
@@ -983,8 +983,7 @@ $c_ident::regStats()
 """
         )
         ev_ident_list = [
-            "%s_Event_%s" % (ident, ev.ident)
-            for ev in self.event_stats_in_trans
+            f"{ident}_Event_{ev.ident}" for ev in self.event_stats_in_trans
         ]
         ev_ident_str = "{" + ",".join(ev_ident_list) + "}"
         code(
@@ -994,13 +993,13 @@ $c_ident::regStats()
         )
         kv_ident_list = []
         for ev in self.event_stats_in_trans:
-            key_ident = "%s_Event_%s" % (ident, ev.ident)
+            key_ident = f"{ident}_Event_{ev.ident}"
             val_ident_lst = [
-                "%s_State_%s" % (ident, trans.state.ident)
+                f"{ident}_State_{trans.state.ident}"
                 for trans in self.transitions_per_ev[ev]
             ]
             val_ident_str = "{" + ",".join(val_ident_lst) + "}"
-            kv_ident_list.append("{%s, %s}" % (key_ident, val_ident_str))
+            kv_ident_list.append(f"{{{key_ident}, {val_ident_str}}}")
         key_ident_str = "{" + ",".join(kv_ident_list) + "}"
         code(
             """
@@ -1734,7 +1733,7 @@ ${ident}_Controller::doTransitionWorker(${ident}_Event event,
         cases = OrderedDict()
 
         for trans in self.transitions:
-            case_string = "%s_State_%s, %s_Event_%s" % (
+            case_string = "{}_State_{}, {}_Event_{}".format(
                 self.ident,
                 trans.state.ident,
                 self.ident,
@@ -1778,10 +1777,10 @@ if (!{key.code}.areNSlotsAvailable({val}, clockEdge()))
             # Check all of the request_types for resource constraints
             for request_type in request_types:
                 val = """
-if (!checkResourceAvailable(%s_RequestType_%s, addr)) {
+if (!checkResourceAvailable({}_RequestType_{}, addr)) {{
     return TransitionResult_ResourceStall;
-}
-""" % (
+}}
+""".format(
                     self.ident,
                     request_type.ident,
                 )
