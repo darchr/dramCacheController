@@ -40,9 +40,11 @@ class DRAMDCInterface(DCMemInterface):
     # the amount of time in nanoseconds from issuing an activate command
     # to the data being available in the row buffer for a read/write
     tRCD = Param.Latency("RAS to CAS delay")
+    tRCD_WR = Param.Latency(Self.tRCD, "RAS to Write CAS delay")
 
     # the time from issuing a read/write command to seeing the actual data
     tCL = Param.Latency("CAS latency")
+    tCWL = Param.Latency(Self.tCL, "Write CAS latency")
 
     # minimum time between a precharge and subsequent activate
     tRP = Param.Latency("Row precharge time")
@@ -246,6 +248,80 @@ class DDR3_1600_8x8(DRAMDCInterface):
     # 8 beats across an x64 interface translates to 4 clocks @ 800 MHz
     tBURST = '5ns'
 
+    # DDR3-1600 11-11-11
+    tRCD = '13.75ns'
+    tCL = '13.75ns'
+    tRP = '13.75ns'
+    tRAS = '35ns'
+    tRRD = '6ns'
+    tXAW = '30ns'
+    activation_limit = 4
+    tRFC = '260ns'
+
+    tWR = '15ns'
+
+    # Greater of 4 CK or 7.5 ns
+    tWTR = '7.5ns'
+
+    # Greater of 4 CK or 7.5 ns
+    tRTP = '7.5ns'
+
+    # Default same rank rd-to-wr bus turnaround to 2 CK, @800 MHz = 2.5 ns
+    tRTW = '2.5ns'
+
+    # Default different rank bus delay to 2 CK, @800 MHz = 2.5 ns
+    tCS = '2.5ns'
+
+    # <=85C, half for >85C
+    tREFI = '7.8us'
+
+    # active powerdown and precharge powerdown exit time
+    tXP = '6ns'
+
+    # self refresh exit time
+    tXS = '270ns'
+
+    # Current values from datasheet Die Rev E,J
+    IDD0 = '55mA'
+    IDD2N = '32mA'
+    IDD3N = '38mA'
+    IDD4W = '125mA'
+    IDD4R = '157mA'
+    IDD5 = '235mA'
+    IDD3P1 = '38mA'
+    IDD2P1 = '32mA'
+    IDD6 = '20mA'
+    VDD = '1.5V'
+
+# This is a hypothetical HBM interface based on DDR3
+class HBM_FROM_DDR3(DRAMDCInterface):
+    # size of device in bytes
+    device_size = '512MiB'
+
+    device_bus_width = 16
+
+    # Using a burst length of 4
+    burst_length = 4
+
+    # Each device has a page (row buffer) size of 1 Kbyte (1K columns x8)
+    device_rowbuffer_size = '1KiB'
+
+    # 8x8 configuration, so 8 devices
+    devices_per_rank = 8
+
+    # Use two ranks
+    ranks_per_channel = 2
+
+    # DDR3 has 8 banks in all configurations
+    banks_per_rank = 8
+
+    # 8000 MHz
+    tCK = '0.125ns'
+
+    # 4 beats across an x64 interface translates to 2 clocks @ 8000 MHz
+    tBURST = '0.25ns'
+
+    # Keeping the other times same as DDR3
     # DDR3-1600 11-11-11
     tRCD = '13.75ns'
     tCL = '13.75ns'
@@ -866,6 +942,247 @@ class LPDDR3_1600_1x32(DRAMDCInterface):
     IDD62 = '1.8mA'
     VDD = '1.8V'
     VDD2 = '1.2V'
+
+# A single DDR5-6400 x64 channel (one command and address bus), with
+# timings based on DDR5-6400AN
+# in an 16x4 configuration.
+# CL-nRCD-nRP --> 46-46-46
+# page 400 of the data sheet
+class DDR5_6800_2x8(DRAMDCInterface):
+    # size of device
+    device_size = '4GiB'
+
+    # single channel of 32bit width, will require 2-bit wide
+    # 16 devices
+    device_bus_width = 8
+
+    # DDR5 is a BL16 device
+    burst_length = 16
+
+    # Each device has a page (row buffer) size of 512 byte (1K columns x4)
+    device_rowbuffer_size = '1024B'
+
+    # 2x8 configuration, so 8 devices
+    devices_per_rank = 4
+
+    # Not sure about this
+    ranks_per_channel = 2
+
+    #
+    bank_groups_per_rank = 4
+
+    # 1Gbx16 Configuration of DDR5 has 4 bank groups,
+    # 4 banks per bank group and 16 banks
+    banks_per_rank = 16
+
+    # I think this defines the controller's read
+    # write queue size by default
+    write_buffer_size = 128
+    read_buffer_size = 64
+
+    # For 6400 MT/s
+    tCK = '0.312ns'
+
+    # 16 beats across an x32 interface translates to 8 clocks @ 3200 MHz
+    # tBURST is equivalent to the CAS-to-CAS delay (tCCD)
+    # With bank group architectures, tBURST represents the CAS-to-CAS
+    # delay for bursts to different bank groups (tCCD_S)
+    tBURST = '2.5ns'
+
+    # @2400 data rate, tCCD_L is 6 CK
+    # CAS-to-CAS delay for bursts to the same bank group
+    # tBURST is equivalent to tCCD_S; no explicit parameter required
+    # for CAS-to-CAS delay for bursts to different bank groups
+
+    # For 6400 MT/s, the number is max(8nCK, 5ns)
+    tCCD_L = '5ns';
+
+    # DDR5 17-17-17
+    tRCD = '14.375ns'
+    tCL = '14.16ns'     # did not find
+    tRP = '14.375ns'
+    tRAS = '32ns'
+
+    # RRD_S (different bank group) : 8nCK
+    tRRD = '2.496ns'
+
+    # RRD_L (same bank group) is MAX(8nCK, 5ns)
+    tRRD_L = '5ns'
+
+    # tFAW for 1KB page is MAX(32 CK, 10.00ns)
+    tXAW = '10ns'
+    activation_limit = 4 # not yet
+    # tRFC (Normal) for 16Gb device is 295ns
+    tRFC = '295ns'
+
+    tWR = '30ns'
+
+    # If the only CL mentioned in datasheet (CL=26@3200) is used
+    # WRT_S = 25.48 and WRT_L= 17.98. Avg. of both:
+    #tWTR = '21.73ns'
+    # but this seems pretty large time to me
+    # DDR4 : tWTR = '5ns'
+    tWTR = '5ns'
+
+    # Greater of 12 CK or 7.5 ns
+    tRTP = '7.5ns'
+
+    # Default same rank rd-to-wr bus turnaround to 2 CK, @1200 MHz = 1.666 ns
+    tRTW = '1.666ns'
+
+    # Default different rank bus delay to 2 CK, @1200 MHz = 1.666 ns
+    tCS = '1.666ns' #did not find
+
+    # <=85C, half for >85C
+    tREFI = '3.9us'
+
+    # active powerdown and precharge powerdown exit time
+    tXP = '7.5ns'
+
+    # self refresh exit time
+    # According to the datasheet tXS = tRFC
+    tXS = '295ns'
+
+    # Current values from datasheet
+    IDD0 = '122mA'
+    #IDD0F
+    IDD02 = '164mA'
+    IDD2N = '92mA'
+    IDD3N = '142mA'
+    IDD3N2 = '142mA'
+    IDD4W = '479mA'
+    IDD4R = '530mA'
+    #IDD5B
+    IDD5 = '277mA'
+    #Not in the datasheet
+    IDD3P1 = '32mA'
+    IDD2P1 = '25mA'
+    #IDD6N
+    IDD6 = '102mA'
+    VDD = '1.1V'
+    #Not in the datasheet
+    VDD2 = '2.5V'
+
+
+# A single DDR5-8400 x64 channel (one command and address bus), with
+# timings based on a DDR5-8400 (DDR5-8400AN)
+# in an 16x4 configuration.
+# CL-nRCD-nRP --> 46-46-46?
+# page 400 of the data sheet
+class DDR5_8400_2x8(DRAMDCInterface):
+    # size of device
+    device_size = '4GiB'
+
+    # single channel of 32bit width, will require 2-bit wide
+    # 16 devices
+    device_bus_width = 8
+
+    # DDR5 is a BL16 device
+    burst_length = 16
+
+    # Each device has a page (row buffer) size of 512 byte (1K columns x4)
+    device_rowbuffer_size = '1024B'
+
+    # 2x8 configuration, so 8 devices
+    devices_per_rank = 4
+
+    # Not sure about this
+    ranks_per_channel = 2
+
+    #
+    bank_groups_per_rank = 4
+
+    # 1Gbx16 Configuration of DDR5 has 4 bank groups,
+    # 4 banks per bank group and 16 banks
+    banks_per_rank = 16
+
+    # I think this defines the controller's read
+    # write queue size by default
+    write_buffer_size = 128
+    read_buffer_size = 64
+
+    # For 8400 MT/s
+    tCK = '0.238ns'
+
+    # 16 beats across an x32 interface translates to 8 clocks @ 4200 MHz
+    # tBURST is equivalent to the CAS-to-CAS delay (tCCD)
+    # With bank group architectures, tBURST represents the CAS-to-CAS
+    # delay for bursts to different bank groups (tCCD_S)
+    tBURST = '1.904ns'
+
+    # @8400 data rate, tCCD_L is 6 CK ?
+    # CAS-to-CAS delay for bursts to the same bank group
+    # tBURST is equivalent to tCCD_S; no explicit parameter required
+    # for CAS-to-CAS delay for bursts to different bank groups
+
+    # For 8400 MT/s, the number is max(8nCK, 5ns)
+    tCCD_L = '5ns';
+
+    # DDR5 17-17-17
+    tRCD = '14.375ns'
+    tCL = '14.16ns'     # did not find
+    tRP = '14.375ns'
+    tRAS = '32ns'
+
+    # RRD_S (different bank group) : 8nCK
+    tRRD = '1.904ns'
+
+    # RRD_L (same bank group) is MAX(8nCK, 5ns)
+    tRRD_L = '5ns'
+
+    # tFAW for 1KB page is MAX(32 CK, 10.00ns)
+    tXAW = '10ns'
+    activation_limit = 4 # not yet
+    # tRFC (Normal) for 16Gb device is 295ns
+    tRFC = '295ns'
+
+    tWR = '30ns'
+
+    # If the only CL mentioned in datasheet (CL=26@3200) is used
+    # WRT_S = 25.48 and WRT_L= 17.98. Avg. of both:
+    #tWTR = '21.73ns'
+    # but this seems pretty large time to me
+    # DDR4 : tWTR = '5ns'
+    tWTR = '5ns'
+
+    # Greater of 12 CK or 7.5 ns
+    tRTP = '7.5ns'
+
+    # Default same rank rd-to-wr bus turnaround to 2 CK, @4200 MHz = 0.476 ns
+    tRTW = '0.476ns'
+
+    # Default different rank bus delay to 2 CK, @4200 MHz = 0.476 ns
+    tCS = '0.476ns' #did not find
+
+    # <=85C, half for >85C
+    tREFI = '3.9us'
+
+    # active powerdown and precharge powerdown exit time
+    tXP = '7.5ns'
+
+    # self refresh exit time
+    # According to the datasheet tXS = tRFC
+    tXS = '295ns'
+
+    # Current values from datasheet
+    IDD0 = '122mA'
+    #IDD0F
+    IDD02 = '164mA'
+    IDD2N = '92mA'
+    IDD3N = '142mA'
+    IDD3N2 = '142mA'
+    IDD4W = '479mA'
+    IDD4R = '530mA'
+    #IDD5B
+    IDD5 = '277mA'
+    #Not in the datasheet
+    IDD3P1 = '32mA'
+    IDD2P1 = '25mA'
+    #IDD6N
+    IDD6 = '102mA'
+    VDD = '1.1V'
+    #Not in the datasheet
+    VDD2 = '2.5V'
 
 # A single GDDR5 x64 interface, with
 # default timings based on a GDDR5-4000 1 Gbit part (SK Hynix

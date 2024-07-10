@@ -81,7 +81,7 @@ DCMemInterface::setCtrl(DcacheCtrl* _ctrl, unsigned int command_window)
     maxCommandsPerWindow = command_window / tCK;
 }
 
-dccPacket*
+MemPacket*
 DCMemInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
                        unsigned size, bool is_read, bool is_dram)
 {
@@ -163,12 +163,12 @@ DCMemInterface::decodePacket(const PacketPtr pkt, Addr pkt_addr,
     // later
     uint16_t bank_id = banksPerRank * rank + bank;
 
-    return new dccPacket(pkt, is_read, is_dram, rank, bank, row, bank_id,
+    return new MemPacket(pkt, is_read, is_dram, rank, bank, row, bank_id,
                    pkt_addr, size);
 }
 
-std::pair<dccPacketQueue::iterator, Tick>
-DRAMDCInterface::chooseNextFRFCFS(dccPacketQueue& queue, Tick min_col_at) const
+std::pair<MemPacketQueue::iterator, Tick>
+DRAMDCInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
 {
     std::vector<uint32_t> earliest_banks(ranksPerChannel, 0);
 
@@ -196,7 +196,7 @@ DRAMDCInterface::chooseNextFRFCFS(dccPacketQueue& queue, Tick min_col_at) const
     auto selected_pkt_it = queue.end();
 
     for (auto i = queue.begin(); i != queue.end() ; ++i) {
-        dccPacket* pkt = *i;
+        MemPacket* pkt = *i;
 
         // select optimal DRAM packet in Q
         if (pkt->isDram()) {
@@ -325,8 +325,8 @@ DRAMDCInterface::activateBank(Rank& rank_ref, Bank& bank_ref,
     bank_ref.preAllowedAt = act_at + tRAS;
 
     // Respect the row-to-column command delay for both read and write cmds
-    bank_ref.rdAllowedAt = std::max(act_at + tRCD, bank_ref.rdAllowedAt);
-    bank_ref.wrAllowedAt = std::max(act_at + tRCD, bank_ref.wrAllowedAt);
+    bank_ref.rdAllowedAt = std::max(act_at + tRCD_RD, bank_ref.rdAllowedAt);
+    bank_ref.wrAllowedAt = std::max(act_at + tRCD_WR, bank_ref.wrAllowedAt);
 
     // start by enforcing tRRD
     for (int i = 0; i < banksPerRank; i++) {
@@ -455,8 +455,8 @@ DRAMDCInterface::prechargeBank(Rank& rank_ref, Bank& bank, Tick pre_tick,
 }
 
 std::pair<Tick, Tick>
-DRAMDCInterface::doBurstAccess(dccPacket* dcc_pkt, Tick next_burst_at)
-                             //,const std::vector<dccPacketQueue>& queue)
+DRAMDCInterface::doBurstAccess(MemPacket* dcc_pkt, Tick next_burst_at)
+                             //,const std::vector<MemPacketQueue>& queue)
 {
     DPRINTF(DRAM, "Timing access to addr %lld, rank/bank/row %d %d %d\n",
             dcc_pkt->addr, dcc_pkt->rank, dcc_pkt->bank, dcc_pkt->row);
@@ -506,10 +506,11 @@ DRAMDCInterface::doBurstAccess(dccPacket* dcc_pkt, Tick next_burst_at)
     // we need to wait until the bus is available before we can issue
     // the command; need to ensure minimum bus delay requirement is met
     Tick cmd_at = std::max({col_allowed_at, next_burst_at, curTick()});
+    Tick max_sync = clkResyncDelay + (dcc_pkt->isRead() ? tRL : tWL);
 
     // verify that we have command bandwidth to issue the burst
     // if not, shift to next burst window
-    if (dataClockSync && ((cmd_at - rank_ref.lastBurstTick) > clkResyncDelay))
+    if (dataClockSync && ((cmd_at - rank_ref.lastBurstTick) > max_sync))
         cmd_at = ctrl->verifyMultiCmd(cmd_at, maxCommandsPerWindow, tCK);
     else
         cmd_at = ctrl->verifySingleCmd(cmd_at, maxCommandsPerWindow);
@@ -533,7 +534,14 @@ DRAMDCInterface::doBurstAccess(dccPacket* dcc_pkt, Tick next_burst_at)
     DPRINTF(DRAM, "Schedule RD/WR burst at tick %d\n", cmd_at);
 
     // update the packet ready time
-    dcc_pkt->readyTime = cmd_at + tCL + tBURST;
+    //dcc_pkt->readyTime = cmd_at + tCL + tBURST;
+
+    if (dcc_pkt->isRead()) {
+        dcc_pkt->readyTime = cmd_at + tRL + tBURST;
+    } else {
+        dcc_pkt->readyTime = cmd_at + tWL + tBURST;
+    }
+
 
     rank_ref.lastBurstTick = cmd_at;
 
@@ -735,19 +743,21 @@ DRAMDCInterface::DRAMDCInterface(const DRAMDCInterfaceParams &_p)
     : DCMemInterface(_p),
       bankGroupsPerRank(_p.bank_groups_per_rank),
       bankGroupArch(_p.bank_groups_per_rank > 0),
-      tCL(_p.tCL),
+      tRL(_p.tCL),
+      tWL(_p.tCWL),
       tBURST_MIN(_p.tBURST_MIN), tBURST_MAX(_p.tBURST_MAX),
-      tCCD_L_WR(_p.tCCD_L_WR), tCCD_L(_p.tCCD_L), tRCD(_p.tRCD),
+      tCCD_L_WR(_p.tCCD_L_WR), tCCD_L(_p.tCCD_L),
+      tRCD_RD(_p.tRCD), tRCD_WR(_p.tRCD_WR),
       tRP(_p.tRP), tRAS(_p.tRAS), tWR(_p.tWR), tRTP(_p.tRTP),
       tRFC(_p.tRFC), tREFI(_p.tREFI), tRRD(_p.tRRD), tRRD_L(_p.tRRD_L),
       tPPD(_p.tPPD), tAAD(_p.tAAD),
       tXAW(_p.tXAW), tXP(_p.tXP), tXS(_p.tXS),
-      clkResyncDelay(tCL + _p.tBURST_MAX),
+      clkResyncDelay(_p.tBURST_MAX),
       dataClockSync(_p.data_clock_sync),
       burstInterleave(tBURST != tBURST_MIN),
       twoCycleActivate(_p.two_cycle_activate),
       activationLimit(_p.activation_limit),
-      wrToRdDlySameBG(tCL + _p.tBURST_MAX + _p.tWTR_L),
+      wrToRdDlySameBG(tWL + _p.tBURST_MAX + _p.tWTR_L),
       rdToWrDlySameBG(_p.tRTW + _p.tBURST_MAX),
       pageMgmt(_p.page_policy),
       maxAccessesPerRow(_p.max_accesses_per_row),
@@ -1037,7 +1047,7 @@ DRAMDCInterface::suspend()
 }
 
 std::pair<std::vector<uint32_t>, bool>
-DRAMDCInterface::minBankPrep(const dccPacketQueue& queue,
+DRAMDCInterface::minBankPrep(const MemPacketQueue& queue,
                       Tick min_col_at) const
 {
     Tick min_act_at = MaxTick;
@@ -1045,7 +1055,7 @@ DRAMDCInterface::minBankPrep(const dccPacketQueue& queue,
 
     // latest Tick for which ACT can occur without incurring additoinal
     // delay on the data bus
-    const Tick hidden_act_max = std::max(min_col_at - tRCD, curTick());
+    //const Tick hidden_act_max = std::max(min_col_at - tRCD, curTick());
 
     // Flag condition when burst can issue back-to-back with previous burst
     bool found_seamless_bank = false;
@@ -1079,6 +1089,13 @@ DRAMDCInterface::minBankPrep(const dccPacketQueue& queue,
                 Tick act_at = ranks[i]->banks[j].openRow == Bank::NO_ROW ?
                     std::max(ranks[i]->banks[j].actAllowedAt, curTick()) :
                     std::max(ranks[i]->banks[j].preAllowedAt, curTick()) + tRP;
+
+                // latest Tick for which ACT can occur without incurring additoinal
+                // delay on the data bus
+
+                const Tick tRCD = ctrl->inReadBusState(false) ? tRCD_RD : tRCD_WR;
+                const Tick hidden_act_max = std::max(min_col_at - tRCD, curTick());
+
 
                 // When is the earliest the R/W burst can issue?
                 const Tick col_allowed_at = ctrl->inReadBusState(false) ?
@@ -2060,8 +2077,8 @@ void NVMDCInterface::setupRank(const uint8_t rank, const bool is_read)
     }
 }
 
-std::pair<dccPacketQueue::iterator, Tick>
-NVMDCInterface::chooseNextFRFCFS(dccPacketQueue& queue, Tick min_col_at) const
+std::pair<MemPacketQueue::iterator, Tick>
+NVMDCInterface::chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const
 {
     // remember if we found a hit, but one that cannit issue seamlessly
     bool found_prepped_pkt = false;
@@ -2070,7 +2087,7 @@ NVMDCInterface::chooseNextFRFCFS(dccPacketQueue& queue, Tick min_col_at) const
     Tick selected_col_at = MaxTick;
 
     for (auto i = queue.begin(); i != queue.end() ; ++i) {
-        dccPacket* pkt = *i;
+        MemPacket* pkt = *i;
 
         // select optimal NVM packet in Q
         if (!pkt->isDram()) {
@@ -2117,7 +2134,7 @@ NVMDCInterface::chooseNextFRFCFS(dccPacketQueue& queue, Tick min_col_at) const
 }
 
 void
-NVMDCInterface::chooseRead(dccPacketQueue& queue)
+NVMDCInterface::chooseRead(MemPacketQueue& queue)
 {
     Tick cmd_at = std::max(curTick(), nextReadAt);
 
@@ -2132,7 +2149,7 @@ NVMDCInterface::chooseRead(dccPacketQueue& queue)
     numReadsToIssue--;
     // For simplicity, issue non-deterministic reads in order (fcfs)
     for (auto i = queue.begin(); i != queue.end() ; ++i) {
-        dccPacket* pkt = *i;
+        MemPacket* pkt = *i;
 
         // Find 1st NVM read packet that hasn't issued read command
         if (pkt->readyTime == MaxTick && !pkt->isDram() && pkt->isRead()) {
@@ -2212,7 +2229,7 @@ NVMDCInterface::chooseRead(dccPacketQueue& queue)
 }
 
 void
-NVMDCInterface::processReadPkt(dccPacket* pkt)
+NVMDCInterface::processReadPkt(MemPacket* pkt)
 {
     Tick cmd_at = std::max(curTick(), nextReadAt);
 
@@ -2340,7 +2357,7 @@ NVMDCInterface::processReadReadyEvent()
 }
 
 bool
-NVMDCInterface::burstReady(dccPacket* pkt) const
+NVMDCInterface::burstReady(MemPacket* pkt) const
 {
     bool read_rdy =  pkt->isRead() && (ctrl->inReadBusState(false)) &&
                (pkt->readyTime <= curTick()) && (numReadDataReady > 0);
@@ -2350,7 +2367,7 @@ NVMDCInterface::burstReady(dccPacket* pkt) const
 }
 
 std::pair<Tick, Tick>
-NVMDCInterface::doBurstAccess(dccPacket* pkt, Tick next_burst_at)
+NVMDCInterface::doBurstAccess(MemPacket* pkt, Tick next_burst_at)
 {
     DPRINTF(NVM, "NVM Timing access to addr %lld, rank/bank/row %d %d %d\n",
             pkt->addr, pkt->rank, pkt->bank, pkt->row);

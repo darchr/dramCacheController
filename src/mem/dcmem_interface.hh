@@ -163,7 +163,6 @@ class DCMemInterface : public AbstractMemory
      */
     Tick rankToRankDelay() const { return tBURST + tCS; }
 
-
   public:
 
     /**
@@ -224,8 +223,8 @@ class DCMemInterface : public AbstractMemory
      * @return an iterator to the selected packet, else queue.end()
      * @return the tick when the packet selected will issue
      */
-    virtual std::pair<dccPacketQueue::iterator, Tick>
-    chooseNextFRFCFS(dccPacketQueue& queue, Tick min_col_at) const = 0;
+    virtual std::pair<MemPacketQueue::iterator, Tick>
+    chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const = 0;
 
     /*
      * Function to calulate unloaded latency
@@ -247,7 +246,7 @@ class DCMemInterface : public AbstractMemory
      *
      * @param Return true if RD/WR can issue
      */
-    virtual bool burstReady(dccPacket* pkt) const = 0;
+    virtual bool burstReady(MemPacket* pkt) const = 0;
 
     /**
      * Determine the required delay for an access to a different rank
@@ -255,6 +254,18 @@ class DCMemInterface : public AbstractMemory
      * @return required rank to rank delay
      */
     Tick rankDelay() const { return tCS; }
+
+    /**
+     *
+     * @return minimum additional bus turnaround required for read-to-write
+     */
+    Tick minReadToWriteDataGap() const { return std::min(tRTW, tCS); }
+
+    /**
+     *
+     * @return minimum additional bus turnaround required for write-to-read
+     */
+    Tick minWriteToReadDataGap() const { return std::min(tWTR, tCS); }
 
     /**
      * Address decoder to figure out physical mapping onto ranks,
@@ -267,9 +278,9 @@ class DCMemInterface : public AbstractMemory
      * @param size The size of the packet in bytes
      * @param is_read Is the request for a read or a write to memory
      * @param is_dram Is the request to a DRAM interface
-     * @return A dccPacket pointer with the decoded information
+     * @return A MemPacket pointer with the decoded information
      */
-    dccPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,
+    MemPacket* decodePacket(const PacketPtr pkt, Addr pkt_addr,
                            unsigned int size, bool is_read, bool is_dram);
 
     /**
@@ -716,12 +727,15 @@ class DRAMDCInterface : public DCMemInterface
     /**
      * DRAM specific timing requirements
      */
-    const Tick tCL;
+    //const Tick tCL;
+    const Tick tRL;
+    const Tick tWL;
     const Tick tBURST_MIN;
     const Tick tBURST_MAX;
     const Tick tCCD_L_WR;
     const Tick tCCD_L;
-    const Tick tRCD;
+    const Tick tRCD_RD;
+    const Tick tRCD_WR;
     const Tick tRP;
     const Tick tRAS;
     const Tick tWR;
@@ -850,7 +864,7 @@ class DRAMDCInterface : public DCMemInterface
     /*
      * @return delay between write and read commands
      */
-    Tick writeToReadDelay() const override { return tBURST + tWTR + tCL; }
+    Tick writeToReadDelay() const override { return tBURST + tWTR + tWL; }
 
     /**
      * Find which are the earliest banks ready to issue an activate
@@ -863,7 +877,7 @@ class DRAMDCInterface : public DCMemInterface
      * @return boolean indicating burst can issue seamlessly, with no gaps
      */
     std::pair<std::vector<uint32_t>, bool>
-    minBankPrep(const dccPacketQueue& queue, Tick min_col_at) const;
+    minBankPrep(const MemPacketQueue& queue, Tick min_col_at) const;
 
     /*
      * @return time to send a burst of data without gaps
@@ -917,12 +931,12 @@ class DRAMDCInterface : public DCMemInterface
     /*
      * @return time to offset next command
      */
-    Tick commandOffset() const override { return (tRP + tRCD); }
+    Tick commandOffset() const override {return (tRP + std::max(tRCD_RD, tRCD_WR));}
 
     /*
      * Function to calulate unloaded, closed bank access latency
      */
-    Tick accessLatency() const override { return (tRP + tRCD + tCL); }
+    Tick accessLatency() const override { return (tRP + tRCD_RD + tRL); }
 
     /**
      * For FR-FCFS policy, find first DRAM command that can issue
@@ -932,8 +946,8 @@ class DRAMDCInterface : public DCMemInterface
      * @return an iterator to the selected packet, else queue.end()
      * @return the tick when the packet selected will issue
      */
-    std::pair<dccPacketQueue::iterator, Tick>
-    chooseNextFRFCFS(dccPacketQueue& queue, Tick min_col_at) const override;
+    std::pair<MemPacketQueue::iterator, Tick>
+    chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const override;
 
     /**
      * Actually do the burst - figure out the latency it
@@ -950,7 +964,7 @@ class DRAMDCInterface : public DCMemInterface
      *               tick when next burst can issue
      */
     std::pair<Tick, Tick>
-    doBurstAccess(dccPacket* dcc_pkt, Tick next_burst_at);
+    doBurstAccess(MemPacket* dcc_pkt, Tick next_burst_at);
 
     /**
      * Check if a burst operation can be issued to the DRAM
@@ -960,7 +974,7 @@ class DRAMDCInterface : public DCMemInterface
      *                    REF IDLE state
      */
     bool
-    burstReady(dccPacket* pkt) const override
+    burstReady(MemPacket* pkt) const override
     {
         return ranks[pkt->rank]->inRefIdleState();
     }
@@ -1116,13 +1130,6 @@ class NVMDCInterface : public DCMemInterface
     std::deque<Tick> readReadyQueue;
 
     /**
-     * Check if the write response queue is empty
-     *
-     * @param Return true if empty
-     */
-    bool writeRespQueueEmpty() const { return writeRespQueue.empty(); }
-
-    /**
      * Till when must we wait before issuing next read command?
      */
     Tick nextReadAt;
@@ -1173,7 +1180,7 @@ class NVMDCInterface : public DCMemInterface
      *                    has been updated to a non-zero value to
      *                    account for race conditions between events
      */
-    bool burstReady(dccPacket* pkt) const override;
+    bool burstReady(MemPacket* pkt) const override;
 
     /**
      * This function checks if ranks are busy.
@@ -1196,8 +1203,8 @@ class NVMDCInterface : public DCMemInterface
      * @return an iterator to the selected packet, else queue.end()
      * @return the tick when the packet selected will issue
      */
-    std::pair<dccPacketQueue::iterator, Tick>
-    chooseNextFRFCFS(dccPacketQueue& queue, Tick min_col_at) const override;
+    std::pair<MemPacketQueue::iterator, Tick>
+    chooseNextFRFCFS(MemPacketQueue& queue, Tick min_col_at) const override;
 
     /**
      *  Add rank to rank delay to bus timing to all NVM banks in alli ranks
@@ -1212,9 +1219,9 @@ class NVMDCInterface : public DCMemInterface
     /**
      * Select read command to issue asynchronously
      */
-    void chooseRead(dccPacketQueue& queue);
+    void chooseRead(MemPacketQueue& queue);
 
-    void processReadPkt(dccPacket* pkt);
+    void processReadPkt(MemPacket* pkt);
 
     /*
      * Function to calulate unloaded access latency
@@ -1232,6 +1239,13 @@ class NVMDCInterface : public DCMemInterface
         return writeRespQueue.size() == maxPendingWrites;
     }
 
+     /**
+     * Check if the write response queue is empty
+     *
+     * @param Return true if empty
+     */
+    bool writeRespQueueEmpty() const { return writeRespQueue.empty(); }
+
     uint32_t
     getMaxPendingWrites()
     {
@@ -1242,6 +1256,12 @@ class NVMDCInterface : public DCMemInterface
     writeRespQueueFront()
     {
         return writeRespQueue.front();
+    }
+
+    unsigned
+    writeRespQueueSize()
+    {
+        return writeRespQueue.size();
     }
 
     bool
@@ -1260,7 +1280,7 @@ class NVMDCInterface : public DCMemInterface
      *               tick when next burst can issue
      */
     std::pair<Tick, Tick>
-    doBurstAccess(dccPacket* pkt, Tick next_burst_at);
+    doBurstAccess(MemPacket* pkt, Tick next_burst_at);
 
     NVMDCInterface(const NVMDCInterfaceParams &_p);
 };
