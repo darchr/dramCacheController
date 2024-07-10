@@ -83,6 +83,7 @@ MemInterface::setCtrl(MemCtrl* _ctrl, unsigned int command_window)
 {
     ctrl = _ctrl;
     maxCommandsPerWindow = command_window / tCK;
+    //maxCommandsPerWindow = command_window / (2*tCK);
 }
 
 MemPacket*
@@ -1219,6 +1220,8 @@ DRAMInterface::Rank::flushCmdList()
     // for DRAMPower libray when doing a refresh
     sort(cmdList.begin(), cmdList.end(), DRAMInterface::sortTime);
 
+    stats.cmdIssued += cmdList.size();
+
     auto next_iter = cmdList.begin();
     // push to commands to DRAMPower
     for ( ; next_iter != cmdList.end() ; ++next_iter) {
@@ -2003,7 +2006,12 @@ DRAMInterface::RankStats::RankStats(DRAMInterface &_dram, Rank &_rank)
     ADD_STAT(totalIdleTime, statistics::units::Tick::get(),
              "Total Idle time Per DRAM Rank"),
     ADD_STAT(pwrStateTime, statistics::units::Tick::get(),
-             "Time in different power states")
+             "Time in different power states"),
+
+    ADD_STAT(cmdIssued, statistics::units::Count::get(),
+            "Total number of DRAM commands issued"),
+    ADD_STAT(cmdBusUtil, statistics::units::Ratio::get(),
+            "Avgerage command bus utilization in cmds/cycle")
 {
 }
 
@@ -2020,6 +2028,10 @@ DRAMInterface::RankStats::regStats()
         .subname(3, "PRE_PDN")
         .subname(4, "ACT")
         .subname(5, "ACT_PDN");
+
+    cmdBusUtil.precision(2);
+    cmdBusUtil = cmdIssued/(simTicks/rank.getDRAM().tCK);
+
 }
 
 void

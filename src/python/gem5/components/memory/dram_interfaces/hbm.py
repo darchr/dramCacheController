@@ -49,6 +49,114 @@ interface.
 
 from m5.objects import DRAMInterface
 
+class HBM_2000_4H_1x128(DRAMInterface):
+    """
+    A single HBM2 x128 interface (one command and address bus)
+    """
+
+    # 128-bit interface legacy mode
+    device_bus_width = 128
+
+    # HBM supports BL4
+    burst_length = 4
+
+    # size of channel in bytes, 4H stack of 8Gb dies is 4GiB per stack;
+    # with 8 channels, 512MiB per channel
+    # since we have two ranks --> device_size/rank = 256MiB
+    device_size = "256MiB"
+
+    device_rowbuffer_size = "2KiB"
+
+    # 1x128 configuration
+    devices_per_rank = 1
+
+    ranks_per_channel = 2
+
+    # HBM has 8 or 16 banks depending on capacity
+    # 2Gb dies have 8 banks
+    banks_per_rank = 16
+
+    bank_groups_per_rank = 4
+
+    # 1000 MHz for 2Gbps DDR data rate
+    tCK = "1ns"
+
+    tRP = "14ns"
+
+    # tCCD_L = 3ns (RBus), tCCD_L = 4ns (FGDRAM paper)
+    tCCD_L = "3ns"
+    # tCCD_S = 2ns (RBus), tCCD_S = 2ns (FGDRAM paper)
+    # this is set same as tBURST, no separate param
+
+    #tRCDRD = 12ns, tRCDWR = 6ns (RBus)
+    #tRCD = 16ns (FGDRAM paper)
+    tRCD = "12ns"
+    #tCL from FGDRAM paper
+    tCL = "16ns"
+    #tRAS = 28ns (RBus) / 29ns (FGDRAM paper)
+    tRAS = "28ns"
+
+    # Only BL4 supported
+    # DDR @ 1000 MHz means 4 * 1ns / 2 = 2ns
+    tBURST = "2ns"
+
+    #tRFC from RBus
+    tRFC = "220ns"
+
+    #tREFI from RBus
+    tREFI = "3.9us"
+
+    #tWR = 14ns (RBus) / 16ns (FGDRAM paper)
+    tWR = "14ns"
+    #tRTP = 5ns (RBus)
+    tRTP = "5ns"
+    #tWTR = 9ns, 4ns (RBus) / 8ns, 3ns (FGDRAM paper)
+    tWTR = "9ns"
+
+    #tRTW from RBus
+    tRTW = "18ns"
+
+    # not available anywhere
+    tCS = "0ns"
+
+    # tRRD = 2ns (FGDRAM paper)
+    tRRD = "2ns"
+
+    # tRRDL = 6ns, tRRDS = 4ns (RBus)
+    tRRD_L = "6ns"
+    # no param for tRRD_S
+
+    # tFAW = 16ns (RBus), tFAW = 14ns (FGDRAM paper)
+    tXAW = "16ns"
+    # activates in tFAW = 4
+    activation_limit = 4
+
+    # tXP from RBus
+    tXP = "8ns"
+
+    # tXS from RBus
+    tXS = "216ns"
+
+    # this shows much better bw than 'close'
+    page_policy = 'close_adaptive'
+
+    read_buffer_size = 32
+    write_buffer_size = 32
+
+class HBM_2000_4H_1x64(HBM_2000_4H_1x128):
+    """
+    An HBM2 x64 interface to model a single pseudo
+    channel.
+    """
+
+    device_bus_width = 64
+    # size of channel in bytes, 4H stack of 8Gb dies is 4GiB per stack;
+    # with 16 channels, 256MiB per channel
+    # since we have two ranks --> device_size/rank = 128MiB
+    device_size = "128MiB"
+    device_rowbuffer_size = "1KiB"
+
+    activation_limit = 8
 
 class HBM_1000_4H_1x128(DRAMInterface):
     """
@@ -194,3 +302,223 @@ class HBM_1000_4H_1x64(HBM_1000_4H_1x128):
 
     # self refresh exit time
     tXS = "65ns"
+
+    read_buffer_size = 64
+    write_buffer_size = 64
+
+# This is a hypothetical HBM interface based on DDR3
+# Increases the clock of DDR3 by 10x
+# Decreases burst length (and increaes device
+# bus width) by 2x
+class HBM_FROM_DDR3(DRAMInterface):
+    # size of device in bytes
+    device_size = '512MiB'
+
+    device_bus_width = 16
+
+    # Using a burst length of 4
+    burst_length = 4
+
+    # Each device has a page (row buffer) size of 1 Kbyte (1K columns x8)
+    device_rowbuffer_size = '1KiB'
+
+    # 8x8 configuration, so 8 devices
+    devices_per_rank = 8
+
+    # Use two ranks
+    ranks_per_channel = 2
+
+    # DDR3 has 8 banks in all configurations
+    banks_per_rank = 8
+
+    # 8000 MHz
+    tCK = '0.125ns'
+
+    # 4 beats across an x64 interface translates to 2 clocks @ 8000 MHz
+    tBURST = '0.25ns'
+
+    # Keeping the other times same as DDR3
+    # DDR3-1600 11-11-11
+    tRCD = '13.75ns'
+    tCL = '13.75ns'
+    tRP = '13.75ns'
+    tRAS = '35ns'
+    tRRD = '6ns'
+    tXAW = '30ns'
+    activation_limit = 4
+    tRFC = '260ns'
+
+    tWR = '15ns'
+
+    # Greater of 4 CK or 7.5 ns
+    tWTR = '7.5ns'
+
+    # Greater of 4 CK or 7.5 ns
+    tRTP = '7.5ns'
+
+    # Default same rank rd-to-wr bus turnaround to 2 CK, @800 MHz = 2.5 ns
+    tRTW = '2.5ns'
+
+    # Default different rank bus delay to 2 CK, @800 MHz = 2.5 ns
+    tCS = '2.5ns'
+
+    # <=85C, half for >85C
+    tREFI = '7.8us'
+
+    # active powerdown and precharge powerdown exit time
+    tXP = '6ns'
+
+    # self refresh exit time
+    tXS = '270ns'
+
+    # Current values from datasheet Die Rev E,J
+    IDD0 = '55mA'
+    IDD2N = '32mA'
+    IDD3N = '38mA'
+    IDD4W = '125mA'
+    IDD4R = '157mA'
+    IDD5 = '235mA'
+    IDD3P1 = '38mA'
+    IDD2P1 = '32mA'
+    IDD6 = '20mA'
+    VDD = '1.5V'
+
+    read_buffer_size = 1024
+    write_buffer_size = 1024
+
+# This is a hypothetical HBM interface based on DDR3
+# Increases the clock of DDR3 by 10x
+# Decreases burst length (and increaes device
+# bus width) by 2x
+class HBM_FROM_DDR3_v2(DRAMInterface):
+    # size of device in bytes
+    device_size = '512MiB'
+
+    device_bus_width = 16
+
+    # Using a burst length of 4
+    burst_length = 4
+
+    # Each device has a page (row buffer) size of 1 Kbyte (1K columns x8)
+    device_rowbuffer_size = '1KiB'
+
+    # 8x8 configuration, so 8 devices
+    devices_per_rank = 8
+
+    # Use two ranks
+    ranks_per_channel = 2
+
+    # DDR3 has 8 banks in all configurations
+    banks_per_rank = 8
+
+    # 8000 MHz
+    tCK = '0.125ns'
+
+    # 4 beats across an x64 interface translates to 2 clocks @ 8000 MHz
+    tBURST = '0.25ns'
+
+    # Keeping the other times same as DDR3
+    # DDR3-1600 11-11-11
+    tRCD = '1.375ns'
+    tCL = '1.375ns'
+    tRP = '1.375ns'
+    tRAS = '3.5ns'
+    tRRD = '0.6ns'
+    tXAW = '3ns'
+    activation_limit = 4
+    tRFC = '26ns'
+
+    tWR = '1.5ns'
+
+    # Greater of 4 CK or 7.5 ns
+    tWTR = '0.75ns'
+
+    # Greater of 4 CK or 7.5 ns
+    tRTP = '0.75ns'
+
+    # Default same rank rd-to-wr bus turnaround to 2 CK, @800 MHz = 2.5 ns
+    tRTW = '0.25ns'
+
+    # Default different rank bus delay to 2 CK, @800 MHz = 2.5 ns
+    tCS = '0.25ns'
+
+    # <=85C, half for >85C
+    tREFI = '0.78us'
+
+    # active powerdown and precharge powerdown exit time
+    tXP = '0.6ns'
+
+    # self refresh exit time
+    tXS = '27ns'
+
+    # Current values from datasheet Die Rev E,J
+    IDD0 = '55mA'
+    IDD2N = '32mA'
+    IDD3N = '38mA'
+    IDD4W = '125mA'
+    IDD4R = '157mA'
+    IDD5 = '235mA'
+    IDD3P1 = '38mA'
+    IDD2P1 = '32mA'
+    IDD6 = '20mA'
+    VDD = '1.5V'
+
+    read_buffer_size = 1024
+    write_buffer_size = 1024
+
+class HBM_1000_4H_1x64_pseudo(HBM_1000_4H_1x64):
+    """
+    This is an approximation of HBM_1000_4H_1x64
+    single channel (with two pseudo channels)
+    decreases the burst length by 2x -->
+    increases the bus width to maintain an atom
+    size of 64 bytes
+    increases clock frequency by 2x (is
+    that needed?)
+    """
+
+    device_bus_width = 256
+    burst_length = 2
+
+    tCK = "1ns"
+    tBURST = "2ns"
+
+    read_buffer_size = 128
+    write_buffer_size = 128
+
+class HBM_1000_4H_1x64_pseudo_v2(HBM_1000_4H_1x128):
+    """
+    This is an approximation of HBM_1000_4H_1x64
+    single channel (with two pseudo channels)
+    decreases the burst length by 2x -->
+    increases the bus width to maintain an atom
+    size of 64 bytes
+    increases clock frequency by 2x (is
+    that needed?)
+    """
+
+    device_bus_width = 256
+    burst_length = 2
+
+    tCK = "1ns"
+    tBURST = "2ns"
+
+    tRFC = "130ns"
+
+    tXS = "134ns"
+    tCS = "1ns"
+    tREFI = "1.95us"
+    tXP = "5ns"
+    tRP = "7.5ns"
+    tRCD = "7.5ns"
+    tCL = "7.5ns"
+    tRAS = "16.5ns"
+    tWR = "9ns"
+    tRTP = "3.75ns"
+    tWTR = "5ns"
+    tRTW = "2ns"
+    tRRD = "2ns"
+    tXAW = "15ns"
+
+    read_buffer_size = 128
+    write_buffer_size = 128
